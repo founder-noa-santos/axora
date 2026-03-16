@@ -1,0 +1,70 @@
+[package]
+name = "axora-indexing"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Code indexing with Tree-sitter chunking, Merkle tree sync, and SCIP protocol"
+
+[dependencies]
+# Code parsing
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-python.workspace = true
+
+# Graph algorithms (PageRank)
+petgraph = "0.6"
+
+# Protocol Buffers (SCIP protocol)
+prost.workspace = true
+
+# Directory walking
+walkdir = "2.4"
+
+# Vector search
+qdrant-client.workspace = true
+# lancedb.workspace = true  # Temporarily disabled
+
+# Full-text search
+tantivy.workspace = true
+
+# Hashing
+blake3.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+# File watching
+notify.workspace = true
+
+# Async
+tokio.workspace = true
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+toml = "0.8"
+regex = "1.10"
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Utilities
+tracing.workspace = true
+uuid.workspace = true
+
+# Internal
+axora-embeddings = { path = "../axora-embeddings" }
+
+[dev-dependencies]
+tokio-test.workspace = true
+criterion.workspace = true
+tempfile = "3.10"

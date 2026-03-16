@@ -1,0 +1,39 @@
+[package]
+name = "axora-memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Tripartite memory system for AXORA agents (semantic, episodic, procedural)"
+
+[dependencies]
+# SQLite (using rusqlite to match axora-storage)
+rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid"] }
+
+# ML for GMM clustering
+ndarray = "0.15"
+linfa = "0.7"
+
+# Async
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true
+tempfile = "3.10"

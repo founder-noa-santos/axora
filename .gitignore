@@ -1,0 +1,44 @@
+# Rust workspace
+/target/
+**/target/
+*.rs.bk
+Cargo.lock
+
+# Build artifacts
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+coverage/
+*.gcno
+*.gcda
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+
+# Documentation
+docs/_build/
+site/
+
+# Temporary
+*.tmp
+*.temp
+*.pending

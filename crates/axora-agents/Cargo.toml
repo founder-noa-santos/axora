@@ -1,0 +1,33 @@
+[package]
+name = "axora-agents"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Agent framework for AXORA"
+
+[dependencies]
+# Internal
+axora-proto.workspace = true
+
+# Async
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Utilities
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true
+axora-cache.workspace = true
+axora-docs.workspace = true

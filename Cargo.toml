@@ -1,0 +1,115 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/axora-proto",
+    "crates/axora-storage",
+    "crates/axora-core",
+    "crates/axora-daemon",
+    # Phase 1 crates
+    "crates/axora-rag",
+    "crates/axora-indexing",
+    "crates/axora-embeddings",
+    "crates/axora-agents",
+    "crates/axora-cache",
+    # Phase 2 crates
+    "crates/axora-docs",
+    "crates/axora-memory",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["AXORA Team <team@axora.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/axora/axora-mvp"
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Core async runtime
+tokio = { version = "1.35", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec", "rt"] }
+tokio-stream = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Protocol Buffers
+tonic = "0.11"
+tonic-build = "0.11"
+prost = "0.12"
+prost-types = "0.12"
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid", "serde_json"] }
+refinery = { version = "0.8", features = ["rusqlite"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Utilities
+uuid = { version = "1.7", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "5.5"
+parking_lot = "0.12"
+once_cell = "1.19"
+
+# Testing
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+# Internal crates
+axora-proto = { path = "crates/axora-proto" }
+axora-storage = { path = "crates/axora-storage" }
+axora-core = { path = "crates/axora-core" }
+axora-indexing = { path = "crates/axora-indexing" }
+axora-docs = { path = "crates/axora-docs" }
+axora-cache = { path = "crates/axora-cache" }
+axora-agents = { path = "crates/axora-agents" }
+axora-memory = { path = "crates/axora-memory" }
+axora-embeddings = { path = "crates/axora-embeddings" }
+
+# Phase 1: Embeddings & ML
+candle-core = "0.8"
+candle-transformers = "0.8"
+candle-nn = "0.8"
+
+# Phase 1: Vector search
+qdrant-client = "1.12"
+# lancedb = "0.10"  # Temporarily disabled due to arrow-arith conflict
+
+# Phase 1: Code parsing
+tree-sitter = "0.24"
+tree-sitter-rust = "0.23"
+tree-sitter-typescript = "0.23"
+tree-sitter-python = "0.23"
+
+# Phase 1: Full-text search
+tantivy = "0.22"
+
+# Phase 1: Caching
+rocksdb = "0.22"
+
+# Phase 1: File watching
+notify = "6.1"
+
+# Phase 1: Hashing
+blake3 = "1.5"
+sha2 = "0.10"
+hex = "0.4"
+
+# Phase 1: Inference
+ollama-rs = "0.2"
+
+# Phase 1: Diff generation
+unified-diff = "0.3"
+patch = "0.5"
+
+# Phase 1: Token counting
+tiktoken-rs = "0.6"
