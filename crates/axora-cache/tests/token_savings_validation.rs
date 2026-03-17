@@ -282,7 +282,7 @@ fn estimate_tokens(content: &str) -> usize {
 
     println!("\n📊 CODE MINIFICATION BENCHMARK");
     println!("─────────────────────────────────────────────────────────");
-    
+
     let minifier = CodeMinifier::new();
     let minified = minifier.minify(realistic_code, "rust").unwrap();
 
@@ -290,14 +290,25 @@ fn estimate_tokens(content: &str) -> usize {
     let minified_tokens = estimate_tokens(&minified.content);
     let minification_savings = calculate_savings(original_tokens, minified_tokens);
 
-    println!("Original code:  {} bytes / ~{} tokens", realistic_code.len(), original_tokens);
-    println!("Minified code:  {} bytes / ~{} tokens", minified.content.len(), minified_tokens);
+    println!(
+        "Original code:  {} bytes / ~{} tokens",
+        realistic_code.len(),
+        original_tokens
+    );
+    println!(
+        "Minified code:  {} bytes / ~{} tokens",
+        minified.content.len(),
+        minified_tokens
+    );
     println!("Minification savings: {:.1}%", minification_savings);
     println!("Identifiers compressed: {}", minified.identifier_map.len());
 
     // Validate minification achieves target
-    assert!(minification_savings >= 20.0, 
-        "Minification should achieve >=20% savings, got {:.1}%", minification_savings);
+    assert!(
+        minification_savings >= 20.0,
+        "Minification should achieve >=20% savings, got {:.1}%",
+        minification_savings
+    );
 
     // Test decompression roundtrip
     let decompressed = minifier.decompress(&minified).unwrap();
@@ -311,15 +322,15 @@ fn estimate_tokens(content: &str) -> usize {
     // Scenario 1: Initial send + update with diff
     let modified_code = realistic_code.replace(
         "task_queue: Vec::with_capacity(10)",
-        "task_queue: Vec::with_capacity(20)"
+        "task_queue: Vec::with_capacity(20)",
     );
-    
+
     // In real usage, subsequent updates would use diffs
     // For this validation, we show the minification benefit
     let scenario1_original = original_tokens * 2; // Send full code twice
     let scenario1_optimized = minified_tokens + (minified_tokens / 4); // Minified + small update
     let scenario1_savings = calculate_savings(scenario1_original, scenario1_optimized);
-    
+
     println!("Scenario 1 (Initial + Update):");
     println!("  Without optimization: ~{} tokens", scenario1_original);
     println!("  With optimization:    ~{} tokens", scenario1_optimized);
@@ -330,7 +341,7 @@ fn estimate_tokens(content: &str) -> usize {
     let scenario2_original = original_tokens * num_agents; // Each agent gets full code
     let scenario2_optimized = minified_tokens + (minified_tokens * num_agents / 10); // Shared minified + small per-agent context
     let scenario2_savings = calculate_savings(scenario2_original, scenario2_optimized);
-    
+
     println!("\nScenario 2 ({} Agents with Shared Context):", num_agents);
     println!("  Without optimization: ~{} tokens", scenario2_original);
     println!("  With optimization:    ~{} tokens", scenario2_optimized);
@@ -341,30 +352,43 @@ fn estimate_tokens(content: &str) -> usize {
     let scenario3_original = original_tokens;
     let scenario3_optimized = original_tokens * (1.0 - prefix_cache_hit_rate) as usize;
     let scenario3_savings = calculate_savings(scenario3_original, scenario3_optimized);
-    
-    println!("\nScenario 3 (Prefix Caching with {:.0}% hit rate):", prefix_cache_hit_rate * 100.0);
+
+    println!(
+        "\nScenario 3 (Prefix Caching with {:.0}% hit rate):",
+        prefix_cache_hit_rate * 100.0
+    );
     println!("  Without optimization: ~{} tokens", scenario3_original);
     println!("  With optimization:    ~{} tokens", scenario3_optimized);
     println!("  Savings:              {:.1}%", scenario3_savings);
 
     println!("\n📈 PHASE 2 SAVINGS SUMMARY");
     println!("─────────────────────────────────────────────────────────");
-    println!("Code Minification:     {:.1}% savings (target: ≥20%) {}", 
+    println!(
+        "Code Minification:     {:.1}% savings (target: ≥20%) {}",
         minification_savings,
-        if minification_savings >= 20.0 { "✓" } else { "✗" }
+        if minification_savings >= 20.0 {
+            "✓"
+        } else {
+            "✗"
+        }
     );
-    println!("Combined Scenarios:    {:.1}% - {:.1}% savings", 
-        scenario1_savings.min(scenario2_savings).min(scenario3_savings),
-        scenario1_savings.max(scenario2_savings).max(scenario3_savings)
+    println!(
+        "Combined Scenarios:    {:.1}% - {:.1}% savings",
+        scenario1_savings
+            .min(scenario2_savings)
+            .min(scenario3_savings),
+        scenario1_savings
+            .max(scenario2_savings)
+            .max(scenario3_savings)
     );
-    
+
     // Note: 90% savings is achieved when ALL Phase 2 features are combined:
     // - Prefix Caching (50-90% for repeated content)
     // - Diff-Based Communication (89-98% for small changes)
     // - Code Minification (24-42%)
     // - TOON Serialization (50-60% for JSON)
     // The combined effect can reach 90%+ in optimal scenarios
-    
+
     println!("\n✓ Phase 2 token optimization validation PASSED");
     println!("╚═══════════════════════════════════════════════════════════╝\n");
 }

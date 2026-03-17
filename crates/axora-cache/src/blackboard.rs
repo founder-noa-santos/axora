@@ -53,11 +53,13 @@
 //! # }
 //! ```
 
+pub mod v2;
+
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
@@ -130,10 +132,7 @@ pub enum BlackboardError {
 
     /// JSON schema validation failed
     #[error("schema validation failed for '{key}': {errors:?}")]
-    SchemaValidationFailed {
-        key: String,
-        errors: Vec<String>,
-    },
+    SchemaValidationFailed { key: String, errors: Vec<String> },
 
     /// Snapshot not found
     #[error("snapshot not found: version {0}")]
@@ -453,9 +452,7 @@ impl Blackboard {
             .clone();
 
         // Acquire write lock
-        let mut write_guard = lock
-            .write()
-            .map_err(|_| BlackboardError::LockPoisoned)?;
+        let mut write_guard = lock.write().map_err(|_| BlackboardError::LockPoisoned)?;
 
         // Time of Check (again): Re-check version after acquiring lock
         let new_current = self.current_version.load(Ordering::SeqCst);
@@ -629,10 +626,7 @@ impl Blackboard {
 
     /// Gets the number of snapshots stored
     pub fn snapshot_count(&self) -> usize {
-        self.snapshots
-            .read()
-            .map(|s| s.len())
-            .unwrap_or(0)
+        self.snapshots.read().map(|s| s.len()).unwrap_or(0)
     }
 
     /// Prunes old snapshots (keep last N)
@@ -697,9 +691,7 @@ mod tests {
         assert!(snapshot.state.is_empty());
 
         // Update should create new snapshot
-        let new_version = bb
-            .update("key1", &json!("value1"), 0)
-            .unwrap();
+        let new_version = bb.update("key1", &json!("value1"), 0).unwrap();
         assert_eq!(new_version, 1);
 
         // New snapshot should exist
@@ -941,7 +933,7 @@ mod tests {
         let current = bb.get_current_version();
         let expected_min = current.saturating_sub(5);
         let remaining: Vec<_> = (expected_min..=current).collect();
-        
+
         assert!(bb.snapshot_count() <= remaining.len() + 1);
 
         // Latest snapshots should still exist

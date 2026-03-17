@@ -4,7 +4,7 @@ use crate::config::EmbeddingConfig;
 use crate::error::EmbeddingError;
 use crate::Result;
 use candle_core::{Device, Tensor};
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// Embedding engine for code
 pub struct EmbeddingEngine {
@@ -26,12 +26,12 @@ impl EmbeddingEngine {
         };
 
         info!("Initialized embedding engine on {:?}", device);
-        debug!("Model: {}, Dimensions: {}", config.model_name, config.dimensions);
+        debug!(
+            "Model: {}, Dimensions: {}",
+            config.model_name, config.dimensions
+        );
 
-        Ok(Self {
-            config,
-            device,
-        })
+        Ok(Self { config, device })
     }
 
     /// Generate embedding for single code snippet
@@ -112,7 +112,7 @@ mod tests {
         let embedding = engine.embed(code).await.unwrap();
 
         assert_eq!(embedding.len(), 768);
-        
+
         // Check normalization (should be close to 1.0)
         let norm: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
         assert!((norm - 1.0).abs() < 0.01, "Embedding should be normalized");
@@ -123,11 +123,7 @@ mod tests {
         let config = EmbeddingConfig::default();
         let engine = EmbeddingEngine::new(config).unwrap();
 
-        let codes = vec![
-            "fn foo() {}",
-            "fn bar() {}",
-            "fn baz() {}",
-        ];
+        let codes = vec!["fn foo() {}", "fn bar() {}", "fn baz() {}"];
         let embeddings = engine.embed_batch(&codes).await.unwrap();
 
         assert_eq!(embeddings.len(), 3);
@@ -156,7 +152,7 @@ mod tests {
 
         let code1 = "fn foo() {}";
         let code2 = "fn bar() {}";
-        
+
         let emb1 = engine.embed(code1).await.unwrap();
         let emb2 = engine.embed(code2).await.unwrap();
 

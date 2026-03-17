@@ -3,13 +3,13 @@
 use crate::error::IndexingError;
 use crate::Result;
 use qdrant_client::qdrant::{
-    CreateCollectionBuilder, Distance, PointStruct, QueryPointsBuilder, SearchPointsBuilder,
-    Value, VectorParamsBuilder,
+    CreateCollectionBuilder, Distance, PointStruct, QueryPointsBuilder, SearchPointsBuilder, Value,
+    VectorParamsBuilder,
 };
 use qdrant_client::Payload;
 use qdrant_client::Qdrant;
 use serde::{Deserialize, Serialize};
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// Search result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,13 +73,11 @@ impl VectorStore {
             .create_collection(
                 CreateCollectionBuilder::new(self.collection_name.clone())
                     .vectors_config(VectorParamsBuilder::new(768, Distance::Cosine))
-                    .hnsw_config(
-                        qdrant_client::qdrant::HnswConfigDiff {
-                            m: Some(16),          // Connectivity
-                            ef_construct: Some(128), // Build depth
-                            ..Default::default()
-                        },
-                    ),
+                    .hnsw_config(qdrant_client::qdrant::HnswConfigDiff {
+                        m: Some(16),             // Connectivity
+                        ef_construct: Some(128), // Build depth
+                        ..Default::default()
+                    }),
             )
             .await
             .map_err(|e| IndexingError::VectorStore(e.to_string()))?;
@@ -115,11 +113,8 @@ impl VectorStore {
         // Upsert point
         self.client
             .upsert_points(
-                qdrant_client::qdrant::UpsertPointsBuilder::new(
-                    &self.collection_name,
-                    vec![point],
-                )
-                .wait(true),
+                qdrant_client::qdrant::UpsertPointsBuilder::new(&self.collection_name, vec![point])
+                    .wait(true),
             )
             .await
             .map_err(|e| IndexingError::VectorStore(e.to_string()))?;

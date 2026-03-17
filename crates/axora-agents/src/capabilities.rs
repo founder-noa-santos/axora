@@ -61,22 +61,30 @@ impl AgentCapabilities {
 
     /// Check if agent has a specific language
     pub fn has_language(&self, language: &str) -> bool {
-        self.languages.iter().any(|l| l.to_lowercase() == language.to_lowercase())
+        self.languages
+            .iter()
+            .any(|l| l.to_lowercase() == language.to_lowercase())
     }
 
     /// Check if agent has a specific framework
     pub fn has_framework(&self, framework: &str) -> bool {
-        self.frameworks.iter().any(|f| f.to_lowercase() == framework.to_lowercase())
+        self.frameworks
+            .iter()
+            .any(|f| f.to_lowercase() == framework.to_lowercase())
     }
 
     /// Check if agent has a specific tool
     pub fn has_tool(&self, tool: &str) -> bool {
-        self.tools.iter().any(|t| t.to_lowercase() == tool.to_lowercase())
+        self.tools
+            .iter()
+            .any(|t| t.to_lowercase() == tool.to_lowercase())
     }
 
     /// Check if agent has a specific specialization
     pub fn has_specialization(&self, spec: &str) -> bool {
-        self.specializations.iter().any(|s| s.to_lowercase() == spec.to_lowercase())
+        self.specializations
+            .iter()
+            .any(|s| s.to_lowercase() == spec.to_lowercase())
     }
 
     /// Calculate match score against requirements

@@ -21,10 +21,7 @@ pub enum AdrError {
 
     /// Invalid ADR status transition
     #[error("invalid status transition from {from:?} to {to:?}")]
-    InvalidStatusTransition {
-        from: AdrStatus,
-        to: AdrStatus,
-    },
+    InvalidStatusTransition { from: AdrStatus, to: AdrStatus },
 
     /// Circular reference detected
     #[error("circular reference detected: {0}")]
@@ -99,13 +96,7 @@ pub struct Adr {
 
 impl Adr {
     /// Create a new ADR
-    pub fn new(
-        id: &str,
-        title: &str,
-        context: &str,
-        decision: &str,
-        author: &str,
-    ) -> Self {
+    pub fn new(id: &str, title: &str, context: &str, decision: &str, author: &str) -> Self {
         let now = Utc::now().timestamp() as u64;
         Self {
             id: id.to_string(),
@@ -289,11 +280,7 @@ impl AdrLog {
     pub fn by_category(&self, category: &str) -> Vec<&Adr> {
         self.categories
             .get(category)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.adrs.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.adrs.get(id)).collect())
             .unwrap_or_default()
     }
 
@@ -327,12 +314,17 @@ impl AdrLog {
         for adr in self.adrs.values() {
             let content = format!(
                 "{} {} {} {}",
-                adr.title, adr.context, adr.decision,
+                adr.title,
+                adr.context,
+                adr.decision,
                 adr.consequences.join(" ")
             )
             .to_lowercase();
 
-            if keywords.iter().any(|kw| content.contains(&kw.to_lowercase())) {
+            if keywords
+                .iter()
+                .any(|kw| content.contains(&kw.to_lowercase()))
+            {
                 results.push(adr);
             }
         }
@@ -420,7 +412,7 @@ mod tests {
     #[test]
     fn test_adr_proposed_to_deprecated() {
         let mut adr = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
-        
+
         // Proposed -> Deprecated (valid)
         assert!(adr.deprecate().is_ok());
         assert_eq!(adr.status, AdrStatus::Deprecated);
@@ -428,19 +420,27 @@ mod tests {
 
     #[test]
     fn test_adr_add_consequence() {
-        let mut adr = Adr::new("CACHE-001", "Use Redis", "Need caching", "Use Redis", "agent-b");
-        
+        let mut adr = Adr::new(
+            "CACHE-001",
+            "Use Redis",
+            "Need caching",
+            "Use Redis",
+            "agent-b",
+        );
+
         adr.add_consequence("Faster response times");
         adr.add_consequence("Need to manage Redis instance");
 
         assert_eq!(adr.consequences.len(), 2);
-        assert!(adr.consequences.contains(&"Faster response times".to_string()));
+        assert!(adr
+            .consequences
+            .contains(&"Faster response times".to_string()));
     }
 
     #[test]
     fn test_adr_add_related() {
         let mut adr = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
-        
+
         adr.add_related("AUTH-002");
         adr.add_related("SEC-001");
 
@@ -451,10 +451,10 @@ mod tests {
     #[test]
     fn test_adr_linking() {
         let mut log = AdrLog::new();
-        
+
         let adr1 = Adr::new("AUTH-001", "JWT Auth", "Context", "Decision", "author");
         let adr2 = Adr::new("AUTH-002", "Token Refresh", "Context", "Decision", "author");
-        
+
         log.add(adr1).expect("Failed to add ADR 1");
         log.add(adr2).expect("Failed to add ADR 2");
 
@@ -464,7 +464,7 @@ mod tests {
         // Verify bidirectional link
         let adr1 = log.get("AUTH-001").unwrap();
         let adr2 = log.get("AUTH-002").unwrap();
-        
+
         assert!(adr1.related.contains(&"AUTH-002".to_string()));
         assert!(adr2.related.contains(&"AUTH-001".to_string()));
     }
@@ -472,10 +472,10 @@ mod tests {
     #[test]
     fn test_adr_unlink() {
         let mut log = AdrLog::new();
-        
+
         let adr1 = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
         let adr2 = Adr::new("AUTH-002", "Title", "Context", "Decision", "author");
-        
+
         log.add(adr1).expect("Failed");
         log.add(adr2).expect("Failed");
         log.link("AUTH-001", "AUTH-002").expect("Failed to link");
@@ -490,13 +490,13 @@ mod tests {
     #[test]
     fn test_adr_log_by_status() {
         let mut log = AdrLog::new();
-        
+
         let mut adr1 = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
         adr1.accept().expect("Failed to accept");
-        
+
         let adr2 = Adr::new("AUTH-002", "Title", "Context", "Decision", "author");
         let adr3 = Adr::new("CACHE-001", "Title", "Context", "Decision", "author");
-        
+
         log.add(adr1).expect("Failed");
         log.add(adr2).expect("Failed");
         log.add(adr3).expect("Failed");
@@ -512,10 +512,23 @@ mod tests {
     #[test]
     fn test_adr_log_by_category() {
         let mut log = AdrLog::new();
-        
-        log.add(Adr::new("AUTH-001", "Title", "Context", "Decision", "author")).expect("Failed");
-        log.add(Adr::new("AUTH-002", "Title", "Context", "Decision", "author")).expect("Failed");
-        log.add(Adr::new("CACHE-001", "Title", "Context", "Decision", "author")).expect("Failed");
+
+        log.add(Adr::new(
+            "AUTH-001", "Title", "Context", "Decision", "author",
+        ))
+        .expect("Failed");
+        log.add(Adr::new(
+            "AUTH-002", "Title", "Context", "Decision", "author",
+        ))
+        .expect("Failed");
+        log.add(Adr::new(
+            "CACHE-001",
+            "Title",
+            "Context",
+            "Decision",
+            "author",
+        ))
+        .expect("Failed");
 
         let auth_adrs = log.by_category("AUTH");
         assert_eq!(auth_adrs.len(), 2);
@@ -527,15 +540,15 @@ mod tests {
     #[test]
     fn test_adr_log_active() {
         let mut log = AdrLog::new();
-        
+
         let mut adr1 = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
         adr1.accept().expect("Failed");
-        
+
         let mut adr2 = Adr::new("AUTH-002", "Title", "Context", "Decision", "author");
         adr2.deprecate().expect("Failed");
-        
+
         let adr3 = Adr::new("CACHE-001", "Title", "Context", "Decision", "author");
-        
+
         log.add(adr1).expect("Failed");
         log.add(adr2).expect("Failed");
         log.add(adr3).expect("Failed");
@@ -547,22 +560,24 @@ mod tests {
     #[test]
     fn test_adr_search() {
         let mut log = AdrLog::new();
-        
+
         log.add(Adr::new(
             "AUTH-001",
             "JWT Authentication",
             "Need stateless auth",
             "Use JWT tokens",
             "author",
-        )).expect("Failed");
-        
+        ))
+        .expect("Failed");
+
         log.add(Adr::new(
             "CACHE-001",
             "Redis Caching",
             "Need caching layer",
             "Use Redis for sessions",
             "author",
-        )).expect("Failed");
+        ))
+        .expect("Failed");
 
         let results = log.search(&["jwt", "authentication"]);
         assert_eq!(results.len(), 1);
@@ -576,10 +591,13 @@ mod tests {
     #[test]
     fn test_adr_circular_reference_prevention() {
         let mut log = AdrLog::new();
-        
-        log.add(Adr::new("A-001", "Title", "Context", "Decision", "author")).expect("Failed");
-        log.add(Adr::new("A-002", "Title", "Context", "Decision", "author")).expect("Failed");
-        log.add(Adr::new("A-003", "Title", "Context", "Decision", "author")).expect("Failed");
+
+        log.add(Adr::new("A-001", "Title", "Context", "Decision", "author"))
+            .expect("Failed");
+        log.add(Adr::new("A-002", "Title", "Context", "Decision", "author"))
+            .expect("Failed");
+        log.add(Adr::new("A-003", "Title", "Context", "Decision", "author"))
+            .expect("Failed");
 
         // Create chain: A-001 -> A-002 -> A-003
         log.link("A-001", "A-002").expect("Failed");
@@ -588,19 +606,22 @@ mod tests {
         // Try to create cycle: A-003 -> A-001 (should fail)
         let result = log.link("A-003", "A-001");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), AdrError::CircularReference(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            AdrError::CircularReference(_)
+        ));
     }
 
     #[test]
     fn test_adr_duplicate_prevention() {
         let mut log = AdrLog::new();
-        
+
         let adr = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
         log.add(adr).expect("Failed");
 
         let adr2 = Adr::new("AUTH-001", "Title 2", "Context 2", "Decision 2", "author");
         let result = log.add(adr2);
-        
+
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AdrError::Duplicate(_)));
     }
@@ -619,7 +640,7 @@ mod tests {
     #[test]
     fn test_adr_age() {
         let adr = Adr::new("AUTH-001", "Title", "Context", "Decision", "author");
-        
+
         // Just created, age should be 0
         assert_eq!(adr.age_days(), 0);
     }
@@ -627,10 +648,23 @@ mod tests {
     #[test]
     fn test_adr_categories() {
         let mut log = AdrLog::new();
-        
-        log.add(Adr::new("AUTH-001", "Title", "Context", "Decision", "author")).expect("Failed");
-        log.add(Adr::new("CACHE-001", "Title", "Context", "Decision", "author")).expect("Failed");
-        log.add(Adr::new("API-001", "Title", "Context", "Decision", "author")).expect("Failed");
+
+        log.add(Adr::new(
+            "AUTH-001", "Title", "Context", "Decision", "author",
+        ))
+        .expect("Failed");
+        log.add(Adr::new(
+            "CACHE-001",
+            "Title",
+            "Context",
+            "Decision",
+            "author",
+        ))
+        .expect("Failed");
+        log.add(Adr::new(
+            "API-001", "Title", "Context", "Decision", "author",
+        ))
+        .expect("Failed");
 
         let categories = log.categories();
         assert_eq!(categories.len(), 3);
@@ -659,7 +693,10 @@ mod tests {
         log.add(auth_adr).expect("Failed to add ADR");
 
         // Step 2: Accept the ADR
-        log.get_mut("AUTH-001").unwrap().accept().expect("Failed to accept");
+        log.get_mut("AUTH-001")
+            .unwrap()
+            .accept()
+            .expect("Failed to accept");
 
         // Step 3: Create related ADR for token storage
         let storage_adr = Adr::new(
@@ -676,9 +713,9 @@ mod tests {
         log.link("AUTH-001", "AUTH-002").expect("Failed to link");
 
         // Step 5: Add consequences
-        log.get_mut("AUTH-001").unwrap().add_consequence(
-            "Increased token size in requests"
-        );
+        log.get_mut("AUTH-001")
+            .unwrap()
+            .add_consequence("Increased token size in requests");
 
         // Step 6: Verify workflow
         let auth_adr = log.get("AUTH-001").unwrap();

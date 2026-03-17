@@ -40,8 +40,8 @@ pub use lifecycle::{
     TestMemory, UtilityTracker,
 };
 pub use procedural_store::{
-    ProceduralError, ProceduralStore, Script, Skill, SkillMetadata, SkillOutcome,
-    SkillRepository, SkillStep,
+    ProceduralError, ProceduralStore, Script, Skill, SkillMetadata, SkillOutcome, SkillRepository,
+    SkillStep,
 };
 pub use semantic_store::{
     CollectionStats, DocType, InMemorySemanticStore, SearchResult, SemanticError, SemanticMemory,

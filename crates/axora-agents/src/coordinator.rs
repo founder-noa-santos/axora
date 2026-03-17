@@ -24,13 +24,13 @@
 //! └───────────────┘  └───────────────┘  └───────────────┘
 //! ```
 
+pub mod v2;
+
 use crate::decomposer::{DecomposedMission, Dependency, TaskId};
 use crate::error::AgentError;
 use crate::graph::{ExecutionMode, WorkflowGraph};
 use crate::memory::SharedBlackboard;
-use crate::react::{
-    DualThreadReactAgent, InterruptSignal, ReactCycle, ReactStats, ToolSet,
-};
+use crate::react::{DualThreadReactAgent, InterruptSignal, ReactCycle, ReactStats, ToolSet};
 use crate::task::{Task, TaskStatus};
 use crate::Result;
 use serde::{Deserialize, Serialize};
@@ -174,20 +174,16 @@ impl Coordinator {
             let mut handles = Vec::new();
 
             for &task_id in group {
-                let task = self
-                    .dag
-                    .nodes
-                    .get(&task_id)
-                    .cloned()
-                    .ok_or_else(|| AgentError::AgentNotFound(format!("Task {} not found", task_id)))?;
+                let task = self.dag.nodes.get(&task_id).cloned().ok_or_else(|| {
+                    AgentError::AgentNotFound(format!("Task {} not found", task_id))
+                })?;
 
                 let blackboard = Arc::clone(&self.blackboard);
                 let tools = self.get_tools_for_task(&task)?;
 
                 // Spawn worker (dual-thread ReAct)
-                let handle = tokio::spawn(async move {
-                    Self::spawn_worker(task, blackboard, tools).await
-                });
+                let handle =
+                    tokio::spawn(async move { Self::spawn_worker(task, blackboard, tools).await });
 
                 handles.push((task_id, handle));
             }
@@ -240,7 +236,10 @@ impl Coordinator {
         }
 
         // Calculate total time
-        let total_time = self.start_time.map(|s| s.elapsed()).unwrap_or(Duration::ZERO);
+        let total_time = self
+            .start_time
+            .map(|s| s.elapsed())
+            .unwrap_or(Duration::ZERO);
 
         // Calculate parallelization factor
         let parallelization_factor = self.calculate_parallelization_factor(mission, total_time);
@@ -354,19 +353,14 @@ impl Coordinator {
         }
 
         // Estimate sequential time
-        let estimated_sequential =
-            Duration::from_millis(100 * mission.tasks.len() as u64);
+        let estimated_sequential = Duration::from_millis(100 * mission.tasks.len() as u64);
 
         let factor = estimated_sequential.as_secs_f32() / actual_time.as_secs_f32();
         factor.clamp(0.5, 10.0)
     }
 
     /// Send interrupt to worker
-    pub async fn interrupt_worker(
-        &self,
-        task_id: TaskId,
-        signal: InterruptSignal,
-    ) -> Result<()> {
+    pub async fn interrupt_worker(&self, task_id: TaskId, signal: InterruptSignal) -> Result<()> {
         // In a full implementation, this would send to the worker's interrupt channel
         // For now, just log
         info!("Interrupt sent to worker {}: {:?}", task_id, signal);
@@ -487,7 +481,9 @@ mod tests {
     #[tokio::test]
     async fn test_dag_critical_path() {
         let decomposer = MissionDecomposer::new();
-        let mission = decomposer.decompose("Test critical path detection").unwrap();
+        let mission = decomposer
+            .decompose("Test critical path detection")
+            .unwrap();
 
         let dag = DAG::from_mission(&mission);
 
@@ -555,7 +551,9 @@ mod tests {
     #[tokio::test]
     async fn test_full_mission_execution() {
         let decomposer = MissionDecomposer::new();
-        let mission = decomposer.decompose("Full mission test with workflow").unwrap();
+        let mission = decomposer
+            .decompose("Full mission test with workflow")
+            .unwrap();
 
         let mut coordinator = Coordinator::new(&mission);
         let result = coordinator.execute_mission(&mission).await.unwrap();

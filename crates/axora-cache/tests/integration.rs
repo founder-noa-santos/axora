@@ -7,8 +7,8 @@
 //! - Sprint 6: Documentation Management
 //! - Combined: 90% token savings goal
 
-use axora_cache::{CodeMinifier, MinifiedCode, UnifiedDiff, calculate_token_savings};
-use axora_docs::{DocIndex, DocQuery, LivingDocs, Document, DocSchema, Adr, AdrStatus, AdrLog};
+use axora_cache::{calculate_token_savings, CodeMinifier, MinifiedCode, UnifiedDiff};
+use axora_docs::{Adr, AdrLog, AdrStatus, DocIndex, DocQuery, DocSchema, Document, LivingDocs};
 
 /// Estimate tokens using simple heuristic (1 token ≈ 4 bytes)
 fn estimate_tokens(content: &str) -> usize {
@@ -202,9 +202,11 @@ pub fn calculate_monthly_revenue_metrics_for_dashboard(
     println!("Token savings: {:.1}%", savings);
 
     // ASSERT: Minification achieves its goal
-    assert!(minified.savings_percentage >= 20.0,
+    assert!(
+        minified.savings_percentage >= 20.0,
         "Minification should achieve >=20% savings, got {:.1}%",
-        minified.savings_percentage);
+        minified.savings_percentage
+    );
 
     // ASSERT: Pipeline works (we verify the components work together)
     // Note: Combined savings depend on the specific data being optimized
@@ -239,10 +241,13 @@ pub fn login(username: &str, password: &str) -> Result<Token, AuthError> {
     let doc = Document::new(
         "auth-api",
         DocSchema::new("auth", "1.0", "integration-test"),
-        "# Authentication API\n\n## login()\nAuthenticates a user with username and password.".to_string(),
+        "# Authentication API\n\n## login()\nAuthenticates a user with username and password."
+            .to_string(),
         "1.0.0",
     );
-    living_docs.add_document(doc).expect("Failed to add document");
+    living_docs
+        .add_document(doc)
+        .expect("Failed to add document");
 
     // Step 4: Register code file
     living_docs.register_file(Path::new("src/auth.rs"), "auth-api", initial_code);
@@ -271,11 +276,7 @@ pub fn refresh_token(token: &Token) -> Result<Token, AuthError> {
 "#;
 
     // Step 6: Detect changes and get update suggestions
-    let updates = living_docs.on_code_change(
-        Path::new("src/auth.rs"),
-        initial_code,
-        new_code,
-    );
+    let updates = living_docs.on_code_change(Path::new("src/auth.rs"), initial_code, new_code);
 
     println!("\n=== Living Docs Code Change Detection ===");
     println!("Updates detected: {}", updates.len());
@@ -284,8 +285,12 @@ pub fn refresh_token(token: &Token) -> Result<Token, AuthError> {
     }
 
     // ASSERT: At least 1 update detected
-    assert!(updates.len() >= 1, "Expected at least 1 update, got {}", updates.len());
-    
+    assert!(
+        updates.len() >= 1,
+        "Expected at least 1 update, got {}",
+        updates.len()
+    );
+
     // ASSERT: Update is for the correct document
     assert!(updates.iter().any(|u| u.doc_id == "auth-api"));
 }
@@ -326,8 +331,7 @@ fn test_document_index_and_search() {
     index.add(user_doc).expect("Failed to add user doc");
 
     // Step 3: Search for authentication-related docs
-    let query = DocQuery::new(&["authentication", "login"])
-        .with_limit(10);
+    let query = DocQuery::new(&["authentication", "login"]).with_limit(10);
     let results = index.retrieve(&query);
 
     println!("\n=== Document Index Search ===");
@@ -339,17 +343,18 @@ fn test_document_index_and_search() {
 
     // ASSERT: Found relevant docs
     assert!(!results.is_empty(), "Expected search results");
-    
+
     // ASSERT: Auth doc has highest score
     assert_eq!(results[0].doc_id, "auth-api");
 
     // Step 4: Search with module filter
-    let filtered_query = DocQuery::new(&["api"])
-        .with_module("cache")
-        .with_limit(10);
+    let filtered_query = DocQuery::new(&["api"]).with_module("cache").with_limit(10);
     let filtered_results = index.retrieve(&filtered_query);
 
-    println!("Filtered results (module=cache): {}", filtered_results.len());
+    println!(
+        "Filtered results (module=cache): {}",
+        filtered_results.len()
+    );
 
     // ASSERT: Only cache doc returned
     assert_eq!(filtered_results.len(), 1);
@@ -392,23 +397,31 @@ fn test_adr_system_integration() {
     adr_log.add(storage_adr).expect("Failed to add AUTH-002");
 
     // Step 5: Link related ADRs
-    adr_log.link("AUTH-001", "AUTH-002").expect("Failed to link ADRs");
+    adr_log
+        .link("AUTH-001", "AUTH-002")
+        .expect("Failed to link ADRs");
 
     // Step 6: Accept the main ADR
-    adr_log.get_mut("AUTH-001").unwrap().accept().expect("Failed to accept");
+    adr_log
+        .get_mut("AUTH-001")
+        .unwrap()
+        .accept()
+        .expect("Failed to accept");
 
     // Step 7: Add consequences
-    adr_log.get_mut("AUTH-001").unwrap().add_consequence(
-        "Increased token size in HTTP requests"
-    );
-    adr_log.get_mut("AUTH-001").unwrap().add_consequence(
-        "Need token refresh logic on client"
-    );
+    adr_log
+        .get_mut("AUTH-001")
+        .unwrap()
+        .add_consequence("Increased token size in HTTP requests");
+    adr_log
+        .get_mut("AUTH-001")
+        .unwrap()
+        .add_consequence("Need token refresh logic on client");
 
     println!("\n=== ADR System Integration ===");
     println!("Total ADRs: {}", adr_log.len());
     println!("Active ADRs: {}", adr_log.active().len());
-    
+
     let auth_adr = adr_log.get("AUTH-001").unwrap();
     println!("AUTH-001 status: {:?}", auth_adr.status);
     println!("AUTH-001 consequences: {}", auth_adr.consequences.len());
@@ -458,7 +471,11 @@ fn test_full_phase2_workflow() {
         "integration-test",
     );
     adr_log.add(feature_adr).expect("Failed to add ADR");
-    adr_log.get_mut("FEAT-001").unwrap().accept().expect("Failed to accept");
+    adr_log
+        .get_mut("FEAT-001")
+        .unwrap()
+        .accept()
+        .expect("Failed to accept");
 
     // Step 3: Initial implementation
     let initial_code = r#"
@@ -474,7 +491,8 @@ pub fn login(username: &str, password: &str) -> Result<Token, AuthError> {
     let doc = Document::new(
         "auth-impl",
         DocSchema::new("auth", "1.0", "agent-a"),
-        "# Authentication Implementation\n\nInitial implementation with login function.".to_string(),
+        "# Authentication Implementation\n\nInitial implementation with login function."
+            .to_string(),
         "1.0.0",
     );
     living_docs.add_document(doc).expect("Failed to add doc");
@@ -512,11 +530,8 @@ pub fn refresh_token(token: &Token) -> Result<Token, AuthError> {
 "#;
 
     // Step 6: Detect changes
-    let updates = living_docs.on_code_change(
-        Path::new("src/auth/login.rs"),
-        initial_code,
-        evolved_code,
-    );
+    let updates =
+        living_docs.on_code_change(Path::new("src/auth/login.rs"), initial_code, evolved_code);
 
     // Step 7: Apply code minification to evolved code
     let minifier = CodeMinifier::new();
@@ -537,7 +552,11 @@ pub fn refresh_token(token: &Token) -> Result<Token, AuthError> {
     println!("ADRs tracked: {}", adr_log.len());
 
     // ASSERT: Minification achieved savings
-    assert!(code_savings >= 20.0, "Expected >=20% code savings, got {:.1}%", code_savings);
+    assert!(
+        code_savings >= 20.0,
+        "Expected >=20% code savings, got {:.1}%",
+        code_savings
+    );
 
     // ASSERT: Updates detected
     assert!(updates.len() >= 1);
@@ -677,7 +696,7 @@ impl AgentCore {
     // Simulate a small change and generate diff
     let modified_code = realistic_code.replace(
         "task_queue: Vec::new()",
-        "task_queue: Vec::with_capacity(10)"
+        "task_queue: Vec::with_capacity(10)",
     );
 
     let diff = UnifiedDiff::generate(realistic_code, &modified_code, "old.rs", "new.rs");
@@ -691,20 +710,38 @@ impl AgentCore {
     let diff_savings = calculate_savings(original_tokens, diff_tokens);
 
     println!("\n=== Combined Token Savings Validation ===");
-    println!("Original code: {} bytes / ~{} tokens", realistic_code.len(), original_tokens);
-    println!("Minified code: {} bytes / ~{} tokens", minified.content.len(), minified_tokens);
-    println!("Diff: {} bytes / ~{} tokens", diff.to_string().len(), diff_tokens);
+    println!(
+        "Original code: {} bytes / ~{} tokens",
+        realistic_code.len(),
+        original_tokens
+    );
+    println!(
+        "Minified code: {} bytes / ~{} tokens",
+        minified.content.len(),
+        minified_tokens
+    );
+    println!(
+        "Diff: {} bytes / ~{} tokens",
+        diff.to_string().len(),
+        diff_tokens
+    );
     println!("Minification savings: {:.1}%", minification_savings);
     println!("Diff savings: {:.1}%", diff_savings);
 
     // ASSERT: Minification achieves target
-    assert!(minification_savings >= 20.0,
-        "Minification should achieve >=20% savings, got {:.1}%", minification_savings);
+    assert!(
+        minification_savings >= 20.0,
+        "Minification should achieve >=20% savings, got {:.1}%",
+        minification_savings
+    );
 
     // Note: Diff savings depend on the size of change relative to original
     // For very small changes in large files, savings should be high
     // For this test, we verify diff is generated and combined approach works
-    println!("Diff generated successfully ({} bytes)", diff.to_string().len());
+    println!(
+        "Diff generated successfully ({} bytes)",
+        diff.to_string().len()
+    );
 
     // Combined scenario: minified code + diff for updates
     let combined_original = original_tokens * 2; // Original sent twice
@@ -712,9 +749,12 @@ impl AgentCore {
     let combined_savings = calculate_savings(combined_original, combined_optimized);
 
     println!("Combined scenario savings: {:.1}%", combined_savings);
-    
+
     // ASSERT: Combined approach achieves meaningful savings
     // (minification + diff should be better than sending full code twice)
-    assert!(combined_savings >= 30.0,
-        "Combined approach should achieve >=30% savings, got {:.1}%", combined_savings);
+    assert!(
+        combined_savings >= 30.0,
+        "Combined approach should achieve >=30% savings, got {:.1}%",
+        combined_savings
+    );
 }

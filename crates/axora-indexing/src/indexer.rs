@@ -31,10 +31,7 @@ pub struct IncrementalIndexer {
 
 impl IncrementalIndexer {
     /// Create new incremental indexer
-    pub async fn new(
-        root_path: &Path,
-        embedder: EmbeddingEngine,
-    ) -> Result<Self> {
+    pub async fn new(root_path: &Path, embedder: EmbeddingEngine) -> Result<Self> {
         info!("Creating indexer for {:?}", root_path);
 
         // Build or load Merkle tree
@@ -57,7 +54,9 @@ impl IncrementalIndexer {
         info!("Starting incremental indexing");
 
         // Find changed files
-        let changed_files = self.merkle_tree.find_changed(&MerkleTree::build(&self.root_path)?);
+        let changed_files = self
+            .merkle_tree
+            .find_changed(&MerkleTree::build(&self.root_path)?);
         info!("Found {} changed files", changed_files.len());
 
         let mut stats = IndexStats::default();

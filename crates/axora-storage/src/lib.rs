@@ -11,7 +11,7 @@ pub mod db;
 pub mod store;
 
 pub use db::{Database, DatabaseConfig};
-pub use store::{AgentStore, TaskStore, MessageStore};
+pub use store::{AgentStore, MessageStore, TaskStore};
 
 use thiserror::Error;
 
@@ -21,15 +21,15 @@ pub enum StorageError {
     /// Database error
     #[error("database error: {0}")]
     Database(#[from] rusqlite::Error),
-    
+
     /// Migration error
     #[error("migration error: {0}")]
     Migration(String),
-    
+
     /// Serialization error
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
-    
+
     /// Not found
     #[error("not found: {0}")]
     NotFound(String),

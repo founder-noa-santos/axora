@@ -2,7 +2,7 @@
 
 use crate::error::RagError;
 use crate::Result;
-use axora_indexing::vector_store::{VectorStore, SearchResult as VectorSearchResult};
+use axora_indexing::vector_store::{SearchResult as VectorSearchResult, VectorStore};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -77,8 +77,9 @@ impl HybridRetriever {
         if let Some(vector_store) = &self.vector_store {
             // Generate query embedding (placeholder - would use embedder in production)
             let query_embedding = vec![0.0f32; 768];
-            
-            let vector_results = vector_store.search(&query_embedding, limit / 3)
+
+            let vector_results = vector_store
+                .search(&query_embedding, limit / 3)
                 .await
                 .map_err(|e| RagError::Retrieval(e.to_string()))?;
 
@@ -128,7 +129,8 @@ impl HybridRetriever {
         // Group by source
         let mut by_source: HashMap<RetrievalSource, Vec<&RetrievalResult>> = HashMap::new();
         for result in &results {
-            by_source.entry(result.source.clone())
+            by_source
+                .entry(result.source.clone())
                 .or_default()
                 .push(result);
         }
@@ -147,11 +149,13 @@ impl HybridRetriever {
         sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
         // Reconstruct results
-        let result_map: HashMap<_, _> = results.into_iter()
+        let result_map: HashMap<_, _> = results
+            .into_iter()
             .map(|r| (r.chunk_id.clone(), r))
             .collect();
 
-        sorted.into_iter()
+        sorted
+            .into_iter()
             .filter_map(|(id, _)| result_map.get(&id).cloned())
             .collect()
     }
@@ -181,22 +185,24 @@ mod tests {
     #[tokio::test]
     async fn test_symbol_search() {
         let mut retriever = HybridRetriever::new().unwrap();
-        
+
         // Add symbols
         retriever.add_symbol("MyClass", "chunk1");
         retriever.add_symbol("MyClass", "chunk2");
         retriever.add_symbol("my_function", "chunk3");
 
         let results = retriever.retrieve("MyClass", 10).await.unwrap();
-        
+
         assert_eq!(results.len(), 2);
-        assert!(results.iter().all(|r| matches!(r.source, RetrievalSource::Symbol)));
+        assert!(results
+            .iter()
+            .all(|r| matches!(r.source, RetrievalSource::Symbol)));
     }
 
     #[test]
     fn test_rrf_fusion() {
         let retriever = HybridRetriever::new().unwrap();
-        
+
         let results = vec![
             RetrievalResult {
                 chunk_id: "a".to_string(),

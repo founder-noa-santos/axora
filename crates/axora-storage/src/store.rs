@@ -1,13 +1,13 @@
 //! Storage implementations for agents, tasks, and messages
 
-use rusqlite::{Connection, params};
 use chrono::Utc;
-use uuid::Uuid;
+use rusqlite::{params, Connection};
 use std::time::SystemTime;
+use uuid::Uuid;
 
-use axora_proto::collective::v1::{Agent, Task, Message, AgentStatus, TaskStatus};
+use axora_proto::collective::v1::{Agent, AgentStatus, Message, Task, TaskStatus};
 
-use crate::{StorageError, Result};
+use crate::{Result, StorageError};
 
 /// Agent storage operations
 pub struct AgentStore<'a> {
@@ -24,13 +24,13 @@ impl<'a> AgentStore<'a> {
     pub fn create(&self, name: &str, role: &str) -> Result<Agent> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        
+
         self.conn.execute(
             "INSERT INTO agents (id, name, role, status, created_at, updated_at) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![&id, name, role, "idle", &now, &now],
         )?;
-        
+
         Ok(Agent {
             id,
             name: name.to_string(),
@@ -66,10 +66,8 @@ impl<'a> AgentStore<'a> {
 
     /// Delete an agent
     pub fn delete(&self, id: &str) -> Result<()> {
-        self.conn.execute(
-            "DELETE FROM agents WHERE id = ?1",
-            params![id],
-        )?;
+        self.conn
+            .execute("DELETE FROM agents WHERE id = ?1", params![id])?;
         Ok(())
     }
 }
@@ -86,16 +84,21 @@ impl<'a> TaskStore<'a> {
     }
 
     /// Create a new task
-    pub fn create(&self, title: &str, description: &str, assignee_id: Option<&str>) -> Result<Task> {
+    pub fn create(
+        &self,
+        title: &str,
+        description: &str,
+        assignee_id: Option<&str>,
+    ) -> Result<Task> {
         let id = Uuid::new_v4().to_string();
         let now = Utc::now().to_rfc3339();
-        
+
         self.conn.execute(
             "INSERT INTO tasks (id, title, description, status, assignee_id, created_at, updated_at) 
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![&id, title, description, "pending", assignee_id, &now, &now],
         )?;
-        
+
         Ok(Task {
             id,
             title: title.to_string(),

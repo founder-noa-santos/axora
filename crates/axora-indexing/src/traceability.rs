@@ -40,24 +40,15 @@ use walkdir::WalkDir;
 pub enum TraceabilityError {
     /// Code has @req but rule doesn't exist
     #[error("orphaned code link: {code_file:?} references non-existent rule {rule_id}")]
-    OrphanedCodeLink {
-        code_file: PathBuf,
-        rule_id: String,
-    },
+    OrphanedCodeLink { code_file: PathBuf, rule_id: String },
 
     /// Rule has applies_to but code file doesn't exist
     #[error("orphaned rule link: rule {rule_id} references non-existent code file {code_file:?}")]
-    OrphanedRuleLink {
-        rule_id: String,
-        code_file: PathBuf,
-    },
+    OrphanedRuleLink { rule_id: String, code_file: PathBuf },
 
     /// Code has @req but rule doesn't have applies_to back
     #[error("missing backlink: {code_file:?} → {rule_id} (rule doesn't reference code)")]
-    MissingBacklink {
-        code_file: PathBuf,
-        rule_id: String,
-    },
+    MissingBacklink { code_file: PathBuf, rule_id: String },
 
     /// Missing YAML frontmatter in business rule
     #[error("missing YAML frontmatter in {0:?}")]
@@ -201,10 +192,7 @@ impl BusinessRule {
             .unwrap_or("draft")
             .to_string();
 
-        let priority = yaml
-            .get("priority")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(3) as u32;
+        let priority = yaml.get("priority").and_then(|v| v.as_u64()).unwrap_or(3) as u32;
 
         Ok(Self {
             rule_id,
@@ -303,21 +291,15 @@ impl TraceabilityMatrix {
                 let symbol = extract_symbol_at_position(&content, cap.get(0).unwrap().start());
 
                 // Create link
-                let link = TraceabilityLink::code_to_rule(
-                    path.to_path_buf(),
-                    symbol,
-                    rule_id.clone(),
-                );
+                let link =
+                    TraceabilityLink::code_to_rule(path.to_path_buf(), symbol, rule_id.clone());
 
                 // Add to matrix
                 self.code_to_rules
                     .entry(path.to_path_buf())
                     .or_default()
                     .push(link.clone());
-                self.rule_to_code
-                    .entry(rule_id)
-                    .or_default()
-                    .push(link);
+                self.rule_to_code.entry(rule_id).or_default().push(link);
             }
         }
 
@@ -334,10 +316,7 @@ impl TraceabilityMatrix {
         }
 
         // Walk business rules directory
-        for entry in WalkDir::new(rules_path)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in WalkDir::new(rules_path).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
 
             // Skip non-Markdown files
@@ -389,11 +368,9 @@ impl TraceabilityMatrix {
             BusinessRule {
                 rule_id: "BR-001".to_string(),
                 title: "User Authentication".to_string(),
-                description: "Users must authenticate before accessing protected resources".to_string(),
-                applies_to: vec![
-                    "src/auth.rs".to_string(),
-                    "src/middleware.rs".to_string(),
-                ],
+                description: "Users must authenticate before accessing protected resources"
+                    .to_string(),
+                applies_to: vec!["src/auth.rs".to_string(), "src/middleware.rs".to_string()],
                 status: "active".to_string(),
                 priority: 1,
             },
@@ -455,14 +432,14 @@ impl TraceabilityMatrix {
         for (code_file, links) in &self.code_to_rules {
             for link in links {
                 // Check if rule has applies_to back to this code file
-                let has_backlink = self
-                    .rule_to_code
-                    .get(&link.rule_id)
-                    .map_or(false, |rule_links| {
-                        rule_links.iter().any(|rl| {
-                            rl.link_type == LinkType::RuleToCode && rl.code_file == *code_file
-                        })
-                    });
+                let has_backlink =
+                    self.rule_to_code
+                        .get(&link.rule_id)
+                        .map_or(false, |rule_links| {
+                            rule_links.iter().any(|rl| {
+                                rl.link_type == LinkType::RuleToCode && rl.code_file == *code_file
+                            })
+                        });
 
                 if !has_backlink {
                     self.errors.push(TraceabilityError::MissingBacklink {
@@ -622,8 +599,7 @@ fn extract_symbol_at_position(content: &str, position: usize) -> Option<String> 
     }
 
     // Try function (TypeScript/JavaScript)
-    let ts_func_regex =
-        Regex::new(r"(?:export\s+)?(?:async\s+)?function\s+(\w+)").ok()?;
+    let ts_func_regex = Regex::new(r"(?:export\s+)?(?:async\s+)?function\s+(\w+)").ok()?;
     if let Some(cap) = ts_func_regex.captures(after).and_then(|c| c.get(1)) {
         return Some(cap.as_str().to_string());
     }
@@ -639,13 +615,12 @@ fn extract_symbol_at_position(content: &str, position: usize) -> Option<String> 
 
 /// Check if file is a code file
 fn is_code_file(path: &Path) -> bool {
-    path.extension()
-        .map_or(false, |ext| {
-            matches!(
-                ext.to_string_lossy().as_ref(),
-                "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "java" | "cpp" | "c" | "h"
-            )
-        })
+    path.extension().map_or(false, |ext| {
+        matches!(
+            ext.to_string_lossy().as_ref(),
+            "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "java" | "cpp" | "c" | "h"
+        )
+    })
 }
 
 #[cfg(test)]
@@ -733,11 +708,16 @@ mod tests {
         // but the actual code file is at temp_dir/auth.rs
         // So there might be an orphaned rule link (code file doesn't exist at "auth.rs")
         let errors = matrix.get_errors();
-        
+
         // We expect at most 1 error (orphaned rule link due to path mismatch)
         // The important thing is that the code link is NOT orphaned (BR-001 exists)
-        let has_orphaned_code = errors.iter().any(|e| matches!(e, TraceabilityError::OrphanedCodeLink { .. }));
-        assert!(!has_orphaned_code, "Should not have orphaned code links when business rule exists");
+        let has_orphaned_code = errors
+            .iter()
+            .any(|e| matches!(e, TraceabilityError::OrphanedCodeLink { .. }));
+        assert!(
+            !has_orphaned_code,
+            "Should not have orphaned code links when business rule exists"
+        );
     }
 
     #[test]
@@ -952,7 +932,8 @@ export class AuthService {
         writeln!(file, "pub fn auth() {{}}").unwrap();
 
         // Build matrix with non-existent rules path (should create samples)
-        let matrix = TraceabilityMatrix::build(temp_dir.path(), Path::new("/non/existent/path")).unwrap();
+        let matrix =
+            TraceabilityMatrix::build(temp_dir.path(), Path::new("/non/existent/path")).unwrap();
 
         // Should have sample business rules
         let stats = matrix.get_stats();

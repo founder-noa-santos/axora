@@ -1,8 +1,10 @@
 # Rust workspace
 /target/
 **/target/
+target-*/
 *.rs.bk
 Cargo.lock
+CACHEDIR.TAG
 
 # Build artifacts
 *.o
@@ -42,3 +44,24 @@ site/
 *.tmp
 *.temp
 *.pending
+test_dir/
+
+# Node (qualquer pasta node_modules em qualquer nível)
+node_modules/
+
+# JS/TS build & tooling
+dist/
+build/
+out/
+.turbo
+.next/
+.nuxt/
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+.parcel-cache
+.vite/
+.cache/
+.pnpm-store/
+.yarn/
+.yarn-integrity

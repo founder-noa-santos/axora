@@ -50,8 +50,8 @@
 //! # }
 //! ```
 
+use crate::scip::{Occurrence, SCIPIndex, Symbol, SymbolKind};
 use std::collections::{HashMap, HashSet};
-use crate::scip::{SCIPIndex, Symbol, SymbolKind, Occurrence};
 use thiserror::Error;
 
 /// Influence vector error types
@@ -460,10 +460,18 @@ impl InfluenceGraph {
     /// This is O(k) where k is the number of affected files, not O(n).
     pub fn add_edge(&mut self, from: &str, to: &str) -> Result<()> {
         // Ensure both nodes exist in the graph
-        self.dependencies.entry(from.to_string()).or_insert_with(HashSet::new);
-        self.dependencies.entry(to.to_string()).or_insert_with(HashSet::new);
-        self.reverse_dependencies.entry(from.to_string()).or_insert_with(HashSet::new);
-        self.reverse_dependencies.entry(to.to_string()).or_insert_with(HashSet::new);
+        self.dependencies
+            .entry(from.to_string())
+            .or_insert_with(HashSet::new);
+        self.dependencies
+            .entry(to.to_string())
+            .or_insert_with(HashSet::new);
+        self.reverse_dependencies
+            .entry(from.to_string())
+            .or_insert_with(HashSet::new);
+        self.reverse_dependencies
+            .entry(to.to_string())
+            .or_insert_with(HashSet::new);
 
         // Add edge
         self.dependencies

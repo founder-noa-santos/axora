@@ -41,12 +41,7 @@ pub struct Document {
 
 impl Document {
     /// Create a new document
-    pub fn new(
-        id: &str,
-        schema: DocSchema,
-        content: String,
-        version: &str,
-    ) -> Self {
+    pub fn new(id: &str, schema: DocSchema, content: String, version: &str) -> Self {
         let now = Utc::now().timestamp() as u64;
         Self {
             id: id.to_string(),
@@ -99,11 +94,7 @@ pub struct DocSchema {
 
 impl DocSchema {
     /// Create a new schema
-    pub fn new(
-        module: &str,
-        version: &str,
-        maintainer: &str,
-    ) -> Self {
+    pub fn new(module: &str, version: &str, maintainer: &str) -> Self {
         Self {
             module: module.to_string(),
             version: version.to_string(),
@@ -219,7 +210,7 @@ mod tests {
     #[test]
     fn test_doc_schema_creation() {
         let schema = DocSchema::new("auth", "1.0", "agent-a");
-        
+
         assert_eq!(schema.module, "auth");
         assert_eq!(schema.version, "1.0");
         assert_eq!(schema.maintainer, "agent-a");
@@ -246,18 +237,13 @@ mod tests {
     #[test]
     fn test_document_update() {
         let schema = DocSchema::new("cache", "1.0", "agent-c");
-        let mut doc = Document::new(
-            "cache-docs",
-            schema,
-            "Initial content".to_string(),
-            "1.0.0",
-        );
+        let mut doc = Document::new("cache-docs", schema, "Initial content".to_string(), "1.0.0");
 
         let original_updated = doc.updated_at;
-        
+
         // Simulate time passing
         std::thread::sleep(std::time::Duration::from_millis(10));
-        
+
         doc.update_content("Updated content".to_string());
 
         assert_eq!(doc.content, "Updated content");
@@ -274,7 +260,7 @@ mod tests {
 
         // Document just created, so it's not stale with 0 max_age (age is 0)
         assert!(!doc.is_stale(0));
-        
+
         // Document should be stale with negative max_age (impossible, but tests the logic)
         // In practice, a document becomes stale after max_age seconds have passed
     }
@@ -285,14 +271,12 @@ mod tests {
             method: "GET".to_string(),
             path: "/api/users".to_string(),
             description: "Get all users".to_string(),
-            parameters: vec![
-                Parameter {
-                    name: "limit".to_string(),
-                    param_type: "int".to_string(),
-                    required: false,
-                    description: "Max results".to_string(),
-                }
-            ],
+            parameters: vec![Parameter {
+                name: "limit".to_string(),
+                param_type: "int".to_string(),
+                required: false,
+                description: "Max results".to_string(),
+            }],
             response: "UserList".to_string(),
         };
 
@@ -387,7 +371,7 @@ mod tests {
     #[test]
     fn test_schema_add_section() {
         let mut schema = DocSchema::new("test", "1.0", "agent-e");
-        
+
         schema.add_section(DocSection::General {
             title: "Section 1".to_string(),
             content: "Content 1".to_string(),

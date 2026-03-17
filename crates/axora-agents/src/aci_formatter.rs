@@ -472,11 +472,8 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let error = formatter.format_error(
-            "RuntimeError",
-            "Something went wrong",
-            Some(&large_context),
-        );
+        let error =
+            formatter.format_error("RuntimeError", "Something went wrong", Some(&large_context));
 
         assert!(error.contains("Context (truncated)"));
         assert!(error.contains("lines omitted"));
@@ -508,12 +505,18 @@ mod tests {
         assert_eq!(formatter.format_output("Single line"), "Single line");
 
         // Exactly at limit
-        let at_limit: String = (1..=100).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let at_limit: String = (1..=100)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let formatted = formatter.format_output(&at_limit);
         assert_eq!(formatted, at_limit); // No truncation at exact limit
 
         // One over limit
-        let over_limit: String = (1..=101).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let over_limit: String = (1..=101)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let formatted = formatter.format_output(&over_limit);
         assert!(formatted.contains("truncated"));
     }
@@ -559,7 +562,10 @@ Error: index out of bounds: the len is 5 but the index is 10"#;
         // Test deserialization
         let deserialized: ACIConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.max_output_lines, config.max_output_lines);
-        assert_eq!(deserialized.max_stack_trace_lines, config.max_stack_trace_lines);
+        assert_eq!(
+            deserialized.max_stack_trace_lines,
+            config.max_stack_trace_lines
+        );
         assert_eq!(deserialized.max_file_dump_lines, config.max_file_dump_lines);
     }
 }

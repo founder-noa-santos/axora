@@ -11,6 +11,7 @@ description = "Agent framework for AXORA"
 [dependencies]
 # Internal
 axora-proto.workspace = true
+axora-indexing.workspace = true
 
 # Async
 tokio.workspace = true
@@ -26,6 +27,8 @@ anyhow.workspace = true
 # Utilities
 tracing.workspace = true
 uuid.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true

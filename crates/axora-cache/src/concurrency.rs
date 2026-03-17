@@ -49,7 +49,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
-use tokio::sync::{Semaphore, Mutex};
+use tokio::sync::{Mutex, Semaphore};
 use tokio::time::sleep;
 
 /// Concurrency error types
@@ -57,17 +57,11 @@ use tokio::time::sleep;
 pub enum ConcurrencyError {
     /// Token budget exceeded
     #[error("token budget exceeded: estimated {estimated}, limit {limit}")]
-    TokenBudgetExceeded {
-        estimated: usize,
-        limit: usize,
-    },
+    TokenBudgetExceeded { estimated: usize, limit: usize },
 
     /// Context too large
     #[error("context too large: estimated {estimated}, limit {limit}")]
-    ContextTooLarge {
-        estimated: usize,
-        limit: usize,
-    },
+    ContextTooLarge { estimated: usize, limit: usize },
 
     /// Semaphore acquire error
     #[error("semaphore error: {0}")]
@@ -75,9 +69,7 @@ pub enum ConcurrencyError {
 
     /// Rate limit exceeded
     #[error("rate limit exceeded, retry after {retry_after_ms}ms")]
-    RateLimitExceeded {
-        retry_after_ms: u64,
-    },
+    RateLimitExceeded { retry_after_ms: u64 },
 
     /// Task execution error
     #[error("task error: {0}")]
@@ -464,7 +456,7 @@ impl ConcurrentExecutor {
         let results = futures::future::try_join_all(handles)
             .await
             .map_err(ConcurrencyError::JoinError)?;
-        
+
         // Convert Vec<Result<TaskResult, ConcurrencyError>> to Result<Vec<TaskResult>, ConcurrencyError>
         results.into_iter().collect()
     }
@@ -472,9 +464,10 @@ impl ConcurrentExecutor {
     /// Execute a single task with throttling
     pub async fn execute_single(&self, task: Task) -> Result<TaskResult> {
         let results = self.execute_with_throttle(vec![task]).await?;
-        results.into_iter().next().ok_or_else(|| {
-            ConcurrencyError::TaskError("No result returned".to_string())
-        })
+        results
+            .into_iter()
+            .next()
+            .ok_or_else(|| ConcurrencyError::TaskError("No result returned".to_string()))
     }
 
     /// Get current concurrency level
@@ -585,7 +578,11 @@ mod tests {
             .collect();
 
         // Execute with timeout
-        let result = timeout(Duration::from_secs(5), executor.execute_with_throttle(tasks)).await;
+        let result = timeout(
+            Duration::from_secs(5),
+            executor.execute_with_throttle(tasks),
+        )
+        .await;
 
         assert!(result.is_ok());
         let results = result.unwrap().unwrap();
@@ -598,8 +595,11 @@ mod tests {
         let executor = ConcurrentExecutor::new(config);
 
         // Task that exceeds budget
-        let task = Task::new("big-task", "This is a very long task description that should exceed the token budget")
-            .with_context_tokens(5_000); // 5K context tokens
+        let task = Task::new(
+            "big-task",
+            "This is a very long task description that should exceed the token budget",
+        )
+        .with_context_tokens(5_000); // 5K context tokens
 
         let result = executor.execute_single(task).await;
 
@@ -753,8 +753,8 @@ mod tests {
     async fn test_token_calculator() {
         let calculator = TokenCalculator::new();
 
-        let task = Task::new("test", "This is a test task with some words")
-            .with_context_tokens(1000);
+        let task =
+            Task::new("test", "This is a test task with some words").with_context_tokens(1000);
 
         let estimated = calculator.estimate(&task).unwrap();
 

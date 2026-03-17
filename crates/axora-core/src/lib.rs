@@ -12,7 +12,7 @@ pub mod frame;
 pub mod server;
 
 pub use config::CoreConfig;
-pub use frame::{Frame, FrameExecutor, FrameContext};
+pub use frame::{Frame, FrameContext, FrameExecutor};
 pub use server::CollectiveServer;
 
 use thiserror::Error;
@@ -23,15 +23,15 @@ pub enum CoreError {
     /// Configuration error
     #[error("configuration error: {0}")]
     Config(String),
-    
+
     /// Frame execution error
     #[error("frame execution error: {0}")]
     Frame(String),
-    
+
     /// Server error
     #[error("server error: {0}")]
     Server(String),
-    
+
     /// Storage error
     #[error("storage error: {0}")]
     Storage(#[from] axora_storage::StorageError),

@@ -3,7 +3,7 @@
 //! This file contains placeholder benchmarks for the core frame system.
 //! Real benchmarks should be added as features are implemented.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 /// Placeholder benchmark function
 fn placeholder_benchmark(c: &mut Criterion) {
@@ -19,7 +19,7 @@ fn placeholder_benchmark(c: &mut Criterion) {
 /// Benchmark group for frame operations
 fn frame_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("frame");
-    
+
     for size in [100, 1000, 10000].iter() {
         group.bench_with_input(
             BenchmarkId::new("placeholder_scale", size),
@@ -35,7 +35,7 @@ fn frame_benchmarks(c: &mut Criterion) {
             },
         );
     }
-    
+
     group.finish();
 }
 

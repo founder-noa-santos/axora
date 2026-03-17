@@ -354,11 +354,8 @@ impl WorkflowGraph {
         state: &ExecutionState,
     ) -> Option<NodeId> {
         // Find all outgoing edges from current node
-        let outgoing_edges: Vec<&Edge> = self
-            .edges
-            .iter()
-            .filter(|e| e.from == current_id)
-            .collect();
+        let outgoing_edges: Vec<&Edge> =
+            self.edges.iter().filter(|e| e.from == current_id).collect();
 
         for edge in &outgoing_edges {
             if self.evaluate_condition(edge, result, state) {
@@ -370,12 +367,7 @@ impl WorkflowGraph {
     }
 
     /// Evaluate transition condition (deterministic guard)
-    fn evaluate_condition(
-        &self,
-        edge: &Edge,
-        result: &TaskResult,
-        state: &ExecutionState,
-    ) -> bool {
+    fn evaluate_condition(&self, edge: &Edge, result: &TaskResult, state: &ExecutionState) -> bool {
         match &edge.condition {
             TransitionCondition::Always => true,
 
@@ -425,28 +417,24 @@ impl WorkflowGraph {
     }
 
     /// Validate transition (check guard conditions)
-    pub fn validate_transition(
-        &self,
-        from: NodeId,
-        to: NodeId,
-        state: &ExecutionState,
-    ) -> bool {
+    pub fn validate_transition(&self, from: NodeId, to: NodeId, state: &ExecutionState) -> bool {
         // Find edge
         let edge = self.edges.iter().find(|e| e.from == from && e.to == to);
 
         match edge {
             Some(e) => {
                 // Get last result for condition evaluation
-                let last_result = state
-                    .node_results
-                    .values()
-                    .last()
-                    .cloned()
-                    .unwrap_or_else(|| TaskResult {
-                        success: true,
-                        output: String::new(),
-                        error: None,
-                    });
+                let last_result =
+                    state
+                        .node_results
+                        .values()
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| TaskResult {
+                            success: true,
+                            output: String::new(),
+                            error: None,
+                        });
 
                 self.evaluate_condition(e, &last_result, state)
             }
@@ -456,10 +444,7 @@ impl WorkflowGraph {
 
     /// Execute graph with deterministic routing
     pub async fn execute(&mut self, task: Task) -> Result<TaskResult> {
-        info!(
-            "Executing workflow graph with {} nodes",
-            self.nodes.len()
-        );
+        info!("Executing workflow graph with {} nodes", self.nodes.len());
 
         let mut state = ExecutionState::new(task);
 
@@ -545,10 +530,7 @@ impl WorkflowGraph {
             return Ok(TaskResult {
                 success: false,
                 output: String::new(),
-                error: Some(format!(
-                    "Max attempts ({}) exceeded",
-                    state.max_attempts
-                )),
+                error: Some(format!("Max attempts ({}) exceeded", state.max_attempts)),
             });
         }
 
@@ -583,21 +565,16 @@ impl WorkflowGraph {
 
     /// Check if graph is valid (all edges reference valid nodes)
     pub fn is_valid(&self) -> bool {
-        let node_ids: std::collections::HashSet<_> =
-            self.nodes.iter().map(|n| n.id).collect();
+        let node_ids: std::collections::HashSet<_> = self.nodes.iter().map(|n| n.id).collect();
 
-        self.edges.iter().all(|e| {
-            node_ids.contains(&e.from) && node_ids.contains(&e.to)
-        })
+        self.edges
+            .iter()
+            .all(|e| node_ids.contains(&e.from) && node_ids.contains(&e.to))
     }
 
     /// Get execution statistics
     pub fn get_stats(&self) -> GraphStats {
-        let success_count = self
-            .execution_history
-            .iter()
-            .filter(|r| r.success)
-            .count();
+        let success_count = self.execution_history.iter().filter(|r| r.success).count();
 
         GraphStats {
             total_nodes: self.nodes.len(),
@@ -643,9 +620,7 @@ pub struct ParallelismDetector {
 
 impl Default for ParallelismDetector {
     fn default() -> Self {
-        Self {
-            depth_threshold: 5,
-        }
+        Self { depth_threshold: 5 }
     }
 }
 
@@ -1036,11 +1011,7 @@ mod tests {
         let mut state_with_attempts = state.clone();
         state_with_attempts.attempt_count = 2;
         assert!(graph.evaluate_guard_expression("attempts < 3", &result, &state_with_attempts));
-        assert!(!graph.evaluate_guard_expression(
-            "attempts < 2",
-            &result,
-            &state_with_attempts
-        ));
+        assert!(!graph.evaluate_guard_expression("attempts < 2", &result, &state_with_attempts));
     }
 
     #[test]

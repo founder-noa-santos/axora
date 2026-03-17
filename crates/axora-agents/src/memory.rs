@@ -77,7 +77,10 @@ impl MemoryStore {
 
     /// Add a memory
     pub fn add(&mut self, entry: MemoryEntry) {
-        debug!("Adding memory: {} (type: {:?})", entry.id, entry.memory_type);
+        debug!(
+            "Adding memory: {} (type: {:?})",
+            entry.id, entry.memory_type
+        );
 
         let memory_type = entry.memory_type.clone();
         let id = entry.id.clone();
@@ -91,15 +94,10 @@ impl MemoryStore {
     }
 
     /// Create and add a memory
-    pub fn create(
-        &mut self,
-        content: &str,
-        memory_type: MemoryType,
-        importance: f32,
-    ) -> String {
+    pub fn create(&mut self, content: &str, memory_type: MemoryType, importance: f32) -> String {
         let id = uuid::Uuid::new_v4().to_string();
         let now = now_secs();
-        
+
         let entry = MemoryEntry {
             id: id.clone(),
             content: content.to_string(),
@@ -130,18 +128,14 @@ impl MemoryStore {
     pub fn get_by_type(&self, memory_type: &MemoryType) -> Vec<&MemoryEntry> {
         self.by_type
             .get(memory_type)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.memories.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.memories.get(id)).collect())
             .unwrap_or_default()
     }
 
     /// Search memories by content
     pub fn search(&self, query: &str) -> Vec<&MemoryEntry> {
         let query_lower = query.to_lowercase();
-        
+
         self.memories
             .values()
             .filter(|m| m.content.to_lowercase().contains(&query_lower))
@@ -159,7 +153,8 @@ impl MemoryStore {
     pub fn consolidate(&mut self) {
         info!("Consolidating memories...");
 
-        let short_term_ids: Vec<String> = self.by_type
+        let short_term_ids: Vec<String> = self
+            .by_type
             .get(&MemoryType::ShortTerm)
             .cloned()
             .unwrap_or_default();
@@ -170,14 +165,17 @@ impl MemoryStore {
                 if entry.access_count > 2 && entry.importance > 0.5 {
                     let old_type = entry.memory_type.clone();
                     entry.memory_type = MemoryType::Semantic;
-                    
+
                     // Update type index
                     if let Some(type_list) = self.by_type.get_mut(&old_type) {
                         type_list.retain(|i| i != &id);
                     }
                     let id_clone = id.clone();
-                    self.by_type.entry(MemoryType::Semantic).or_default().push(id_clone);
-                    
+                    self.by_type
+                        .entry(MemoryType::Semantic)
+                        .or_default()
+                        .push(id_clone);
+
                     info!("Consolidated memory {} to semantic", id);
                 }
             }
@@ -192,7 +190,8 @@ impl MemoryStore {
         let now = now_secs();
 
         // Collect IDs to forget
-        let to_forget: Vec<String> = self.memories
+        let to_forget: Vec<String> = self
+            .memories
             .iter()
             .filter(|(_, entry)| {
                 // Forget if expired
@@ -233,7 +232,10 @@ impl MemoryStore {
     /// Enforce capacity limits
     fn enforce_capacity(&mut self, memory_type: &MemoryType) {
         let (max, type_list) = match memory_type {
-            MemoryType::ShortTerm => (self.max_short_term, self.by_type.get_mut(&MemoryType::ShortTerm)),
+            MemoryType::ShortTerm => (
+                self.max_short_term,
+                self.by_type.get_mut(&MemoryType::ShortTerm),
+            ),
             MemoryType::Episodic | MemoryType::Semantic | MemoryType::Procedural => {
                 (self.max_long_term, self.by_type.get_mut(memory_type))
             }
@@ -253,7 +255,7 @@ impl MemoryStore {
                 .min_by(|a, b| {
                     let entry_a = self.memories.get(*a);
                     let entry_b = self.memories.get(*b);
-                    
+
                     match (entry_a, entry_b) {
                         (Some(a), Some(b)) => a.importance.partial_cmp(&b.importance).unwrap(),
                         _ => std::cmp::Ordering::Equal,
@@ -296,14 +298,22 @@ impl MemoryStore {
 
     /// Get short-term memory count
     pub fn short_term_count(&self) -> usize {
-        self.by_type.get(&MemoryType::ShortTerm).map(|v| v.len()).unwrap_or(0)
+        self.by_type
+            .get(&MemoryType::ShortTerm)
+            .map(|v| v.len())
+            .unwrap_or(0)
     }
 
     /// Get long-term memory count
     pub fn long_term_count(&self) -> usize {
         self.by_type
             .iter()
-            .filter(|(t, _)| matches!(t, MemoryType::Episodic | MemoryType::Semantic | MemoryType::Procedural))
+            .filter(|(t, _)| {
+                matches!(
+                    t,
+                    MemoryType::Episodic | MemoryType::Semantic | MemoryType::Procedural
+                )
+            })
             .map(|(_, v)| v.len())
             .sum()
     }
@@ -342,7 +352,7 @@ impl SharedBlackboard {
     pub fn publish(&mut self, entry: MemoryEntry, accessible_by: Vec<String>) {
         let id = entry.id.clone();
         let count = accessible_by.len();
-        
+
         self.memories.insert(id.clone(), entry);
 
         for agent_id in accessible_by {
@@ -359,7 +369,7 @@ impl SharedBlackboard {
     pub fn read(&self, agent_id: &str, memory_id: &str) -> Option<&MemoryEntry> {
         // Check access control
         let accessible = self.access_control.get(agent_id)?;
-        
+
         if !accessible.contains(&memory_id.to_string()) {
             warn!("Agent {} denied access to memory {}", agent_id, memory_id);
             return None;
@@ -372,11 +382,7 @@ impl SharedBlackboard {
     pub fn get_accessible(&self, agent_id: &str) -> Vec<&MemoryEntry> {
         self.access_control
             .get(agent_id)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.memories.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.memories.get(id)).collect())
             .unwrap_or_default()
     }
 
@@ -402,9 +408,9 @@ mod tests {
     #[test]
     fn test_memory_creation() {
         let mut store = MemoryStore::new();
-        
+
         let id = store.create("Test memory", MemoryType::ShortTerm, 0.8);
-        
+
         assert!(!id.is_empty());
         assert_eq!(store.count(), 1);
         assert_eq!(store.short_term_count(), 1);
@@ -413,9 +419,9 @@ mod tests {
     #[test]
     fn test_memory_retrieval() {
         let mut store = MemoryStore::new();
-        
+
         let id = store.create("Test memory", MemoryType::ShortTerm, 0.8);
-        
+
         let memory = store.get(&id);
         assert!(memory.is_some());
         assert_eq!(memory.unwrap().access_count, 1);
@@ -424,11 +430,11 @@ mod tests {
     #[test]
     fn test_memory_search() {
         let mut store = MemoryStore::new();
-        
+
         store.create("Rust programming", MemoryType::Semantic, 0.9);
         store.create("Python scripting", MemoryType::Semantic, 0.7);
         store.create("JavaScript web", MemoryType::Semantic, 0.6);
-        
+
         let results = store.search("rust");
         assert_eq!(results.len(), 1);
     }
@@ -436,18 +442,18 @@ mod tests {
     #[test]
     fn test_memory_consolidation() {
         let mut store = MemoryStore::new();
-        
+
         // Create short-term memory with high importance
         let id = store.create("Important fact", MemoryType::ShortTerm, 0.9);
-        
+
         // Access it multiple times
         store.get(&id);
         store.get(&id);
         store.get(&id);
-        
+
         // Consolidate
         store.consolidate();
-        
+
         // Should be moved to semantic
         let semantic = store.get_by_type(&MemoryType::Semantic);
         assert!(!semantic.is_empty());
@@ -456,15 +462,15 @@ mod tests {
     #[test]
     fn test_memory_forgetting() {
         let mut store = MemoryStore::new().with_forgetting_threshold(0.5);
-        
+
         // Create low-importance memory
         store.create("Unimportant", MemoryType::ShortTerm, 0.1);
         // Create high-importance memory
         store.create("Important", MemoryType::ShortTerm, 0.9);
-        
+
         // Forget (won't forget immediately due to age check)
         let forgotten = store.forget();
-        
+
         // May not forget immediately due to age threshold
         assert!(forgotten == 0 || forgotten == 1);
     }
@@ -472,7 +478,7 @@ mod tests {
     #[test]
     fn test_shared_blackboard() {
         let mut blackboard = SharedBlackboard::new();
-        
+
         let entry = MemoryEntry {
             id: "shared1".to_string(),
             content: "Shared knowledge".to_string(),
@@ -483,13 +489,13 @@ mod tests {
             last_accessed: now_secs(),
             expires_at: None,
         };
-        
+
         blackboard.publish(entry, vec!["agent1".to_string(), "agent2".to_string()]);
-        
+
         // Agent1 can access
         let memory = blackboard.read("agent1", "shared1");
         assert!(memory.is_some());
-        
+
         // Agent3 cannot access
         let memory = blackboard.read("agent3", "shared1");
         assert!(memory.is_none());

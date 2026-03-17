@@ -5,16 +5,15 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use axora_proto::collective::v1::{
     collective_service_server::{CollectiveService, CollectiveServiceServer},
-    Agent, AgentStatus, Message, MessageType, RegisterAgentRequest, RegisterAgentResponse,
-    UnregisterAgentRequest, ListAgentsRequest, ListAgentsResponse,
-    SubmitTaskRequest, SubmitTaskResponse, GetTaskRequest, GetTaskResponse,
-    ListTasksRequest, ListTasksResponse, StreamMessagesRequest, SendMessageRequest,
-    Task, TaskStatus,
+    Agent, AgentStatus, GetTaskRequest, GetTaskResponse, ListAgentsRequest, ListAgentsResponse,
+    ListTasksRequest, ListTasksResponse, Message, MessageType, RegisterAgentRequest,
+    RegisterAgentResponse, SendMessageRequest, StreamMessagesRequest, SubmitTaskRequest,
+    SubmitTaskResponse, Task, TaskStatus, UnregisterAgentRequest,
 };
 
 use crate::{CoreConfig, CoreError, Result};
@@ -46,18 +45,20 @@ impl CollectiveServer {
 
     /// Start the server
     pub async fn serve(self) -> Result<()> {
-        let addr = self.config.server_address().parse().map_err(|e| {
-            CoreError::Server(format!("Invalid address: {}", e))
-        })?;
-        
+        let addr = self
+            .config
+            .server_address()
+            .parse()
+            .map_err(|e| CoreError::Server(format!("Invalid address: {}", e)))?;
+
         info!("Starting Collective server on {}", addr);
-        
+
         tonic::transport::Server::builder()
             .add_service(self.into_service())
             .serve(addr)
             .await
             .map_err(|e| CoreError::Server(e.to_string()))?;
-        
+
         Ok(())
     }
 }
@@ -70,7 +71,7 @@ impl CollectiveService for CollectiveServer {
     ) -> std::result::Result<Response<RegisterAgentResponse>, Status> {
         let req = request.into_inner();
         debug!("Registering agent: {}", req.name);
-        
+
         let agent = Agent {
             id: Uuid::new_v4().to_string(),
             name: req.name,
@@ -80,15 +81,13 @@ impl CollectiveService for CollectiveServer {
             updated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
             metadata: req.metadata,
         };
-        
+
         let mut agents = self.agents.write().await;
         agents.push(agent.clone());
-        
+
         info!("Agent registered: {} ({})", agent.name, agent.id);
-        
-        Ok(Response::new(RegisterAgentResponse {
-            agent: Some(agent),
-        }))
+
+        Ok(Response::new(RegisterAgentResponse { agent: Some(agent) }))
     }
 
     async fn unregister_agent(
@@ -97,12 +96,12 @@ impl CollectiveService for CollectiveServer {
     ) -> std::result::Result<Response<()>, Status> {
         let req = request.into_inner();
         debug!("Unregistering agent: {}", req.agent_id);
-        
+
         let mut agents = self.agents.write().await;
         agents.retain(|a| a.id != req.agent_id);
-        
+
         info!("Agent unregistered: {}", req.agent_id);
-        
+
         Ok(Response::new(()))
     }
 
@@ -122,7 +121,7 @@ impl CollectiveService for CollectiveServer {
     ) -> std::result::Result<Response<SubmitTaskResponse>, Status> {
         let req = request.into_inner();
         debug!("Submitting task: {}", req.title);
-        
+
         let task = Task {
             id: Uuid::new_v4().to_string(),
             title: req.title,
@@ -133,10 +132,8 @@ impl CollectiveService for CollectiveServer {
             updated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
             completed_at: None,
         };
-        
-        Ok(Response::new(SubmitTaskResponse {
-            task: Some(task),
-        }))
+
+        Ok(Response::new(SubmitTaskResponse { task: Some(task) }))
     }
 
     async fn get_task(
@@ -152,26 +149,25 @@ impl CollectiveService for CollectiveServer {
         _request: Request<ListTasksRequest>,
     ) -> std::result::Result<Response<ListTasksResponse>, Status> {
         // Placeholder implementation
-        Ok(Response::new(ListTasksResponse {
-            tasks: vec![],
-        }))
+        Ok(Response::new(ListTasksResponse { tasks: vec![] }))
     }
 
-    type StreamMessagesStream = Pin<Box<dyn Stream<Item = std::result::Result<Message, Status>> + Send>>;
+    type StreamMessagesStream =
+        Pin<Box<dyn Stream<Item = std::result::Result<Message, Status>> + Send>>;
 
     async fn stream_messages(
         &self,
         _request: Request<StreamMessagesRequest>,
     ) -> std::result::Result<Response<Self::StreamMessagesStream>, Status> {
         let rx = Arc::clone(&self.message_rx);
-        
+
         let stream = async_stream::stream! {
             let mut rx = rx.lock().await;
             while let Some(message) = rx.recv().await {
                 yield Ok(message);
             }
         };
-        
+
         Ok(Response::new(Box::pin(stream)))
     }
 
@@ -180,7 +176,7 @@ impl CollectiveService for CollectiveServer {
         request: Request<SendMessageRequest>,
     ) -> std::result::Result<Response<()>, Status> {
         let req = request.into_inner();
-        
+
         let message = Message {
             id: Uuid::new_v4().to_string(),
             sender_id: req.sender_id,
@@ -189,12 +185,12 @@ impl CollectiveService for CollectiveServer {
             content: req.content,
             timestamp: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
         };
-        
+
         if let Err(e) = self.message_tx.send(message).await {
             error!("Failed to send message: {}", e);
             return Err(Status::internal("Failed to send message"));
         }
-        
+
         Ok(Response::new(()))
     }
 }

@@ -14,6 +14,8 @@ members = [
     # Phase 2 crates
     "crates/axora-docs",
     "crates/axora-memory",
+    # Desktop app
+    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]

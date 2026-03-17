@@ -1,10 +1,10 @@
 //! Database connection and configuration
 
-use std::path::Path;
 use rusqlite::Connection;
-use tracing::{info, debug};
+use std::path::Path;
+use tracing::{debug, info};
 
-use crate::{StorageError, Result};
+use crate::{Result, StorageError};
 
 /// Database configuration
 #[derive(Debug, Clone)]
@@ -48,14 +48,16 @@ impl Database {
     /// Connect to the database
     pub fn connect(&self) -> Result<Connection> {
         let conn = Connection::open(&self.config.path)?;
-        
+
         if self.config.wal_mode {
             conn.execute_batch("PRAGMA journal_mode = WAL;")?;
             debug!("WAL mode enabled");
         }
-        
-        conn.busy_timeout(std::time::Duration::from_millis(self.config.busy_timeout_ms))?;
-        
+
+        conn.busy_timeout(std::time::Duration::from_millis(
+            self.config.busy_timeout_ms,
+        ))?;
+
         Ok(conn)
     }
 

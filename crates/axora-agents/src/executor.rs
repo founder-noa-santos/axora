@@ -127,7 +127,7 @@ struct TaskContext {
 }
 
 /// Concurrent executor for parallel task execution
-/// 
+///
 /// Integrates with:
 /// - **Heartbeat** for agent lifecycle management
 /// - **StateMachine** for state tracking
@@ -195,9 +195,18 @@ impl ConcurrentExecutor {
     /// Register default agents
     pub fn register_default_agents(&mut self) {
         self.register_agent(Arc::new(Mutex::new(CoderAgent::new())));
-        self.register_agent(Arc::new(Mutex::new(BaseAgent::new("Developer 2", "Developer"))));
-        self.register_agent(Arc::new(Mutex::new(BaseAgent::new("Developer 3", "Developer"))));
-        self.register_agent(Arc::new(Mutex::new(BaseAgent::new("Developer 4", "Developer"))));
+        self.register_agent(Arc::new(Mutex::new(BaseAgent::new(
+            "Developer 2",
+            "Developer",
+        ))));
+        self.register_agent(Arc::new(Mutex::new(BaseAgent::new(
+            "Developer 3",
+            "Developer",
+        ))));
+        self.register_agent(Arc::new(Mutex::new(BaseAgent::new(
+            "Developer 4",
+            "Developer",
+        ))));
     }
 
     /// Execute a group of tasks concurrently
@@ -229,13 +238,9 @@ impl ConcurrentExecutor {
                 let _permit = semaphore.acquire().await.unwrap();
 
                 // Wait for dependencies (with timeout from config)
-                let dep_results = Self::wait_for_dependencies(
-                    task_id,
-                    &dependencies,
-                    &results_cache,
-                    timeout,
-                )
-                .await;
+                let dep_results =
+                    Self::wait_for_dependencies(task_id, &dependencies, &results_cache, timeout)
+                        .await;
 
                 // Execute task
                 Self::execute_single_task(task, dep_results, &agents).await
@@ -282,7 +287,7 @@ impl ConcurrentExecutor {
 
         // Calculate estimated sequential time for parallelization factor
         let estimated_sequential = Duration::from_millis(
-            mission.tasks.len() as u64 * self.config.estimated_task_time.as_millis() as u64
+            mission.tasks.len() as u64 * self.config.estimated_task_time.as_millis() as u64,
         );
 
         // Execute groups in order (respecting dependencies between groups)
@@ -407,7 +412,11 @@ impl ConcurrentExecutor {
     }
 
     /// Get dependencies for a task
-    fn get_task_dependencies(&self, task_id: TaskId, mission: &DecomposedMission) -> Vec<Dependency> {
+    fn get_task_dependencies(
+        &self,
+        task_id: TaskId,
+        mission: &DecomposedMission,
+    ) -> Vec<Dependency> {
         mission
             .dependencies
             .iter()
@@ -429,10 +438,13 @@ impl ConcurrentExecutor {
         for dep in dependencies {
             // Use shorter check interval for faster timeout detection
             let check_interval = Duration::from_millis(10);
-            
+
             loop {
                 if start.elapsed() > timeout {
-                    warn!("Timeout waiting for dependency {} for task {}", dep.to, task_id);
+                    warn!(
+                        "Timeout waiting for dependency {} for task {}",
+                        dep.to, task_id
+                    );
                     break;
                 }
 
@@ -440,10 +452,7 @@ impl ConcurrentExecutor {
                     let cache = results_cache.lock().await;
                     if let Some(result) = cache.get(&dep.to) {
                         if dep.dep_type == DependencyType::Hard && !result.success {
-                            warn!(
-                                "Hard dependency {} failed for task {}",
-                                dep.to, task_id
-                            );
+                            warn!("Hard dependency {} failed for task {}", dep.to, task_id);
                         }
                         dep_results.insert(dep.to, result.clone());
                         break;
@@ -520,11 +529,15 @@ mod tests {
         executor.register_default_agents();
 
         let decomposer = MissionDecomposer::new();
-        let mission = decomposer.decompose("Implement authentication with login").unwrap();
+        let mission = decomposer
+            .decompose("Implement authentication with login")
+            .unwrap();
 
         // Execute first group
         if !mission.parallel_groups.is_empty() {
-            let results = executor.execute_group(&mission.parallel_groups[0], &mission).await;
+            let results = executor
+                .execute_group(&mission.parallel_groups[0], &mission)
+                .await;
             assert!(!results.is_empty());
         }
     }
@@ -535,7 +548,9 @@ mod tests {
         executor.register_default_agents();
 
         let decomposer = MissionDecomposer::new();
-        let mission = decomposer.decompose("Build API with authentication").unwrap();
+        let mission = decomposer
+            .decompose("Build API with authentication")
+            .unwrap();
 
         let result = executor.execute_all(&mission).await;
 
@@ -554,7 +569,8 @@ mod tests {
             estimated_task_time: Duration::from_millis(50),
         };
 
-        let executor = ConcurrentExecutor::with_config(StateMachine::new().unwrap(), config.clone());
+        let executor =
+            ConcurrentExecutor::with_config(StateMachine::new().unwrap(), config.clone());
 
         assert_eq!(executor.config().max_concurrency, 8);
         assert_eq!(executor.config().task_timeout, Duration::from_secs(600));
@@ -614,11 +630,14 @@ mod tests {
         // Add a result
         {
             let mut cache_guard = cache.lock().await;
-            cache_guard.insert(0, TaskResult {
-                success: true,
-                output: "Done".to_string(),
-                error: None,
-            });
+            cache_guard.insert(
+                0,
+                TaskResult {
+                    success: true,
+                    output: "Done".to_string(),
+                    error: None,
+                },
+            );
         }
 
         let dependencies = vec![Dependency::hard(1, 0)];
@@ -627,7 +646,8 @@ mod tests {
             &dependencies,
             &cache,
             Duration::from_millis(500), // Shorter timeout for tests
-        ).await;
+        )
+        .await;
 
         assert_eq!(results.len(), 1);
         assert!(results.contains_key(&0));
@@ -644,7 +664,8 @@ mod tests {
             &dependencies,
             &cache,
             Duration::from_millis(50), // Short timeout
-        ).await;
+        )
+        .await;
 
         // Should timeout and return empty
         assert_eq!(results.len(), 0);
@@ -676,7 +697,9 @@ mod tests {
         executor.register_default_agents();
 
         let decomposer = MissionDecomposer::new();
-        let mission = decomposer.decompose("Implement authentication system with JWT").unwrap();
+        let mission = decomposer
+            .decompose("Implement authentication system with JWT")
+            .unwrap();
 
         // Execute all groups
         let mut all_results = Vec::new();
@@ -697,11 +720,8 @@ mod tests {
         executor.register_agent(Arc::new(Mutex::new(BaseAgent::new("Agent2", "Developer"))));
 
         let task = Task::new("Test task for selection");
-        let result = ConcurrentExecutor::execute_single_task(
-            task,
-            HashMap::new(),
-            &executor.agents,
-        ).await;
+        let result =
+            ConcurrentExecutor::execute_single_task(task, HashMap::new(), &executor.agents).await;
 
         assert!(result.success);
         assert!(!result.output.is_empty());

@@ -47,7 +47,7 @@
 //! ```
 
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, params};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -74,10 +74,7 @@ pub enum TaskQueueError {
 
     /// Invalid status transition
     #[error("invalid status transition: {from} → {to}")]
-    InvalidStatusTransition {
-        from: TaskStatus,
-        to: TaskStatus,
-    },
+    InvalidStatusTransition { from: TaskStatus, to: TaskStatus },
 }
 
 /// Result type for task queue operations
@@ -246,7 +243,9 @@ impl TaskQueue {
     /// Creates a new in-memory task queue
     pub fn new_in_memory() -> Result<Self> {
         let db = Connection::open(":memory:")?;
-        let queue = Self { db: Arc::new(Mutex::new(db)) };
+        let queue = Self {
+            db: Arc::new(Mutex::new(db)),
+        };
         queue.init()?;
         Ok(queue)
     }
@@ -254,7 +253,9 @@ impl TaskQueue {
     /// Creates a new task queue with a file-backed database
     pub fn new(path: &Path) -> Result<Self> {
         let db = Connection::open(path)?;
-        let queue = Self { db: Arc::new(Mutex::new(db)) };
+        let queue = Self {
+            db: Arc::new(Mutex::new(db)),
+        };
         queue.init()?;
         Ok(queue)
     }
@@ -353,10 +354,14 @@ impl TaskQueue {
                         .unwrap()
                         .with_timezone(&Utc),
                     checked_out_at: row.get::<_, Option<String>>(6)?.map(|s| {
-                        DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
                     }),
                     completed_at: row.get::<_, Option<String>>(7)?.map(|s| {
-                        DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
                     }),
                     result: row.get(8)?,
                 })
@@ -404,7 +409,11 @@ impl TaskQueue {
     /// Atomic checkout with timeout
     ///
     /// Releases tasks that have been checked out for too long
-    pub fn checkout_task_with_timeout(&self, agent_id: &str, timeout_secs: i64) -> Result<Option<Task>> {
+    pub fn checkout_task_with_timeout(
+        &self,
+        agent_id: &str,
+        timeout_secs: i64,
+    ) -> Result<Option<Task>> {
         // First, release any timed-out tasks
         self.release_timed_out_tasks(timeout_secs)?;
 
@@ -437,7 +446,12 @@ impl TaskQueue {
                 result = ?3
             WHERE id = ?4
             "#,
-            params![status.as_str(), Utc::now().to_rfc3339(), result_json, task_id],
+            params![
+                status.as_str(),
+                Utc::now().to_rfc3339(),
+                result_json,
+                task_id
+            ],
         )?;
 
         Ok(())
@@ -503,10 +517,14 @@ impl TaskQueue {
                         .unwrap()
                         .with_timezone(&Utc),
                     checked_out_at: row.get::<_, Option<String>>(6)?.map(|s| {
-                        DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
                     }),
                     completed_at: row.get::<_, Option<String>>(7)?.map(|s| {
-                        DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                        DateTime::parse_from_rfc3339(&s)
+                            .unwrap()
+                            .with_timezone(&Utc)
                     }),
                     result: row.get(8)?,
                 })
@@ -541,10 +559,14 @@ impl TaskQueue {
                     .unwrap()
                     .with_timezone(&Utc),
                 checked_out_at: row.get::<_, Option<String>>(6)?.map(|s| {
-                    DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
                 }),
                 completed_at: row.get::<_, Option<String>>(7)?.map(|s| {
-                    DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
                 }),
                 result: row.get(8)?,
             })
@@ -614,10 +636,14 @@ impl TaskQueue {
                     .unwrap()
                     .with_timezone(&Utc),
                 checked_out_at: row.get::<_, Option<String>>(6)?.map(|s| {
-                    DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
                 }),
                 completed_at: row.get::<_, Option<String>>(7)?.map(|s| {
-                    DateTime::parse_from_rfc3339(&s).unwrap().with_timezone(&Utc)
+                    DateTime::parse_from_rfc3339(&s)
+                        .unwrap()
+                        .with_timezone(&Utc)
                 }),
                 result: row.get(8)?,
             })
@@ -749,9 +775,7 @@ mod tests {
         for i in 0..5 {
             let queue = std::sync::Arc::clone(&queue);
             let agent_id = format!("agent-{}", i);
-            let handle = std::thread::spawn(move || {
-                queue.checkout_task(&agent_id)
-            });
+            let handle = std::thread::spawn(move || queue.checkout_task(&agent_id));
             handles.push(handle);
         }
 
@@ -827,8 +851,12 @@ mod tests {
 
         // Enqueue tasks with different priorities
         queue.enqueue(&Task::new("low", "Low priority", 1)).unwrap();
-        queue.enqueue(&Task::new("high", "High priority", 100)).unwrap();
-        queue.enqueue(&Task::new("medium", "Medium priority", 50)).unwrap();
+        queue
+            .enqueue(&Task::new("high", "High priority", 100))
+            .unwrap();
+        queue
+            .enqueue(&Task::new("medium", "Medium priority", 50))
+            .unwrap();
 
         // Checkout should return highest priority first
         let task1 = queue.checkout_task("agent-1").unwrap().unwrap();
@@ -892,7 +920,9 @@ mod tests {
         queue.checkout_task("agent-1").unwrap();
 
         // Fail task
-        queue.complete_task("task-1", false, "Error occurred").unwrap();
+        queue
+            .complete_task("task-1", false, "Error occurred")
+            .unwrap();
 
         // Verify failure
         let task = queue.get_task("task-1").unwrap().unwrap();
@@ -942,7 +972,8 @@ mod tests {
         db.execute(
             "UPDATE tasks SET checked_out_at = ? WHERE id = ?",
             params![past.to_rfc3339(), "task-1"],
-        ).unwrap();
+        )
+        .unwrap();
         drop(db);
 
         // Release timed out tasks (timeout = 60 seconds)

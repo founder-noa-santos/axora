@@ -24,4 +24,16 @@ pub enum AgentError {
     /// Task not found
     #[error("task not found: {0}")]
     TaskNotFound(String),
+
+    /// Invalid mission decomposition
+    #[error("invalid decomposition: {0}")]
+    InvalidDecomposition(String),
+
+    /// Dependency graph validation failed
+    #[error("graph validation failed: {0}")]
+    GraphValidation(String),
+
+    /// Serialization or parsing failed
+    #[error("serialization failed: {0}")]
+    Serialization(String),
 }

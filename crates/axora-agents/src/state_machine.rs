@@ -174,14 +174,18 @@ impl StateMachine {
         debug!("Assigning task {} to agent {}", task_id, agent_id);
 
         // Check if agent exists and is idle
-        let is_idle = self.agents.get(agent_id)
+        let is_idle = self
+            .agents
+            .get(agent_id)
             .map(|a| a.state == AgentState::Idle)
             .ok_or_else(|| AgentError::AgentNotFound(agent_id.to_string()))?;
 
         if !is_idle {
-            return Err(AgentError::InvalidStateTransition(
-                format!("Agent {} is not idle", agent_id)
-            ).into());
+            return Err(AgentError::InvalidStateTransition(format!(
+                "Agent {} is not idle",
+                agent_id
+            ))
+            .into());
         }
 
         // Transition to Executing
@@ -189,18 +193,25 @@ impl StateMachine {
             let agent = self.agents.get_mut(agent_id).unwrap();
             agent.state = AgentState::Executing;
             agent.current_task = Some(task_id.to_string());
-            info!("Agent {} assigned task {}, state: Executing", agent_id, task_id);
+            info!(
+                "Agent {} assigned task {}, state: Executing",
+                agent_id, task_id
+            );
             Ok(())
         } else {
-            Err(AgentError::InvalidStateTransition(
-                "Cannot transition to Executing".to_string()
-            ).into())
+            Err(
+                AgentError::InvalidStateTransition("Cannot transition to Executing".to_string())
+                    .into(),
+            )
         }
     }
 
     /// Complete task for agent
     pub fn complete_task(&mut self, agent_id: &str, success: bool) -> Result<()> {
-        debug!("Completing task for agent {} (success: {})", agent_id, success);
+        debug!(
+            "Completing task for agent {} (success: {})",
+            agent_id, success
+        );
 
         let target_state = if success {
             AgentState::Completed
@@ -210,18 +221,25 @@ impl StateMachine {
 
         // Check if transition is valid first
         if !self.can_transition(agent_id, &target_state) {
-            return Err(AgentError::InvalidStateTransition(
-                format!("Cannot transition to {:?}", target_state)
-            ).into());
+            return Err(AgentError::InvalidStateTransition(format!(
+                "Cannot transition to {:?}",
+                target_state
+            ))
+            .into());
         }
 
         // Now mutate
-        let agent = self.agents.get_mut(agent_id)
+        let agent = self
+            .agents
+            .get_mut(agent_id)
             .ok_or_else(|| AgentError::AgentNotFound(agent_id.to_string()))?;
 
         agent.state = target_state.clone();
         agent.current_task = None;
-        info!("Agent {} completed task, state: {:?}", agent_id, target_state);
+        info!(
+            "Agent {} completed task, state: {:?}",
+            agent_id, target_state
+        );
 
         // Schedule heartbeat wake for idle transition
         if success {
@@ -247,9 +265,9 @@ impl StateMachine {
         };
 
         // Check if there's a valid transition
-        self.transitions.iter().any(|t| {
-            t.from == agent.state && t.to == *target_state
-        })
+        self.transitions
+            .iter()
+            .any(|t| t.from == agent.state && t.to == *target_state)
     }
 
     /// Get agent state
@@ -301,7 +319,9 @@ impl StateMachine {
 
     /// Reset agent to idle
     pub fn reset_agent(&mut self, agent_id: &str) -> Result<()> {
-        let agent = self.agents.get_mut(agent_id)
+        let agent = self
+            .agents
+            .get_mut(agent_id)
             .ok_or_else(|| AgentError::AgentNotFound(agent_id.to_string()))?;
 
         agent.state = AgentState::Idle;
@@ -320,7 +340,9 @@ impl StateMachine {
 
     /// Transition agent to idle with heartbeat scheduling
     pub fn transition_to_idle(&mut self, agent_id: &str) -> Result<()> {
-        let agent = self.agents.get_mut(agent_id)
+        let agent = self
+            .agents
+            .get_mut(agent_id)
             .ok_or_else(|| AgentError::AgentNotFound(agent_id.to_string()))?;
 
         agent.state = AgentState::Idle;
@@ -378,7 +400,10 @@ mod tests {
         assert!(result.is_ok());
 
         // Check state
-        assert_eq!(machine.get_agent_state("agent1"), Some(AgentState::Executing));
+        assert_eq!(
+            machine.get_agent_state("agent1"),
+            Some(AgentState::Executing)
+        );
         assert_eq!(machine.get_idle_agents().len(), 0);
         assert_eq!(machine.get_busy_agents().len(), 1);
     }
@@ -393,7 +418,10 @@ mod tests {
         let result = machine.complete_task("agent1", true);
         assert!(result.is_ok());
 
-        assert_eq!(machine.get_agent_state("agent1"), Some(AgentState::Completed));
+        assert_eq!(
+            machine.get_agent_state("agent1"),
+            Some(AgentState::Completed)
+        );
     }
 
     #[test]

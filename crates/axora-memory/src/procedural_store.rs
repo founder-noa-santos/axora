@@ -211,9 +211,10 @@ impl Skill {
     /// Check if any trigger matches the task context
     pub fn matches_trigger(&self, task_context: &str) -> bool {
         let task_lower = task_context.to_lowercase();
-        self.metadata.triggers.iter().any(|trigger| {
-            task_lower.contains(&trigger.to_lowercase())
-        })
+        self.metadata
+            .triggers
+            .iter()
+            .any(|trigger| task_lower.contains(&trigger.to_lowercase()))
     }
 
     /// Serialize skill to SKILL.md format
@@ -781,7 +782,10 @@ mod tests {
 
         store.store(skill.clone()).await.unwrap();
 
-        store.update_utility("TEST_SKILL", SkillOutcome::Success).await.unwrap();
+        store
+            .update_utility("TEST_SKILL", SkillOutcome::Success)
+            .await
+            .unwrap();
 
         let retrieved = store.get("TEST_SKILL").await.unwrap().unwrap();
         assert_eq!(retrieved.metadata.success_count, 1);
@@ -822,11 +826,7 @@ mod tests {
         skill2.metadata.failure_count = 1; // 90% success rate
         repo.store.store(skill2).await.unwrap();
 
-        let best = repo
-            .find_best_skill("test trigger")
-            .await
-            .unwrap()
-            .unwrap();
+        let best = repo.find_best_skill("test trigger").await.unwrap().unwrap();
 
         // Best skill should be SKILL_2 (higher success rate)
         assert_eq!(best.metadata.skill_id, "SKILL_2");
@@ -849,6 +849,8 @@ mod tests {
 
         let security_skills = repo.get_by_domain("security").await.unwrap();
         assert!(security_skills.len() >= 1);
-        assert!(security_skills.iter().any(|s| s.metadata.domain == "security"));
+        assert!(security_skills
+            .iter()
+            .any(|s| s.metadata.domain == "security"));
     }
 }

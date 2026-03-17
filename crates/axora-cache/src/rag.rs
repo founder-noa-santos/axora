@@ -51,8 +51,7 @@
 //! ```
 
 use qdrant_client::qdrant::{
-    self, Condition, Filter, PointStruct, QueryPoints, ScoredPoint, SearchParams,
-    VectorInput,
+    self, Condition, Filter, PointStruct, QueryPoints, ScoredPoint, SearchParams, VectorInput,
 };
 use qdrant_client::{Payload, Qdrant};
 use serde::{Deserialize, Serialize};
@@ -271,20 +270,15 @@ impl DomainRagStore {
     /// Creates a new domain if it doesn't exist
     pub fn ensure_domain(&mut self, domain_id: &str) {
         if !self.domains.contains_key(domain_id) {
-            self.domains.insert(domain_id.to_string(), VectorStore::new());
+            self.domains
+                .insert(domain_id.to_string(), VectorStore::new());
         }
     }
 
     /// Adds an experience to a domain
-    pub fn add_experience(
-        &mut self,
-        domain: &str,
-        task: &str,
-        pattern: &str,
-        reasoning: &str,
-    ) {
+    pub fn add_experience(&mut self, domain: &str, task: &str, pattern: &str, reasoning: &str) {
         self.ensure_domain(domain);
-        
+
         let experience = Experience::new(task, pattern, reasoning, domain);
         if let Some(store) = self.domains.get_mut(domain) {
             store.add(experience);
@@ -292,12 +286,7 @@ impl DomainRagStore {
     }
 
     /// Retrieves relevant knowledge for a task from a specific domain
-    pub async fn retrieve(
-        &self,
-        domain: &str,
-        query: &str,
-        k: usize,
-    ) -> Result<Vec<RagResult>> {
+    pub async fn retrieve(&self, domain: &str, query: &str, k: usize) -> Result<Vec<RagResult>> {
         match self.strategy {
             RetrievalStrategy::DenseOnly => self.dense_retrieve(domain, query, k).await,
             RetrievalStrategy::Hybrid => self.hybrid_retrieve(domain, query, k).await,
@@ -308,12 +297,7 @@ impl DomainRagStore {
     }
 
     /// Dense vector-only retrieval (semantic search)
-    async fn dense_retrieve(
-        &self,
-        domain: &str,
-        query: &str,
-        k: usize,
-    ) -> Result<Vec<RagResult>> {
+    async fn dense_retrieve(&self, domain: &str, query: &str, k: usize) -> Result<Vec<RagResult>> {
         let store = self
             .domains
             .get(domain)
@@ -365,12 +349,7 @@ impl DomainRagStore {
     }
 
     /// Hybrid search: BM25 (lexical) + dense vectors (semantic)
-    async fn hybrid_retrieve(
-        &self,
-        domain: &str,
-        query: &str,
-        k: usize,
-    ) -> Result<Vec<RagResult>> {
+    async fn hybrid_retrieve(&self, domain: &str, query: &str, k: usize) -> Result<Vec<RagResult>> {
         // Parallel retrieval
         let (vector_results, keyword_results) = tokio::join!(
             self.dense_retrieve(domain, query, k),
@@ -387,22 +366,17 @@ impl DomainRagStore {
     }
 
     /// Keyword-based search (BM25-style)
-    async fn keyword_search(
-        &self,
-        domain: &str,
-        query: &str,
-        k: usize,
-    ) -> Result<Vec<RagResult>> {
+    async fn keyword_search(&self, domain: &str, query: &str, k: usize) -> Result<Vec<RagResult>> {
         let store = self
             .domains
             .get(domain)
             .ok_or_else(|| RagError::DomainNotFound(domain.to_string()))?;
 
         let query_keywords: Vec<String> = VectorStore::extract_keywords(query);
-        
+
         // Count keyword matches for each experience
         let mut scores: HashMap<usize, f32> = HashMap::new();
-        
+
         for keyword in &query_keywords {
             if let Some(indices) = store.keyword_index.get(keyword) {
                 for &idx in indices {
@@ -428,7 +402,11 @@ impl DomainRagStore {
             .collect();
 
         // Sort by score
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Ok(results.into_iter().take(k).collect())
     }
@@ -529,7 +507,7 @@ impl DomainRagStore {
 
         // Calculate RRF scores
         let mut rrf_scores: HashMap<String, f32> = HashMap::new();
-        
+
         for (rank, result) in vector_results.iter().enumerate() {
             let score = 1.0 / (RRF_K + rank as f32);
             match rrf_scores.entry(result.id.clone()) {
@@ -558,7 +536,10 @@ impl DomainRagStore {
         let mut all_results: Vec<RagResult> = Vec::new();
         let mut seen_ids: HashMap<String, RagResult> = HashMap::new();
 
-        for result in vector_results.into_iter().chain(keyword_results.into_iter()) {
+        for result in vector_results
+            .into_iter()
+            .chain(keyword_results.into_iter())
+        {
             if !seen_ids.contains_key(&result.id) {
                 seen_ids.insert(result.id.clone(), result);
             }
@@ -572,7 +553,11 @@ impl DomainRagStore {
         }
 
         // Sort by RRF score
-        all_results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        all_results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Take top k
         all_results.into_iter().take(k).collect()
@@ -624,15 +609,33 @@ mod tests {
     #[tokio::test]
     async fn test_domain_rag_retrieve() {
         let mut rag = DomainRagStore::with_strategy(RetrievalStrategy::DenseOnly);
-        
+
         // Add experiences
-        rag.add_experience("auth", "user login with JWT", "Use JWT tokens with HttpOnly cookies", "Stateless auth scales better");
-        rag.add_experience("auth", "OAuth2 integration", "Use OAuth2 flow with refresh tokens", "Industry standard for third-party auth");
-        rag.add_experience("api", "REST API design", "Use RESTful principles with versioning", "Clean separation of concerns");
-        
+        rag.add_experience(
+            "auth",
+            "user login with JWT",
+            "Use JWT tokens with HttpOnly cookies",
+            "Stateless auth scales better",
+        );
+        rag.add_experience(
+            "auth",
+            "OAuth2 integration",
+            "Use OAuth2 flow with refresh tokens",
+            "Industry standard for third-party auth",
+        );
+        rag.add_experience(
+            "api",
+            "REST API design",
+            "Use RESTful principles with versioning",
+            "Clean separation of concerns",
+        );
+
         // Retrieve
-        let results = rag.retrieve("auth", "implement user authentication", 5).await.unwrap();
-        
+        let results = rag
+            .retrieve("auth", "implement user authentication", 5)
+            .await
+            .unwrap();
+
         assert!(!results.is_empty());
         assert!(results.iter().all(|r| r.domain == "auth"));
     }
@@ -640,16 +643,39 @@ mod tests {
     #[tokio::test]
     async fn test_hybrid_search_precision() {
         let mut rag = DomainRagStore::with_strategy(RetrievalStrategy::Hybrid);
-        
+
         // Add multiple experiences with varying relevance
-        rag.add_experience("auth", "JWT token authentication", "Use JWT with RS256 signing", "Secure and scalable");
-        rag.add_experience("auth", "session-based authentication", "Use server-side sessions", "Traditional approach");
-        rag.add_experience("auth", "OAuth2 third-party login", "Use OAuth2 providers", "Good for social login");
-        rag.add_experience("api", "rate limiting", "Use token bucket algorithm", "Prevents abuse");
-        
+        rag.add_experience(
+            "auth",
+            "JWT token authentication",
+            "Use JWT with RS256 signing",
+            "Secure and scalable",
+        );
+        rag.add_experience(
+            "auth",
+            "session-based authentication",
+            "Use server-side sessions",
+            "Traditional approach",
+        );
+        rag.add_experience(
+            "auth",
+            "OAuth2 third-party login",
+            "Use OAuth2 providers",
+            "Good for social login",
+        );
+        rag.add_experience(
+            "api",
+            "rate limiting",
+            "Use token bucket algorithm",
+            "Prevents abuse",
+        );
+
         // Hybrid search should find most relevant
-        let results = rag.retrieve("auth", "JWT authentication tokens", 3).await.unwrap();
-        
+        let results = rag
+            .retrieve("auth", "JWT authentication tokens", 3)
+            .await
+            .unwrap();
+
         // Top result should be most relevant (JWT-related)
         assert!(!results.is_empty());
         assert!(results[0].content.contains("JWT"));
@@ -658,18 +684,18 @@ mod tests {
     #[tokio::test]
     async fn test_experience_as_parameters() {
         let mut rag = DomainRagStore::with_strategy(RetrievalStrategy::DenseOnly);
-        
+
         // Store past success as experience
         rag.add_experience(
             "auth",
             "implement login endpoint",
             "Created /api/auth/login with JWT response",
-            "Used bcrypt for password hashing, JWT for tokens"
+            "Used bcrypt for password hashing, JWT for tokens",
         );
-        
+
         // Retrieve should find the experience
         let results = rag.retrieve("auth", "login endpoint", 5).await.unwrap();
-        
+
         assert!(!results.is_empty());
         assert!(results.iter().any(|r| r.content.contains("login")));
     }
@@ -677,15 +703,33 @@ mod tests {
     #[tokio::test]
     async fn test_late_interaction_retrieval() {
         let mut rag = DomainRagStore::with_strategy(RetrievalStrategy::LateInteraction);
-        
+
         // Add experiences
-        rag.add_experience("db", "PostgreSQL connection pooling", "Use connection pool with max 100 connections", "Improves performance");
-        rag.add_experience("db", "Redis caching layer", "Use Redis for session storage", "Fast key-value access");
-        rag.add_experience("db", "database migration strategy", "Use Flyway for schema migrations", "Version-controlled migrations");
-        
+        rag.add_experience(
+            "db",
+            "PostgreSQL connection pooling",
+            "Use connection pool with max 100 connections",
+            "Improves performance",
+        );
+        rag.add_experience(
+            "db",
+            "Redis caching layer",
+            "Use Redis for session storage",
+            "Fast key-value access",
+        );
+        rag.add_experience(
+            "db",
+            "database migration strategy",
+            "Use Flyway for schema migrations",
+            "Version-controlled migrations",
+        );
+
         // Late-interaction should find token-level matches
-        let results = rag.retrieve("db", "PostgreSQL pool connections", 3).await.unwrap();
-        
+        let results = rag
+            .retrieve("db", "PostgreSQL pool connections", 3)
+            .await
+            .unwrap();
+
         assert!(!results.is_empty());
         // Top result should match "PostgreSQL" and "pool" tokens
         assert!(results[0].content.contains("PostgreSQL") || results[0].content.contains("pool"));
@@ -694,17 +738,17 @@ mod tests {
     #[tokio::test]
     async fn test_multi_domain_retrieval() {
         let mut rag = DomainRagStore::with_strategy(RetrievalStrategy::Hybrid);
-        
+
         // Add experiences to multiple domains
         rag.add_experience("auth", "user authentication", "JWT-based auth", "Stateless");
         rag.add_experience("api", "API authentication", "API key in header", "Simple");
         rag.add_experience("db", "database auth", "Role-based access", "Secure");
-        
+
         // Retrieve from each domain
         let auth_results = rag.retrieve("auth", "authentication", 5).await.unwrap();
         let api_results = rag.retrieve("api", "authentication", 5).await.unwrap();
         let db_results = rag.retrieve("db", "authentication", 5).await.unwrap();
-        
+
         // Each should return domain-specific results
         assert!(auth_results.iter().all(|r| r.domain == "auth"));
         assert!(api_results.iter().all(|r| r.domain == "api"));
@@ -714,10 +758,10 @@ mod tests {
     #[tokio::test]
     async fn test_domain_not_found() {
         let rag = DomainRagStore::with_strategy(RetrievalStrategy::DenseOnly);
-        
+
         // Try to retrieve from non-existent domain
         let result = rag.retrieve("nonexistent", "query", 5).await;
-        
+
         assert!(result.is_err());
         match result {
             Err(RagError::DomainNotFound(domain)) => assert_eq!(domain, "nonexistent"),
@@ -728,15 +772,30 @@ mod tests {
     #[test]
     fn test_vector_store_keyword_indexing() {
         let mut store = VectorStore::new();
-        
-        store.add(Experience::new("user login", "pattern1", "reasoning1", "auth"));
-        store.add(Experience::new("admin login", "pattern2", "reasoning2", "auth"));
-        store.add(Experience::new("API authentication", "pattern3", "reasoning3", "api"));
-        
+
+        store.add(Experience::new(
+            "user login",
+            "pattern1",
+            "reasoning1",
+            "auth",
+        ));
+        store.add(Experience::new(
+            "admin login",
+            "pattern2",
+            "reasoning2",
+            "auth",
+        ));
+        store.add(Experience::new(
+            "API authentication",
+            "pattern3",
+            "reasoning3",
+            "api",
+        ));
+
         // Check keyword index
         assert!(store.keyword_index.contains_key("login"));
         assert!(store.keyword_index.contains_key("authentication"));
-        
+
         // Check experience count
         assert_eq!(store.len(), 3);
     }
@@ -747,13 +806,37 @@ mod tests {
 
         // Create mock results from different retrieval methods
         let vector_results = vec![
-            RagResult { id: "1".to_string(), content: "content1".to_string(), score: 0.9, domain: "auth".to_string(), metadata: HashMap::new() },
-            RagResult { id: "2".to_string(), content: "content2".to_string(), score: 0.7, domain: "auth".to_string(), metadata: HashMap::new() },
+            RagResult {
+                id: "1".to_string(),
+                content: "content1".to_string(),
+                score: 0.9,
+                domain: "auth".to_string(),
+                metadata: HashMap::new(),
+            },
+            RagResult {
+                id: "2".to_string(),
+                content: "content2".to_string(),
+                score: 0.7,
+                domain: "auth".to_string(),
+                metadata: HashMap::new(),
+            },
         ];
 
         let keyword_results = vec![
-            RagResult { id: "2".to_string(), content: "content2-updated".to_string(), score: 0.8, domain: "auth".to_string(), metadata: HashMap::new() },
-            RagResult { id: "3".to_string(), content: "content3".to_string(), score: 0.6, domain: "auth".to_string(), metadata: HashMap::new() },
+            RagResult {
+                id: "2".to_string(),
+                content: "content2-updated".to_string(),
+                score: 0.8,
+                domain: "auth".to_string(),
+                metadata: HashMap::new(),
+            },
+            RagResult {
+                id: "3".to_string(),
+                content: "content3".to_string(),
+                score: 0.6,
+                domain: "auth".to_string(),
+                metadata: HashMap::new(),
+            },
         ];
 
         // Merge with RRF
@@ -761,7 +844,7 @@ mod tests {
 
         // Should have 3 unique results (id 2 appears in both)
         assert_eq!(merged.len(), 3);
-        
+
         // ID 2 should have higher RRF score (appeared in both)
         let id2_result = merged.iter().find(|r| r.id == "2").unwrap();
         assert!(id2_result.score > 0.0);
@@ -770,13 +853,13 @@ mod tests {
     #[test]
     fn test_experience_serialization() {
         let exp = Experience::new("test task", "test pattern", "test reasoning", "test-domain");
-        
+
         // Serialize
         let json = serde_json::to_string(&exp).unwrap();
-        
+
         // Deserialize
         let deserialized: Experience = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(exp.task_description, deserialized.task_description);
         assert_eq!(exp.successful_pattern, deserialized.successful_pattern);
         assert_eq!(exp.reasoning_trace, deserialized.reasoning_trace);
@@ -786,13 +869,13 @@ mod tests {
     #[tokio::test]
     async fn test_domain_count() {
         let mut rag = DomainRagStore::with_strategy(RetrievalStrategy::DenseOnly);
-        
+
         assert_eq!(rag.domain_count(), 0);
-        
+
         rag.add_experience("auth", "task1", "pattern1", "reasoning1");
         rag.add_experience("api", "task2", "pattern2", "reasoning2");
         rag.add_experience("db", "task3", "pattern3", "reasoning3");
-        
+
         assert_eq!(rag.domain_count(), 3);
         assert_eq!(rag.experience_count("auth"), Some(1));
         assert_eq!(rag.experience_count("api"), Some(1));

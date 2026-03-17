@@ -332,20 +332,22 @@ impl SharedContext {
 
     /// Estimates total token count of shared context
     pub fn token_count(&self) -> usize {
-        let doc_tokens: usize = self.global_docs.iter()
+        let doc_tokens: usize = self
+            .global_docs
+            .iter()
             .filter_map(|id| self.doc_storage.get(id))
             .map(|d| d.token_count)
             .sum();
-        
-        let code_tokens: usize = self.global_code.iter()
+
+        let code_tokens: usize = self
+            .global_code
+            .iter()
             .filter_map(|id| self.code_storage.get(id))
             .map(|c| c.token_count)
             .sum();
-        
-        let decision_tokens: usize = self.decisions.iter()
-            .map(|d| estimate_tokens(d))
-            .sum();
-        
+
+        let decision_tokens: usize = self.decisions.iter().map(|d| estimate_tokens(d)).sum();
+
         doc_tokens + code_tokens + decision_tokens
     }
 }
@@ -497,26 +499,30 @@ impl TaskContext {
 
     /// Estimates the token count for this context
     pub fn token_count(&self) -> usize {
-        let doc_tokens: usize = self.required_docs.iter()
+        let doc_tokens: usize = self
+            .required_docs
+            .iter()
             .filter_map(|id| {
-                self.shared_context.as_ref()
+                self.shared_context
+                    .as_ref()
                     .and_then(|sc| sc.read().ok())
                     .and_then(|sc| sc.get_document(id).map(|d| d.token_count))
             })
             .sum();
-        
-        let code_tokens: usize = self.required_code.iter()
+
+        let code_tokens: usize = self
+            .required_code
+            .iter()
             .filter_map(|id| {
-                self.shared_context.as_ref()
+                self.shared_context
+                    .as_ref()
                     .and_then(|sc| sc.read().ok())
                     .and_then(|sc| sc.get_code(id).map(|c| c.token_count))
             })
             .sum();
-        
-        let result_tokens: usize = self.task_results.values()
-            .map(|r| r.token_count)
-            .sum();
-        
+
+        let result_tokens: usize = self.task_results.values().map(|r| r.token_count).sum();
+
         doc_tokens + code_tokens + result_tokens
     }
 
@@ -578,7 +584,8 @@ impl ContextManager {
 
     /// Adds an experience to the domain RAG store
     pub fn add_experience(&mut self, domain: &str, task: &str, pattern: &str, reasoning: &str) {
-        self.domain_rag.add_experience(domain, task, pattern, reasoning);
+        self.domain_rag
+            .add_experience(domain, task, pattern, reasoning);
     }
 
     /// Allocates minimal context for a task assigned to an agent
@@ -699,7 +706,9 @@ impl ContextManager {
 
     /// Gets a mutable reference to the shared context (via RwLock write lock)
     pub fn get_shared_mut(&self) -> std::sync::RwLockWriteGuard<'_, SharedContext> {
-        self.shared_context.write().expect("Shared context lock poisoned")
+        self.shared_context
+            .write()
+            .expect("Shared context lock poisoned")
     }
 
     /// Gets a clone of the shared context Arc for sharing with task contexts
@@ -735,8 +744,9 @@ impl ContextManager {
 
     /// Stores a task result
     pub fn store_task_result(&mut self, result: TaskResult) {
-        self.task_results.insert(result.task_id.clone(), result.clone());
-        
+        self.task_results
+            .insert(result.task_id.clone(), result.clone());
+
         // Update any task contexts that depend on this task
         for ctx in self.task_contexts.values_mut() {
             if ctx.related_tasks.contains(&result.task_id) {
@@ -747,7 +757,8 @@ impl ContextManager {
 
     /// Cleans up stale contexts (not accessed within max_age_hours)
     pub fn cleanup(&mut self, max_age_hours: u64) {
-        self.task_contexts.retain(|_, ctx| !ctx.is_stale(max_age_hours));
+        self.task_contexts
+            .retain(|_, ctx| !ctx.is_stale(max_age_hours));
     }
 
     /// Gets the number of active task contexts
@@ -757,13 +768,17 @@ impl ContextManager {
 
     /// Estimates total token usage across all contexts
     pub fn total_token_count(&self) -> usize {
-        let shared_tokens = self.shared_context.read()
+        let shared_tokens = self
+            .shared_context
+            .read()
             .map(|sc| sc.token_count())
             .unwrap_or(0);
-        let task_tokens: usize = self.task_contexts.values()
+        let task_tokens: usize = self
+            .task_contexts
+            .values()
             .map(|ctx| ctx.token_count())
             .sum();
-        
+
         // Shared context is counted once, task contexts reference it
         shared_tokens + task_tokens
     }
@@ -772,10 +787,10 @@ impl ContextManager {
     pub fn calculate_savings(&self, full_context_tokens: usize) -> ContextSavings {
         let actual_tokens = self.total_token_count();
         let num_tasks = self.task_contexts.len().max(1);
-        
+
         // If each task got full context
         let full_tokens = full_context_tokens * num_tasks;
-        
+
         let saved = full_tokens.saturating_sub(actual_tokens);
         let percentage = if full_tokens > 0 {
             (saved as f64 / full_tokens as f64) * 100.0
@@ -887,12 +902,22 @@ mod tests {
         let mut manager = ContextManager::new();
 
         // Add domain knowledge (Experience-as-Parameters)
-        manager.add_experience("auth", "user login", "Use JWT with HttpOnly cookies", "Stateless auth scales better");
-        manager.add_experience("auth", "OAuth2 integration", "Use OAuth2 flow", "Industry standard");
+        manager.add_experience(
+            "auth",
+            "user login",
+            "Use JWT with HttpOnly cookies",
+            "Stateless auth scales better",
+        );
+        manager.add_experience(
+            "auth",
+            "OAuth2 integration",
+            "Use OAuth2 flow",
+            "Industry standard",
+        );
 
         // Create task with query (triggers RAG)
-        let task = Task::new("task-1", vec![], vec![], vec![])
-            .with_query("implement user login with JWT");
+        let task =
+            Task::new("task-1", vec![], vec![], vec![]).with_query("implement user login with JWT");
         let agent = Agent::new("agent-1");
 
         // Allocate context (async, with RAG retrieval)
@@ -932,8 +957,11 @@ mod tests {
 
         // Each task only gets 1 doc instead of 4
         // Expected savings: ~75% (each task gets 25% of full context)
-        assert!(savings.savings_percentage >= 50.0,
-            "Expected >= 50% savings, got {:.1}%", savings.savings_percentage);
+        assert!(
+            savings.savings_percentage >= 50.0,
+            "Expected >= 50% savings, got {:.1}%",
+            savings.savings_percentage
+        );
         assert!(savings.saved_tokens > 0);
     }
 
@@ -948,8 +976,10 @@ mod tests {
 
         // Create tasks with queries that match domain keywords
         let tasks: Vec<Task> = (0..10)
-            .map(|i| Task::new(&format!("task-{}", i), vec![], vec![], vec![])
-                .with_query("implement login authentication"))  // Matches "auth" domain
+            .map(|i| {
+                Task::new(&format!("task-{}", i), vec![], vec![], vec![])
+                    .with_query("implement login authentication")
+            }) // Matches "auth" domain
             .collect();
 
         let agent = Agent::new("agent-1");
@@ -964,12 +994,15 @@ mod tests {
         // Verify O(N) coordination (not O(N²))
         // Each task retrieves independently, no cross-talk overhead
         assert!(total_retrieved > 0);
-        
+
         // Token overhead should be <10% (RAG results only, not full domain knowledge)
         let overhead = total_retrieved * 100; // Each result ~100 tokens
         let ddd_overhead = 10 * 400; // DDD would send full context (~400 tokens per domain)
-        
-        assert!(overhead < ddd_overhead, "RAG should have <10% overhead vs DDD");
+
+        assert!(
+            overhead < ddd_overhead,
+            "RAG should have <10% overhead vs DDD"
+        );
     }
 
     #[tokio::test]
@@ -991,15 +1024,15 @@ mod tests {
             for (domain, task, pattern, reasoning) in &experiences {
                 manager.add_experience(domain, task, pattern, reasoning);
             }
-            
+
             let start = std::time::Instant::now();
-            
+
             for i in 0..n {
                 let task = Task::new(&format!("task-{}", i), vec![], vec![], vec![])
                     .with_query("test query");
                 manager.allocate(&task, &agent).await;
             }
-            
+
             overheads.push((n, start.elapsed().as_millis()));
         }
 
@@ -1007,10 +1040,14 @@ mod tests {
         // Time for 20 tasks should be roughly 4x time for 5 tasks (not 16x)
         let time_5 = overheads.iter().find(|(n, _)| *n == 5).unwrap().1 as f32;
         let time_20 = overheads.iter().find(|(n, _)| *n == 20).unwrap().1 as f32;
-        
+
         if time_5 > 0.0 {
             let ratio = time_20 / time_5;
-            assert!(ratio < 8.0, "Coordination should be O(N), ratio={:.1}", ratio);
+            assert!(
+                ratio < 8.0,
+                "Coordination should be O(N), ratio={:.1}",
+                ratio
+            );
         }
     }
 
@@ -1065,6 +1102,10 @@ mod tests {
 
         // Should be approximately 200+ tokens (docs only, decisions are small)
         // 400 chars / 4 = 100 tokens per doc, so 200 total for 2 docs
-        assert!(tokens >= 100, "Expected at least 100 tokens, got {}", tokens);
+        assert!(
+            tokens >= 100,
+            "Expected at least 100 tokens, got {}",
+            tokens
+        );
     }
 }

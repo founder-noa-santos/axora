@@ -38,9 +38,7 @@ impl MerkleTree {
         info!("Building Merkle tree for: {:?}", root_path);
 
         if !root_path.exists() {
-            return Err(IndexingError::MerkleTree(
-                "Root path does not exist".to_string(),
-            ).into());
+            return Err(IndexingError::MerkleTree("Root path does not exist".to_string()).into());
         }
 
         let mut nodes: HashMap<PathBuf, HashNode> = HashMap::new();
@@ -80,16 +78,14 @@ impl MerkleTree {
             }
         }
 
-        let entries = fs::read_dir(current).map_err(|e| {
-            IndexingError::MerkleTree(format!("Failed to read directory: {}", e))
-        })?;
+        let entries = fs::read_dir(current)
+            .map_err(|e| IndexingError::MerkleTree(format!("Failed to read directory: {}", e)))?;
 
         let mut child_paths = Vec::new();
 
         for entry in entries {
-            let entry = entry.map_err(|e| {
-                IndexingError::MerkleTree(format!("Failed to read entry: {}", e))
-            })?;
+            let entry = entry
+                .map_err(|e| IndexingError::MerkleTree(format!("Failed to read entry: {}", e)))?;
 
             let path = entry.path();
 
@@ -148,7 +144,10 @@ impl MerkleTree {
 
         for (path, hash) in file_hashes {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-            dir_files.entry(parent).or_default().push((path.clone(), *hash));
+            dir_files
+                .entry(parent)
+                .or_default()
+                .push((path.clone(), *hash));
         }
 
         // Compute directory hashes bottom-up
@@ -158,7 +157,7 @@ impl MerkleTree {
         // First pass: create directory nodes
         for dir in &dirs {
             let files = &dir_files[dir];
-            
+
             // Hash of this directory is hash of all children
             let child_hashes: Vec<Hash> = files.iter().map(|(_, h)| *h).collect();
             let dir_hash = Self::hash_hashes(&child_hashes);
@@ -230,7 +229,14 @@ impl MerkleTree {
     fn should_skip_directory(name: &str) -> bool {
         matches!(
             name,
-            "target" | "node_modules" | ".git" | "dist" | "build" | "__pycache__" | ".venv" | "vendor"
+            "target"
+                | "node_modules"
+                | ".git"
+                | "dist"
+                | "build"
+                | "__pycache__"
+                | ".venv"
+                | "vendor"
         )
     }
 
@@ -291,7 +297,10 @@ impl MerkleTree {
         let new_hash = Self::hash_content(new_content);
 
         // Get relative path
-        let relative_path = file_path.strip_prefix(&self.root_path).unwrap_or(file_path).to_path_buf();
+        let relative_path = file_path
+            .strip_prefix(&self.root_path)
+            .unwrap_or(file_path)
+            .to_path_buf();
 
         // Update or create leaf node
         let node = HashNode {
@@ -306,11 +315,10 @@ impl MerkleTree {
         // Recompute root hash
         // In a full implementation, we'd update all parent hashes
         // For now, rebuild the tree
-        let file_hashes: Vec<(PathBuf, Hash)> = self.nodes
+        let file_hashes: Vec<(PathBuf, Hash)> = self
+            .nodes
             .iter()
-            .filter_map(|(path, node)| {
-                node.content_hash.map(|h| (path.clone(), h))
-            })
+            .filter_map(|(path, node)| node.content_hash.map(|h| (path.clone(), h)))
             .collect();
 
         self.root_hash = Self::build_tree(&file_hashes, &self.root_path, &mut self.nodes)?;
@@ -325,7 +333,10 @@ impl MerkleTree {
 
     /// Get number of files in tree
     pub fn file_count(&self) -> usize {
-        self.nodes.values().filter(|n| n.content_hash.is_some()).count()
+        self.nodes
+            .values()
+            .filter(|n| n.content_hash.is_some())
+            .count()
     }
 
     /// Get number of nodes (files + directories)
@@ -343,13 +354,13 @@ mod tests {
     #[test]
     fn test_merkle_tree_creation() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create some test files
         fs::write(temp_dir.path().join("file1.txt"), "content1").unwrap();
         fs::write(temp_dir.path().join("file2.txt"), "content2").unwrap();
 
         let tree = MerkleTree::build(temp_dir.path()).unwrap();
-        
+
         assert_eq!(tree.file_count(), 2);
         assert!(tree.node_count() >= 2); // Files + possibly directory nodes
     }
@@ -357,7 +368,7 @@ mod tests {
     #[test]
     fn test_merkle_tree_change_detection() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create initial file
         fs::write(temp_dir.path().join("file.txt"), "original").unwrap();
         let tree1 = MerkleTree::build(temp_dir.path()).unwrap();
@@ -367,7 +378,7 @@ mod tests {
         let tree2 = MerkleTree::build(temp_dir.path()).unwrap();
 
         let changed = tree2.find_changed(&tree1);
-        
+
         assert_eq!(changed.len(), 1);
         assert!(changed.iter().any(|p| p.file_name().unwrap() == "file.txt"));
     }
@@ -375,7 +386,7 @@ mod tests {
     #[test]
     fn test_merkle_tree_new_file() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create initial tree (empty)
         let tree1 = MerkleTree::build(temp_dir.path()).unwrap();
 
@@ -384,7 +395,7 @@ mod tests {
         let tree2 = MerkleTree::build(temp_dir.path()).unwrap();
 
         let changed = tree2.find_changed(&tree1);
-        
+
         assert_eq!(changed.len(), 1);
         assert!(changed.iter().any(|p| p.file_name().unwrap() == "new.txt"));
     }
@@ -402,12 +413,12 @@ mod tests {
     fn test_file_hash_consistency() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test.txt");
-        
+
         fs::write(&file_path, "test content").unwrap();
-        
+
         let hash1 = MerkleTree::hash_file(&file_path).unwrap();
         let hash2 = MerkleTree::hash_file(&file_path).unwrap();
-        
+
         assert_eq!(hash1, hash2, "Same content should produce same hash");
     }
 }

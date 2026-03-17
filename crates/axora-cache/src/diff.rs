@@ -122,10 +122,12 @@ impl UnifiedDiff {
 
         // Hunks
         for hunk in &self.hunks {
-            writeln!(output, "@@ -{},{} +{},{} @@", 
-                hunk.old_start, hunk.old_count,
-                hunk.new_start, hunk.new_count
-            ).unwrap();
+            writeln!(
+                output,
+                "@@ -{},{} +{},{} @@",
+                hunk.old_start, hunk.old_count, hunk.new_start, hunk.new_count
+            )
+            .unwrap();
 
             for line in &hunk.lines {
                 match line {
@@ -152,7 +154,8 @@ impl UnifiedDiff {
 
     /// Get number of changes (additions + removals)
     pub fn change_count(&self) -> usize {
-        self.hunks.iter()
+        self.hunks
+            .iter()
             .flat_map(|h| &h.lines)
             .filter(|l| matches!(l, DiffLine::Add(_) | DiffLine::Remove(_)))
             .count()
@@ -235,7 +238,7 @@ pub fn apply_patch(original: &str, patch: &str) -> PatchResult {
 pub fn calculate_token_savings(full_content: &str, diff: &UnifiedDiff) -> TokenSavings {
     let full_tokens = full_content.len() / 4;
     let diff_tokens = diff.estimate_tokens();
-    
+
     let saved_tokens = full_tokens.saturating_sub(diff_tokens);
     let savings_percentage = if full_tokens > 0 {
         (saved_tokens as f32 / full_tokens as f32) * 100.0
@@ -269,10 +272,7 @@ impl std::fmt::Display for TokenSavings {
         write!(
             f,
             "Token Savings: {} → {} (saved {}, {:.1}% reduction)",
-            self.full_tokens,
-            self.diff_tokens,
-            self.saved_tokens,
-            self.savings_percentage
+            self.full_tokens, self.diff_tokens, self.saved_tokens, self.savings_percentage
         )
     }
 }
@@ -322,11 +322,12 @@ mod tests {
     #[test]
     fn test_patch_application() {
         let original = "line1\nline2\nline3\n";
-        let patch = "--- old.txt\n+++ new.txt\n@@ -1,3 +1,3 @@\n line1\n-modified\n+line2\n line3\n";
+        let patch =
+            "--- old.txt\n+++ new.txt\n@@ -1,3 +1,3 @@\n line1\n-modified\n+line2\n line3\n";
 
         // This is a simplified test - real patch format may vary
         let result = apply_patch(original, patch);
-        
+
         // Patch application is simplified, just check it runs
         assert!(result.success || result.error.is_some());
     }
@@ -334,9 +335,9 @@ mod tests {
     #[test]
     fn test_no_changes_diff() {
         let content = "line1\nline2\nline3\n";
-        
+
         let diff = UnifiedDiff::generate(content, content, "same.txt", "same.txt");
-        
+
         assert_eq!(diff.hunks.len(), 0);
         assert_eq!(diff.change_count(), 0);
     }

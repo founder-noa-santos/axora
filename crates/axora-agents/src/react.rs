@@ -381,9 +381,9 @@ impl DualThreadReactAgent {
         self.current_cycle += 1;
 
         if self.current_cycle > self.max_cycles {
-            return Err(AgentError::InvalidStateTransition(
-                "Max cycles exceeded".to_string(),
-            ).into());
+            return Err(
+                AgentError::InvalidStateTransition("Max cycles exceeded".to_string()).into(),
+            );
         }
 
         // Generate thought and action (simulated LLM planning)
@@ -513,11 +513,7 @@ impl DualThreadReactAgent {
 
     /// Get execution stats
     pub fn get_stats(&self) -> ReactStats {
-        let successful = self
-            .cycles
-            .iter()
-            .filter(|c| c.observation.success)
-            .count() as u32;
+        let successful = self.cycles.iter().filter(|c| c.observation.success).count() as u32;
 
         ReactStats {
             total_cycles: self.current_cycle,
@@ -594,7 +590,11 @@ mod tests {
         tools.register_tool(Tool::new(
             "test_tool",
             "Test tool for execution",
-            |params| Ok(Observation::success(serde_json::json!({"executed": true, "params": params}))),
+            |params| {
+                Ok(Observation::success(
+                    serde_json::json!({"executed": true, "params": params}),
+                ))
+            },
         ));
 
         let mut agent = DualThreadReactAgent::spawn(task, blackboard, tools)
@@ -726,11 +726,9 @@ mod tests {
         let mut tools = ToolSet::new();
 
         // Add a tool that succeeds on first try
-        tools.register_tool(Tool::new(
-            "execute_task",
-            "Execute task",
-            |_params| Ok(Observation::success(serde_json::json!({"completed": true}))),
-        ));
+        tools.register_tool(Tool::new("execute_task", "Execute task", |_params| {
+            Ok(Observation::success(serde_json::json!({"completed": true})))
+        }));
 
         let mut agent = DualThreadReactAgent::spawn(task, blackboard, tools)
             .await
@@ -767,7 +765,9 @@ mod tests {
         }
 
         match context {
-            InterruptSignal::ContextUpdate { new_snapshot_version } => {
+            InterruptSignal::ContextUpdate {
+                new_snapshot_version,
+            } => {
                 assert_eq!(new_snapshot_version, 42)
             }
             _ => panic!("Wrong variant"),

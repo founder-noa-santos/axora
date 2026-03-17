@@ -16,7 +16,7 @@ pub mod collective {
 
 pub use collective::v1::*;
 
-/// Re-export tonic for downstream users
-pub use tonic;
 /// Re-export prost for downstream users
 pub use prost;
+/// Re-export tonic for downstream users
+pub use tonic;

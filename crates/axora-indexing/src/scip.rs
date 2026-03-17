@@ -145,10 +145,7 @@ impl SCIPIndex {
 
     /// Gets all symbols of a specific kind
     pub fn symbols_by_kind(&self, kind: SymbolKind) -> Vec<&Symbol> {
-        self.symbols
-            .iter()
-            .filter(|s| s.kind() == kind)
-            .collect()
+        self.symbols.iter().filter(|s| s.kind() == kind).collect()
     }
 
     /// Gets all occurrences of a specific symbol
@@ -378,13 +375,7 @@ pub struct Occurrence {
 
 impl Occurrence {
     /// Creates a new occurrence
-    pub fn new(
-        file_path: &str,
-        line: i32,
-        column: i32,
-        symbol: &str,
-        is_definition: bool,
-    ) -> Self {
+    pub fn new(file_path: &str, line: i32, column: i32, symbol: &str, is_definition: bool) -> Self {
         Self {
             file_path: file_path.to_string(),
             line,
@@ -667,9 +658,8 @@ impl CodeParser for RustParser {
     fn get_package_info(&self, codebase: &Path) -> Result<PackageInfo> {
         // Parse Cargo.toml
         let cargo_toml = codebase.join("Cargo.toml");
-        let content = std::fs::read_to_string(&cargo_toml).map_err(|_| {
-            SCIPError::PackageInfo(format!("Could not read {:?}", cargo_toml))
-        })?;
+        let content = std::fs::read_to_string(&cargo_toml)
+            .map_err(|_| SCIPError::PackageInfo(format!("Could not read {:?}", cargo_toml)))?;
 
         // Parse TOML
         let toml_value: toml::Value = toml::from_str(&content)?;
@@ -743,9 +733,8 @@ impl CodeParser for TypeScriptParser {
     fn get_package_info(&self, codebase: &Path) -> Result<PackageInfo> {
         // Parse package.json
         let package_json = codebase.join("package.json");
-        let content = std::fs::read_to_string(&package_json).map_err(|_| {
-            SCIPError::PackageInfo(format!("Could not read {:?}", package_json))
-        })?;
+        let content = std::fs::read_to_string(&package_json)
+            .map_err(|_| SCIPError::PackageInfo(format!("Could not read {:?}", package_json)))?;
 
         let package: serde_json::Value = serde_json::from_str(&content)?;
 
@@ -839,8 +828,10 @@ impl CodeParser for PythonParser {
             // Simple regex-based extraction (in production, use ast parsing)
             let content = std::fs::read_to_string(&setup_py)?;
 
-            let name = extract_setup_value(&content, "name").unwrap_or_else(|| "unknown".to_string());
-            let version = extract_setup_value(&content, "version").unwrap_or_else(|| "0.0.0".to_string());
+            let name =
+                extract_setup_value(&content, "name").unwrap_or_else(|| "unknown".to_string());
+            let version =
+                extract_setup_value(&content, "version").unwrap_or_else(|| "0.0.0".to_string());
 
             return Ok(PackageInfo::new("pip", &name, &version));
         }
@@ -913,9 +904,8 @@ impl CodeParser for GoParser {
     fn get_package_info(&self, codebase: &Path) -> Result<PackageInfo> {
         // Parse go.mod
         let go_mod = codebase.join("go.mod");
-        let content = std::fs::read_to_string(&go_mod).map_err(|_| {
-            SCIPError::PackageInfo(format!("Could not read {:?}", go_mod))
-        })?;
+        let content = std::fs::read_to_string(&go_mod)
+            .map_err(|_| SCIPError::PackageInfo(format!("Could not read {:?}", go_mod)))?;
 
         // Extract module name (first line: module example.com/pkg)
         let module_name = content
@@ -1001,7 +991,11 @@ mod tests {
 
     #[test]
     fn test_symbol_creation() {
-        let symbol = Symbol::new("my_function", SymbolKind::Function, "fn my_function() -> i32");
+        let symbol = Symbol::new(
+            "my_function",
+            SymbolKind::Function,
+            "fn my_function() -> i32",
+        );
         assert_eq!(symbol.symbol, "my_function");
         assert_eq!(symbol.kind_enum(), SymbolKind::Function);
         assert_eq!(symbol.signature, "fn my_function() -> i32");
@@ -1034,8 +1028,12 @@ mod tests {
         let mut index1 = SCIPIndex::new(package.clone());
         let mut index2 = SCIPIndex::new(package.clone());
 
-        index1.symbols.push(Symbol::new("func1", SymbolKind::Function, "fn func1()"));
-        index2.symbols.push(Symbol::new("func2", SymbolKind::Function, "fn func2()"));
+        index1
+            .symbols
+            .push(Symbol::new("func1", SymbolKind::Function, "fn func1()"));
+        index2
+            .symbols
+            .push(Symbol::new("func2", SymbolKind::Function, "fn func2()"));
 
         index1.merge(index2);
 
@@ -1050,14 +1048,26 @@ mod tests {
         let mut index = SCIPIndex::new(package);
 
         // Add symbols
-        index.symbols.push(Symbol::new("MyClass", SymbolKind::Class, "struct MyClass"));
-        index.symbols.push(Symbol::new("my_func", SymbolKind::Function, "fn my_func()"));
-        index.symbols.push(Symbol::new("my_var", SymbolKind::Variable, "let my_var"));
+        index
+            .symbols
+            .push(Symbol::new("MyClass", SymbolKind::Class, "struct MyClass"));
+        index
+            .symbols
+            .push(Symbol::new("my_func", SymbolKind::Function, "fn my_func()"));
+        index
+            .symbols
+            .push(Symbol::new("my_var", SymbolKind::Variable, "let my_var"));
 
         // Add occurrences
-        index.occurrences.push(Occurrence::new("src/lib.rs", 0, 0, "my_func", true));
-        index.occurrences.push(Occurrence::new("src/main.rs", 5, 10, "my_func", false));
-        index.occurrences.push(Occurrence::new("src/main.rs", 10, 5, "my_func", false));
+        index
+            .occurrences
+            .push(Occurrence::new("src/lib.rs", 0, 0, "my_func", true));
+        index
+            .occurrences
+            .push(Occurrence::new("src/main.rs", 5, 10, "my_func", false));
+        index
+            .occurrences
+            .push(Occurrence::new("src/main.rs", 10, 5, "my_func", false));
 
         // Test filtering
         let functions = index.symbols_by_kind(SymbolKind::Function);
@@ -1182,7 +1192,10 @@ require (
 
         assert_eq!(symbol.relationships.len(), 2);
         assert_eq!(symbol.relationships[0].symbol, "ParentClass");
-        assert_eq!(symbol.relationships[0].kind, RelationshipKind::Extends as i32);
+        assert_eq!(
+            symbol.relationships[0].kind,
+            RelationshipKind::Extends as i32
+        );
     }
 
     #[test]
@@ -1217,8 +1230,11 @@ require (
         let external_package = PackageInfo::new("cargo", "serde", "1.0.193");
 
         let local_symbol = Symbol::new("my_app::main", SymbolKind::Function, "fn main()");
-        let external_symbol =
-            ExternalSymbol::new("serde::Deserialize", external_package.clone(), SymbolKind::Trait);
+        let external_symbol = ExternalSymbol::new(
+            "serde::Deserialize",
+            external_package.clone(),
+            SymbolKind::Trait,
+        );
 
         // Verify package ownership
         assert_eq!(local_package.qualified_name(), "cargo:my-app/1.0.0");

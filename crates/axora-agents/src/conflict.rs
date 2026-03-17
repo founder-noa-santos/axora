@@ -100,14 +100,13 @@ impl ConflictResolver {
                 self.resolve_by_voting(conflict, agents, *threshold).await
             }
             ConflictResolution::Arbitration { arbiter_id } => {
-                self.resolve_by_arbitration(conflict, agents, arbiter_id).await
+                self.resolve_by_arbitration(conflict, agents, arbiter_id)
+                    .await
             }
             ConflictResolution::Merge { merger_id } => {
                 self.resolve_by_merge(conflict, agents, merger_id).await
             }
-            ConflictResolution::HumanEscalation => {
-                self.resolve_by_escalation(conflict).await
-            }
+            ConflictResolution::HumanEscalation => self.resolve_by_escalation(conflict).await,
         }
     }
 
@@ -175,7 +174,8 @@ impl ConflictResolver {
         debug!("Resolving by arbitration (arbiter: {})", arbiter_id);
 
         // Find arbiter agent
-        let arbiter = agents.iter()
+        let arbiter = agents
+            .iter()
             .find(|a| a.id() == arbiter_id)
             .ok_or_else(|| AgentError::AgentNotFound(arbiter_id.to_string()))?;
 
@@ -207,7 +207,8 @@ impl ConflictResolver {
         debug!("Resolving by merge (merger: {})", merger_id);
 
         // Find merger agent
-        let _merger = agents.iter()
+        let _merger = agents
+            .iter()
             .find(|a| a.id() == merger_id)
             .ok_or_else(|| AgentError::AgentNotFound(merger_id.to_string()))?;
 
@@ -215,8 +216,7 @@ impl ConflictResolver {
         // In production, merger would actually merge the proposals
         let merged = format!(
             "Merged: {}\nAND\n{}",
-            conflict.proposal_a,
-            conflict.proposal_b
+            conflict.proposal_a, conflict.proposal_b
         );
 
         let resolution = Resolution {
@@ -229,10 +229,7 @@ impl ConflictResolver {
     }
 
     /// Resolve by escalation
-    async fn resolve_by_escalation(
-        &mut self,
-        conflict: &Conflict,
-    ) -> Result<Resolution> {
+    async fn resolve_by_escalation(&mut self, conflict: &Conflict) -> Result<Resolution> {
         warn!("Escalating conflict {} to human", conflict.id);
 
         let resolution = Resolution {
@@ -339,7 +336,7 @@ mod tests {
         };
 
         let agents: Vec<Arc<dyn Agent>> = Vec::new();
-        
+
         // Should fail because arbiter not found
         let result = resolver.resolve(&conflict, &agents).await;
         assert!(result.is_err());

@@ -65,9 +65,7 @@ impl DocType {
         match s.to_lowercase().as_str() {
             "api_contract" | "apicontract" => DocType::ApiContract,
             "database_schema" | "databaseschema" => DocType::DatabaseSchema,
-            "architectural_doc" | "architecturaldoc" | "architecture" => {
-                DocType::ArchitecturalDoc
-            }
+            "architectural_doc" | "architecturaldoc" | "architecture" => DocType::ArchitecturalDoc,
             "coding_convention" | "codingconvention" | "convention" => DocType::CodingConvention,
             "business_rule" | "businessrule" | "business" => DocType::BusinessRule,
             "test_doc" | "testdoc" | "test" => DocType::TestDoc,
@@ -191,7 +189,10 @@ impl SemanticMemory {
     pub fn to_payload(&self) -> Result<HashMap<String, serde_json::Value>> {
         let mut payload = HashMap::new();
         payload.insert("id".to_string(), serde_json::Value::String(self.id.clone()));
-        payload.insert("content".to_string(), serde_json::Value::String(self.content.clone()));
+        payload.insert(
+            "content".to_string(),
+            serde_json::Value::String(self.content.clone()),
+        );
         payload.insert(
             "embedding".to_string(),
             serde_json::to_value(&self.embedding)?,

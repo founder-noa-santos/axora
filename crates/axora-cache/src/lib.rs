@@ -4,6 +4,8 @@
 
 #![warn(missing_docs)]
 
+pub mod blackboard;
+pub mod compactor;
 pub mod concurrency;
 pub mod context;
 pub mod context_pruning;
@@ -16,35 +18,47 @@ pub mod prefix_cache;
 pub mod rag;
 pub mod toon;
 
+pub use blackboard::v2::v2_pubsub::{PubSubHub, Subscriber, Subscription, SubscriptionId};
+pub use blackboard::v2::v2_versioning::{
+    Update as BlackboardUpdate, VersionedContext, VersionedContextError, VersionedValue,
+};
+pub use blackboard::v2::{BlackboardV2, BlackboardV2Error, Result as BlackboardV2Result};
+pub use blackboard::{
+    Blackboard, BlackboardError, BlackboardMetadata, BlackboardSchema, BlackboardSnapshot,
+    ChangeType, ReflectionPhase, Result as BlackboardResult,
+};
+pub use compactor::hierarchical_memory::{
+    HierarchicalContext, HierarchicalMemory, MemoryEntry, MemorySummary,
+};
+pub use compactor::importance_scorer::{ImportanceScorer, ItemKind, ScoredItem};
+pub use compactor::rolling_summary::{RollingSummary, Turn};
+pub use compactor::{
+    CompactContext, CompactorConfig, CompactorError, Context, ContextCompactor, ContextEntry,
+    Result as CompactorResult,
+};
+pub use concurrency::{
+    BatchExecutor, ConcurrencyConfig, ConcurrencyError, ConcurrentExecutor, Task as ConcurrentTask,
+    TaskResult, TokenCalculator,
+};
+pub use context::{
+    Agent as RAGAgent, AgentState, CodeFile, ContextManager as RAGContextManager, ContextSavings,
+    Document, SharedContext, Task as RAGTask, TaskContext as RAGTaskContext,
+    TaskResult as RAGTaskResult,
+};
+pub use context_pruning::{
+    Agent as PruningAgent, BusinessRule, ContextManager, Task as PruningTask, TaskContext,
+    TokenReductionBenchmark, TraceabilityLink, TraceabilityMatrix,
+};
+pub use diff::{
+    apply_patch, calculate_token_savings, DiffLine, Hunk, PatchResult, TokenSavings, UnifiedDiff,
+};
 pub use l1_cache::L1Cache;
 pub use l2_cache::L2Cache;
 pub use l3_cache::L3Cache;
-pub use prefix_cache::{
-    CachedPrefix, CachedPromptBuilder, CacheStats, PrefixCache,
-};
-pub use diff::{
-    apply_patch, calculate_token_savings, DiffLine, Hunk, TokenSavings,
-    UnifiedDiff, PatchResult,
-};
-pub use minifier::{
-    CodeMinifier, MinifiedCode, MinifierConfig, MinifierError,
-};
-pub use toon::{
-    Schema, ToonSerializer, ToonStats, ToonError,
-};
-pub use context::{
-    ContextManager as RAGContextManager, TaskContext as RAGTaskContext, SharedContext, Task as RAGTask, Agent as RAGAgent, Document,
-    CodeFile, TaskResult as RAGTaskResult, AgentState, ContextSavings,
-};
-pub use context_pruning::{
-    ContextManager, Task as PruningTask, Agent as PruningAgent, TaskContext, BusinessRule,
-    TraceabilityMatrix, TraceabilityLink, TokenReductionBenchmark,
-};
-pub use concurrency::{
-    ConcurrentExecutor, ConcurrencyConfig, Task as ConcurrentTask, TaskResult,
-    TokenCalculator, BatchExecutor, ConcurrencyError,
-};
+pub use minifier::{CodeMinifier, MinifiedCode, MinifierConfig, MinifierError};
+pub use prefix_cache::{CacheStats, CachedPrefix, CachedPromptBuilder, PrefixCache};
 pub use rag::{DomainRagStore, Experience, RagResult, RetrievalStrategy};
+pub use toon::{Schema, ToonError, ToonSerializer, ToonStats};
 
 use thiserror::Error;
 

@@ -6,8 +6,8 @@
 
 pub mod chunker;
 pub mod error;
-pub mod influence;
 pub mod indexer;
+pub mod influence;
 pub mod merkle;
 pub mod repository_map;
 pub mod scip;
@@ -18,25 +18,20 @@ pub mod vector_store;
 pub use chunker::{Chunker, CodeChunk};
 pub use error::IndexingError;
 pub use indexer::IncrementalIndexer;
-pub use influence::{
-    InfluenceGraph, InfluenceVector, InfluenceGraphStats, InfluenceError,
-    FileId,
-};
+pub use influence::{FileId, InfluenceError, InfluenceGraph, InfluenceGraphStats, InfluenceVector};
 pub use merkle::MerkleTree;
 pub use repository_map::{
-    RepositoryMapper, RepositoryMap, Symbol as RepoSymbol, SymbolKind as RepoSymbolKind, RepositoryMapError,
+    RepositoryMap, RepositoryMapError, RepositoryMapper, Symbol as RepoSymbol,
+    SymbolKind as RepoSymbolKind,
 };
 pub use scip::{
-    SCIPIndex, PackageInfo, Symbol, SymbolKind, Occurrence, ExternalSymbol,
-    SymbolRelationship, RelationshipKind, SCIPError,
-    CodeParser, ParserRegistry, Language,
+    CodeParser, ExternalSymbol, Language, Occurrence, PackageInfo, ParserRegistry,
+    RelationshipKind, SCIPError, SCIPIndex, Symbol, SymbolKind, SymbolRelationship,
 };
-pub use task_queue::{
-    TaskQueue, Task, TaskStatus, TaskResult, TaskQueueStats, TaskQueueError,
-};
+pub use task_queue::{Task, TaskQueue, TaskQueueError, TaskQueueStats, TaskResult, TaskStatus};
 pub use traceability::{
-    TraceabilityMatrix, TraceabilityLink, TraceabilityStats, TraceabilityError,
-    BusinessRule, LinkType,
+    BusinessRule, LinkType, TraceabilityError, TraceabilityLink, TraceabilityMatrix,
+    TraceabilityStats,
 };
 pub use vector_store::VectorStore;
 

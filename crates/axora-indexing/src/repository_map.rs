@@ -35,16 +35,16 @@
 //! // Build repository map from codebase
 //! let repo_map = mapper.build_map(Path::new("/path/to/codebase"))?;
 //!
-//! println!("Repository map: {} symbols, {} tokens", 
-//!     repo_map.symbols.len(), 
+//! println!("Repository map: {} symbols, {} tokens",
+//!     repo_map.symbols.len(),
 //!     repo_map.token_count
 //! );
 //!
 //! // Top symbols by importance
 //! for symbol in repo_map.symbols.iter().take(10) {
-//!     println!("  {}::{} (references: {})", 
-//!         symbol.file_path.display(), 
-//!         symbol.name, 
+//!     println!("  {}::{} (references: {})",
+//!         symbol.file_path.display(),
+//!         symbol.name,
 //!         symbol.references
 //!     );
 //! }
@@ -58,7 +58,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use tree_sitter::{Parser, Tree, Node};
+use tree_sitter::{Node, Parser, Tree};
 
 /// Repository map error types
 #[derive(Error, Debug)]
@@ -214,7 +214,10 @@ impl Symbol {
     pub fn compressed(&self) -> String {
         format!(
             "{}::{} ({})",
-            self.file_path.file_name().unwrap_or_default().to_string_lossy(),
+            self.file_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy(),
             self.name,
             self.kind_as_str()
         )
@@ -275,10 +278,7 @@ impl RepositoryMap {
 
     /// Get symbols by kind
     pub fn symbols_by_kind(&self, kind: &SymbolKind) -> Vec<&Symbol> {
-        self.symbols
-            .iter()
-            .filter(|s| &s.kind == kind)
-            .collect()
+        self.symbols.iter().filter(|s| &s.kind == kind).collect()
     }
 
     /// Get symbols from a specific file
@@ -382,15 +382,12 @@ impl RepositoryMapper {
         let mut symbols_with_rank: Vec<_> = self
             .graph
             .node_indices()
-            .filter_map(|idx| {
-                self.graph
-                    .node_weight(idx)
-                    .map(|s| (idx, s.pagerank_score))
-            })
+            .filter_map(|idx| self.graph.node_weight(idx).map(|s| (idx, s.pagerank_score)))
             .collect();
 
         // Sort by PageRank descending
-        symbols_with_rank.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        symbols_with_rank
+            .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Select top 100 symbols (fits in ~1000 tokens)
         let total_symbols = symbols_with_rank.len();
@@ -425,10 +422,9 @@ impl RepositoryMapper {
         })?;
 
         // Parse file
-        let tree = self
-            .parser
-            .parse(&content, None)
-            .ok_or_else(|| RepositoryMapError::ParseFailed(file_path.to_string_lossy().to_string()))?;
+        let tree = self.parser.parse(&content, None).ok_or_else(|| {
+            RepositoryMapError::ParseFailed(file_path.to_string_lossy().to_string())
+        })?;
 
         // Extract symbols from AST
         self.extract_symbols(tree.root_node(), file_path, &content)?;
@@ -438,10 +434,7 @@ impl RepositoryMapper {
 
     /// Get language for file based on extension
     fn get_language_for_file(&self, file_path: &Path) -> Result<String> {
-        let extension = file_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
+        let extension = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
         self.extension_to_language
             .get(extension)
@@ -455,12 +448,7 @@ impl RepositoryMapper {
     }
 
     /// Extract symbols from AST
-    fn extract_symbols(
-        &mut self,
-        node: Node,
-        file_path: &Path,
-        content: &str,
-    ) -> Result<()> {
+    fn extract_symbols(&mut self, node: Node, file_path: &Path, content: &str) -> Result<()> {
         // Check if node is a symbol (function, class, etc.)
         if let Some(symbol) = self.node_to_symbol(node, file_path, content) {
             // Check if symbol already exists
@@ -486,12 +474,7 @@ impl RepositoryMapper {
     }
 
     /// Convert tree-sitter node to symbol
-    fn node_to_symbol(
-        &self,
-        node: Node,
-        file_path: &Path,
-        content: &str,
-    ) -> Option<Symbol> {
+    fn node_to_symbol(&self, node: Node, file_path: &Path, content: &str) -> Option<Symbol> {
         let kind = SymbolKind::from_node_kind(node.kind(), &self.current_language);
 
         if kind == SymbolKind::Unknown {
@@ -561,10 +544,14 @@ impl RepositoryMapper {
                     // Try to find referenced symbol
                     let referenced_key = self.find_symbol_reference(name, &symbol.file_path);
 
-                    if let Some(referenced_idx) = referenced_key.and_then(|k| self.symbol_to_index.get(&k).copied()) {
-                        let source_idx = self
-                            .symbol_to_index
-                            .get(&format!("{}::{}", symbol.file_path.display(), symbol.name));
+                    if let Some(referenced_idx) =
+                        referenced_key.and_then(|k| self.symbol_to_index.get(&k).copied())
+                    {
+                        let source_idx = self.symbol_to_index.get(&format!(
+                            "{}::{}",
+                            symbol.file_path.display(),
+                            symbol.name
+                        ));
 
                         if let Some(source_idx) = source_idx {
                             // Add edge (reference)
@@ -897,7 +884,7 @@ pub struct Calculator {}
         // Search should work (may or may not find results depending on symbol extraction)
         let _results = repo_map.search("calculate");
         let _calc_results = repo_map.search("Calculator");
-        
+
         // Just verify the search method works without panicking
         assert!(true);
     }

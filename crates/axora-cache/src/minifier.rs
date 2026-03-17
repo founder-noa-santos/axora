@@ -118,7 +118,7 @@ impl CodeMinifier {
     pub fn minify(&self, code: &str, language: &str) -> Result<MinifiedCode> {
         let original_length = code.len();
         let lang_lower = language.to_lowercase();
-        
+
         // Validate language support
         if !Self::is_supported_language(&lang_lower) {
             return Err(MinifierError::UnsupportedLanguage(language.to_string()));
@@ -175,11 +175,12 @@ impl CodeMinifier {
         let mut result = minified.content.clone();
 
         // Create a reverse map: short -> long for decompression
-        let mut short_to_long: Vec<(&String, &String)> = minified.identifier_map
+        let mut short_to_long: Vec<(&String, &String)> = minified
+            .identifier_map
             .iter()
             .map(|(long, short)| (short, long))
             .collect();
-        
+
         // Sort by short identifier length (longest first) to avoid partial replacements
         short_to_long.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
 
@@ -217,8 +218,18 @@ impl CodeMinifier {
     pub fn is_supported_language(language: &str) -> bool {
         matches!(
             language,
-            "rust" | "rs" | "typescript" | "ts" | "tsx" | "javascript" | "js" | "jsx"
-                | "python" | "py" | "go" | "golang"
+            "rust"
+                | "rs"
+                | "typescript"
+                | "ts"
+                | "tsx"
+                | "javascript"
+                | "js"
+                | "jsx"
+                | "python"
+                | "py"
+                | "go"
+                | "golang"
         )
     }
 
@@ -442,9 +453,13 @@ impl CodeMinifier {
             if c == '/' && !in_regex {
                 let prev = result.chars().last();
                 let is_regex_context = prev.map_or(true, |p| {
-                    p.is_whitespace() || matches!(p, '=' | '(' | '[' | ',' | ':' | ';' | '{' | '}' | '!' | '&' | '|' | '?')
+                    p.is_whitespace()
+                        || matches!(
+                            p,
+                            '=' | '(' | '[' | ',' | ':' | ';' | '{' | '}' | '!' | '&' | '|' | '?'
+                        )
                 });
-                
+
                 if is_regex_context && chars.peek() != Some(&'/') && chars.peek() != Some(&'*') {
                     in_regex = true;
                     result.push(c);
@@ -500,29 +515,25 @@ impl CodeMinifier {
 
         while let Some(c) = chars.next() {
             // Check for triple quotes
-            if !in_string && !in_multiline_string
-                && (c == '"' || c == '\'') {
-                    let next_two: String = chars
-                        .clone()
-                        .take(2)
-                        .collect();
-                    
-                    if next_two.chars().all(|x| x == c) {
-                        // Triple quote found
-                        in_multiline_string = true;
-                        result.push(c);
-                        result.push(chars.next().unwrap());
-                        result.push(chars.next().unwrap());
-                        string_char = c;
-                        continue;
-                    } else {
-                        // Single quote - toggle string mode
-                        in_string = !in_string;
-                        string_char = c;
-                        result.push(c);
-                        continue;
-                    }
+            if !in_string && !in_multiline_string && (c == '"' || c == '\'') {
+                let next_two: String = chars.clone().take(2).collect();
+
+                if next_two.chars().all(|x| x == c) {
+                    // Triple quote found
+                    in_multiline_string = true;
+                    result.push(c);
+                    result.push(chars.next().unwrap());
+                    result.push(chars.next().unwrap());
+                    string_char = c;
+                    continue;
+                } else {
+                    // Single quote - toggle string mode
+                    in_string = !in_string;
+                    string_char = c;
+                    result.push(c);
+                    continue;
                 }
+            }
 
             if in_multiline_string {
                 result.push(c);
@@ -644,11 +655,15 @@ impl CodeMinifier {
     }
 
     /// Compress identifiers in code
-    fn compress_identifiers(&self, code: &str, language: &str) -> (String, HashMap<String, String>) {
+    fn compress_identifiers(
+        &self,
+        code: &str,
+        language: &str,
+    ) -> (String, HashMap<String, String>) {
         let mut identifier_map: HashMap<String, String> = HashMap::new();
         let mut short_to_long: HashMap<String, String> = HashMap::new();
         let mut counter = 0;
-        
+
         let keywords = self.get_keywords_for_language(language);
         let mut result = String::with_capacity(code.len());
         let mut chars = code.chars().peekable();
@@ -684,12 +699,12 @@ impl CodeMinifier {
                 if self.is_compressible_identifier(&current_ident, &keywords) {
                     let short = self.generate_short_identifier(counter);
                     counter += 1;
-                    
+
                     if !identifier_map.contains_key(&current_ident) {
                         identifier_map.insert(current_ident.clone(), short.clone());
                         short_to_long.insert(short.clone(), current_ident.clone());
                     }
-                    
+
                     if let Some(short) = identifier_map.get(&current_ident) {
                         result.push_str(short);
                     } else {
@@ -718,9 +733,7 @@ impl CodeMinifier {
         }
 
         // Return map with long -> short mapping
-        let final_map: HashMap<String, String> = identifier_map
-            .into_iter()
-            .collect();
+        let final_map: HashMap<String, String> = identifier_map.into_iter().collect();
 
         (result, final_map)
     }
@@ -763,33 +776,98 @@ impl CodeMinifier {
     fn get_keywords_for_language(&self, language: &str) -> Vec<&'static str> {
         match language {
             "rust" | "rs" => vec![
-                "fn", "let", "mut", "const", "static", "struct", "enum", "impl",
-                "trait", "mod", "pub", "use", "crate", "self", "Self", "super",
-                "if", "else", "match", "for", "while", "loop", "return", "break",
-                "continue", "as", "where", "type", "async", "await", "dyn",
-                "ref", "box", "move", "in", "unsafe", "extern", "macro",
+                "fn", "let", "mut", "const", "static", "struct", "enum", "impl", "trait", "mod",
+                "pub", "use", "crate", "self", "Self", "super", "if", "else", "match", "for",
+                "while", "loop", "return", "break", "continue", "as", "where", "type", "async",
+                "await", "dyn", "ref", "box", "move", "in", "unsafe", "extern", "macro",
             ],
             "typescript" | "ts" | "tsx" | "javascript" | "js" | "jsx" => vec![
-                "function", "const", "let", "var", "class", "interface", "type",
-                "enum", "namespace", "module", "export", "import", "from", "as",
-                "if", "else", "for", "while", "do", "switch", "case", "break",
-                "continue", "return", "yield", "async", "await", "try", "catch",
-                "finally", "throw", "new", "this", "super", "extends", "implements",
-                "static", "public", "private", "protected", "readonly", "abstract",
-                "declare", "namespace", "typeof", "instanceof", "in", "of",
+                "function",
+                "const",
+                "let",
+                "var",
+                "class",
+                "interface",
+                "type",
+                "enum",
+                "namespace",
+                "module",
+                "export",
+                "import",
+                "from",
+                "as",
+                "if",
+                "else",
+                "for",
+                "while",
+                "do",
+                "switch",
+                "case",
+                "break",
+                "continue",
+                "return",
+                "yield",
+                "async",
+                "await",
+                "try",
+                "catch",
+                "finally",
+                "throw",
+                "new",
+                "this",
+                "super",
+                "extends",
+                "implements",
+                "static",
+                "public",
+                "private",
+                "protected",
+                "readonly",
+                "abstract",
+                "declare",
+                "namespace",
+                "typeof",
+                "instanceof",
+                "in",
+                "of",
             ],
             "python" | "py" => vec![
-                "def", "class", "import", "from", "as", "if", "elif", "else",
-                "for", "while", "break", "continue", "return", "yield", "lambda",
-                "try", "except", "finally", "raise", "assert", "with", "pass",
-                "global", "nonlocal", "async", "await", "in", "is", "not", "and",
-                "or", "True", "False", "None", "self",
+                "def", "class", "import", "from", "as", "if", "elif", "else", "for", "while",
+                "break", "continue", "return", "yield", "lambda", "try", "except", "finally",
+                "raise", "assert", "with", "pass", "global", "nonlocal", "async", "await", "in",
+                "is", "not", "and", "or", "True", "False", "None", "self",
             ],
             "go" | "golang" => vec![
-                "func", "package", "import", "const", "var", "type", "struct",
-                "interface", "map", "chan", "go", "defer", "return", "if", "else",
-                "for", "range", "break", "continue", "switch", "case", "fallthrough",
-                "select", "default", "goto", "new", "make", "nil", "true", "false",
+                "func",
+                "package",
+                "import",
+                "const",
+                "var",
+                "type",
+                "struct",
+                "interface",
+                "map",
+                "chan",
+                "go",
+                "defer",
+                "return",
+                "if",
+                "else",
+                "for",
+                "range",
+                "break",
+                "continue",
+                "switch",
+                "case",
+                "fallthrough",
+                "select",
+                "default",
+                "goto",
+                "new",
+                "make",
+                "nil",
+                "true",
+                "false",
             ],
             _ => vec![],
         }
@@ -912,7 +990,7 @@ mod tests {
         let minifier = CodeMinifier::new();
         let code = "fn   main()   {   println!(\"hello\");   }";
         let result = minifier.minify(code, "rust").unwrap();
-        
+
         assert!(result.minified_length < result.original_length);
         assert!(result.savings_percentage > 0.0);
         assert!(!result.content.contains("  ")); // No double spaces
@@ -923,10 +1001,10 @@ mod tests {
         let minifier = CodeMinifier::new();
         let code = "fn calculateMonthlyRevenueMetrics() { let totalRevenue = 0; }";
         let result = minifier.minify(code, "rust").unwrap();
-        
+
         assert!(!result.identifier_map.is_empty());
         assert!(result.minified_length < result.original_length);
-        
+
         // Verify we can decompress
         let decompressed = minifier.decompress(&result).unwrap();
         assert!(decompressed.contains("calculateMonthlyRevenueMetrics"));
@@ -968,7 +1046,7 @@ mod tests {
             }
         "#;
         let result = minifier.minify(code, "typescript").unwrap();
-        
+
         assert!(!result.content.contains("// TypeScript comment"));
         assert!(!result.content.contains("// inline"));
         assert!(!result.content.contains("/* Block */"));
@@ -987,7 +1065,7 @@ mod tests {
                 return x
         "#;
         let result = minifier.minify(code, "python").unwrap();
-        
+
         assert!(!result.content.contains("# Python comment"));
         assert!(!result.content.contains("# inline"));
         assert!(result.content.contains("def"));
@@ -1006,7 +1084,7 @@ mod tests {
             }
         "#;
         let result = minifier.minify(code, "go").unwrap();
-        
+
         assert!(!result.content.contains("// Go comment"));
         assert!(!result.content.contains("/* Block comment */"));
         assert!(result.content.contains("package"));
@@ -1020,7 +1098,7 @@ mod tests {
         let code = "fn calculateTotalRevenue() -> i32 { let monthlyRevenue = 100; monthlyRevenue }";
         let minified = minifier.minify(code, "rust").unwrap();
         let decompressed = minifier.decompress(&minified).unwrap();
-        
+
         // Identifiers should be restored
         assert!(decompressed.contains("calculateTotalRevenue"));
         assert!(decompressed.contains("monthlyRevenue"));
@@ -1037,37 +1115,59 @@ mod tests {
             }
         "#;
         let result = minifier.minify(code, "rust").unwrap();
-        
-        assert!(result.savings_percentage > 20.0, "Expected >20% savings, got {:.1}%", result.savings_percentage);
+
+        assert!(
+            result.savings_percentage > 20.0,
+            "Expected >20% savings, got {:.1}%",
+            result.savings_percentage
+        );
         assert!(result.byte_savings() > 0);
         assert!(result.token_savings() > 0);
     }
 
     #[test]
     fn test_language_detection() {
-        assert_eq!(CodeMinifier::detect_language("file.rs"), Some("rust".to_string()));
-        assert_eq!(CodeMinifier::detect_language("file.ts"), Some("typescript".to_string()));
-        assert_eq!(CodeMinifier::detect_language("file.tsx"), Some("typescript".to_string()));
-        assert_eq!(CodeMinifier::detect_language("file.js"), Some("javascript".to_string()));
-        assert_eq!(CodeMinifier::detect_language("file.py"), Some("python".to_string()));
-        assert_eq!(CodeMinifier::detect_language("file.go"), Some("go".to_string()));
+        assert_eq!(
+            CodeMinifier::detect_language("file.rs"),
+            Some("rust".to_string())
+        );
+        assert_eq!(
+            CodeMinifier::detect_language("file.ts"),
+            Some("typescript".to_string())
+        );
+        assert_eq!(
+            CodeMinifier::detect_language("file.tsx"),
+            Some("typescript".to_string())
+        );
+        assert_eq!(
+            CodeMinifier::detect_language("file.js"),
+            Some("javascript".to_string())
+        );
+        assert_eq!(
+            CodeMinifier::detect_language("file.py"),
+            Some("python".to_string())
+        );
+        assert_eq!(
+            CodeMinifier::detect_language("file.go"),
+            Some("go".to_string())
+        );
         assert_eq!(CodeMinifier::detect_language("file.unknown"), None);
     }
 
     #[test]
     fn test_preserve_strings() {
         let minifier = CodeMinifier::new();
-        
+
         // Rust strings
         let rust_code = r#"let s = "hello // not a comment";"#;
         let result = minifier.minify(rust_code, "rust").unwrap();
         assert!(result.content.contains("hello"));
-        
+
         // Python strings
         let py_code = r#"s = "hello # not a comment""#;
         let result = minifier.minify(py_code, "python").unwrap();
         assert!(result.content.contains("hello"));
-        
+
         // Go raw strings
         let go_code = r#"s := `hello // not a comment`"#;
         let result = minifier.minify(go_code, "go").unwrap();
@@ -1077,7 +1177,7 @@ mod tests {
     #[test]
     fn test_preserve_keywords() {
         let minifier = CodeMinifier::new();
-        
+
         // Rust keywords should not be compressed
         let rust_code = "fn main() { let x = 5; if x > 0 { return x; } }";
         let result = minifier.minify(rust_code, "rust").unwrap();
@@ -1086,7 +1186,7 @@ mod tests {
         assert!(decompressed.contains("let"));
         assert!(decompressed.contains("if"));
         assert!(decompressed.contains("return"));
-        
+
         // TypeScript keywords
         let ts_code = "function test() { const x = 5; if (x > 0) { return x; } }";
         let result = minifier.minify(ts_code, "typescript").unwrap();
@@ -1100,7 +1200,10 @@ mod tests {
         let minifier = CodeMinifier::new();
         let result = minifier.minify("code", "cobol");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), MinifierError::UnsupportedLanguage(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            MinifierError::UnsupportedLanguage(_)
+        ));
     }
 
     #[test]
@@ -1135,7 +1238,7 @@ mod tests {
         let code = "fn   main()   {   }";
         let result = minifier.minify(code, "rust").unwrap();
         assert!(result.content.contains("   ")); // Should preserve extra spaces
-        
+
         // Test with identifier compression disabled
         let config = MinifierConfig {
             compress_identifiers: false,
@@ -1208,19 +1311,27 @@ mod tests {
                 Ok(totalRevenue)
             }
         "#;
-        
+
         let minifier = CodeMinifier::new();
         let result = minifier.minify(rust_code, "rust").unwrap();
-        
+
         println!("Rust Code Minification Benchmark:");
         println!("  Original: {} bytes", result.original_length);
         println!("  Minified: {} bytes", result.minified_length);
-        println!("  Savings: {:.1}% ({:.0} bytes)", result.savings_percentage, result.byte_savings());
+        println!(
+            "  Savings: {:.1}% ({:.0} bytes)",
+            result.savings_percentage,
+            result.byte_savings()
+        );
         println!("  Token savings: ~{} tokens", result.token_savings());
-        
+
         // Should achieve at least 30% savings with comments + whitespace removal
-        assert!(result.savings_percentage >= 30.0, "Expected >=30% savings, got {:.1}%", result.savings_percentage);
-        
+        assert!(
+            result.savings_percentage >= 30.0,
+            "Expected >=30% savings, got {:.1}%",
+            result.savings_percentage
+        );
+
         // Verify decompression works
         let decompressed = minifier.decompress(&result).unwrap();
         assert!(decompressed.contains("calculateTotalRevenueForPeriod"));
@@ -1249,15 +1360,15 @@ mod tests {
                 };
             }
         "#;
-        
+
         let minifier = CodeMinifier::new();
         let result = minifier.minify(ts_code, "typescript").unwrap();
-        
+
         println!("\nTypeScript Code Minification Benchmark:");
         println!("  Original: {} bytes", result.original_length);
         println!("  Minified: {} bytes", result.minified_length);
         println!("  Savings: {:.1}%", result.savings_percentage);
-        
+
         assert!(result.savings_percentage >= 25.0);
     }
 
@@ -1287,15 +1398,15 @@ mod tests {
                     'count': len(transactions)
                 }
         "#;
-        
+
         let minifier = CodeMinifier::new();
         let result = minifier.minify(py_code, "python").unwrap();
-        
+
         println!("\nPython Code Minification Benchmark:");
         println!("  Original: {} bytes", result.original_length);
         println!("  Minified: {} bytes", result.minified_length);
         println!("  Savings: {:.1}%", result.savings_percentage);
-        
+
         assert!(result.savings_percentage >= 35.0);
     }
 }

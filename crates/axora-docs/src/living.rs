@@ -99,7 +99,7 @@ impl LivingDocs {
     /// Register a file and its associated document
     pub fn register_file(&mut self, path: &Path, doc_id: &str, content: &str) {
         let hash = self.compute_hash(content);
-        
+
         self.codebase_hash.insert(path.to_path_buf(), hash);
         self.file_to_docs
             .entry(path.to_path_buf())
@@ -202,11 +202,7 @@ impl LivingDocs {
     pub fn docs_for_file(&self, path: &Path) -> Vec<&Document> {
         self.file_to_docs
             .get(path)
-            .map(|ids| {
-                ids.iter()
-                    .filter_map(|id| self.docs.get(id))
-                    .collect()
-            })
+            .map(|ids| ids.iter().filter_map(|id| self.docs.get(id)).collect())
             .unwrap_or_default()
     }
 
@@ -271,7 +267,7 @@ impl LivingDocs {
     /// Compute hash of content
     fn compute_hash(&self, content: &str) -> FileHash {
         use blake3::hash;
-        
+
         let hash_result = hash(content.as_bytes());
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -309,11 +305,17 @@ impl LivingDocs {
         let mut reasons: Vec<String> = Vec::new();
 
         if diff_stats.functions_added > 0 {
-            reasons.push(format!("{} new function(s) added", diff_stats.functions_added));
+            reasons.push(format!(
+                "{} new function(s) added",
+                diff_stats.functions_added
+            ));
         }
 
         if diff_stats.functions_removed > 0 {
-            reasons.push(format!("{} function(s) removed", diff_stats.functions_removed));
+            reasons.push(format!(
+                "{} function(s) removed",
+                diff_stats.functions_removed
+            ));
         }
 
         if diff_stats.lines_added > 100 {
@@ -354,7 +356,7 @@ impl LivingDocs {
         while old_idx < old_lines.len() || new_idx < new_lines.len() {
             if old_idx >= old_lines.len() {
                 stats.lines_added += 1;
-                if new_lines[new_idx].trim().starts_with("fn ") 
+                if new_lines[new_idx].trim().starts_with("fn ")
                     || new_lines[new_idx].trim().starts_with("pub fn ")
                     || new_lines[new_idx].trim().starts_with("async fn ")
                     || new_lines[new_idx].trim().starts_with("def ")
@@ -398,7 +400,7 @@ impl LivingDocs {
     /// Check if code change is significant
     fn significant_change_detected(&self, old: &str, new: &str) -> bool {
         let stats = self.compute_diff_stats(old, new);
-        
+
         // Consider significant if:
         // - More than 20 lines changed
         // - Functions added or removed
@@ -438,7 +440,11 @@ impl LivingDocs {
 4. Add changelog entry if this is a user-facing change
 "#,
             file.display(),
-            reasons.iter().map(|r| format!("- {}", r)).collect::<Vec<_>>().join("\n"),
+            reasons
+                .iter()
+                .map(|r| format!("- {}", r))
+                .collect::<Vec<_>>()
+                .join("\n"),
             stats.lines_added,
             stats.lines_removed,
             stats.lines_modified,
@@ -504,7 +510,7 @@ mod tests {
     #[test]
     fn test_living_docs_creation() {
         let living_docs = LivingDocs::new();
-        
+
         assert!(living_docs.tracked_files().is_empty());
         assert!(living_docs.get_pending_reviews().is_empty());
     }
@@ -512,7 +518,7 @@ mod tests {
     #[test]
     fn test_living_docs_code_change_detection() {
         let mut living_docs = LivingDocs::new();
-        
+
         let old_code = r#"
 fn hello() {
     println!("Hello");
@@ -529,11 +535,7 @@ fn goodbye() {
 }
 "#;
 
-        let updates = living_docs.on_code_change(
-            Path::new("src/test.rs"),
-            old_code,
-            new_code,
-        );
+        let updates = living_docs.on_code_change(Path::new("src/test.rs"), old_code, new_code);
 
         // Should detect changes even without registered docs
         assert!(!updates.is_empty());
@@ -542,10 +544,10 @@ fn goodbye() {
     #[test]
     fn test_living_docs_file_registration() {
         let mut living_docs = LivingDocs::new();
-        
+
         let doc = create_test_doc("test-doc", "test", "Documentation content");
         living_docs.add_document(doc).expect("Failed to add doc");
-        
+
         let code = "fn test() {}";
         living_docs.register_file(Path::new("src/test.rs"), "test-doc", code);
 
@@ -556,7 +558,7 @@ fn goodbye() {
     #[test]
     fn test_living_docs_auto_update_detection() {
         let mut living_docs = LivingDocs::new();
-        
+
         // Add and register a document
         let doc = create_test_doc("api-doc", "api", "API documentation");
         living_docs.add_document(doc).expect("Failed to add doc");
@@ -576,7 +578,7 @@ fn goodbye() {
     #[test]
     fn test_living_docs_flag_for_review() {
         let mut living_docs = LivingDocs::new();
-        
+
         living_docs.flag_for_review("doc-1", "Needs API review");
         living_docs.flag_for_review("doc-2", "Outdated examples");
 
@@ -626,7 +628,7 @@ fn goodbye() {
     #[test]
     fn test_diff_stats_calculation() {
         let living_docs = LivingDocs::new();
-        
+
         let old = "fn hello() {\n    println!(\"Hi\");\n}";
         let new = "fn hello() {\n    println!(\"Hello\");\n}\n\nfn goodbye() {\n    println!(\"Bye\");\n}";
 
@@ -639,7 +641,7 @@ fn goodbye() {
     #[test]
     fn test_significant_change_detection() {
         let living_docs = LivingDocs::new();
-        
+
         // Small change
         let old1 = "fn test() { let x = 1; }";
         let new1 = "fn test() { let x = 2; }";
@@ -661,7 +663,9 @@ fn goodbye() {
             "auth",
             "# Auth API\n\nFunctions:\n- `login()`: Authenticate user",
         );
-        living_docs.add_document(api_doc).expect("Failed to add doc");
+        living_docs
+            .add_document(api_doc)
+            .expect("Failed to add doc");
 
         // Step 2: Register source file
         let initial_code = r#"
@@ -685,11 +689,8 @@ pub fn logout(token: &Token) -> Result<()> {
 }
 "#;
 
-        let updates = living_docs.on_code_change(
-            Path::new("src/auth/login.rs"),
-            initial_code,
-            updated_code,
-        );
+        let updates =
+            living_docs.on_code_change(Path::new("src/auth/login.rs"), initial_code, updated_code);
 
         // Step 4: Verify update was detected
         assert!(!updates.is_empty());
@@ -707,7 +708,7 @@ pub fn logout(token: &Token) -> Result<()> {
     #[test]
     fn test_update_type_classification() {
         let mut living_docs = LivingDocs::new();
-        
+
         let doc = create_test_doc("test-doc", "test", "docs");
         living_docs.add_document(doc).expect("Failed to add");
         living_docs.register_file(Path::new("test.rs"), "test-doc", "fn a() {}");
@@ -718,27 +719,31 @@ pub fn logout(token: &Token) -> Result<()> {
             "fn a() {}",
             "fn a() { /* comment */ }",
         );
-        assert!(updates1.iter().any(|u| u.update_type == UpdateType::AutoUpdate));
+        assert!(updates1
+            .iter()
+            .any(|u| u.update_type == UpdateType::AutoUpdate));
 
         // Large change -> FlagForReview
-        let large_addition = (0..60).map(|i| format!("fn func_{}() {{}}", i)).collect::<Vec<_>>().join("\n");
-        let updates2 = living_docs.on_code_change(
-            Path::new("test.rs"),
-            "fn a() {}",
-            &large_addition,
-        );
-        assert!(updates2.iter().any(|u| u.update_type == UpdateType::FlagForReview));
+        let large_addition = (0..60)
+            .map(|i| format!("fn func_{}() {{}}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let updates2 =
+            living_docs.on_code_change(Path::new("test.rs"), "fn a() {}", &large_addition);
+        assert!(updates2
+            .iter()
+            .any(|u| u.update_type == UpdateType::FlagForReview));
     }
 
     #[test]
     fn test_docs_for_file() {
         let mut living_docs = LivingDocs::new();
-        
+
         let doc1 = create_test_doc("doc1", "test", "content1");
         let doc2 = create_test_doc("doc2", "test", "content2");
         living_docs.add_document(doc1).expect("Failed");
         living_docs.add_document(doc2).expect("Failed");
-        
+
         living_docs.register_file(Path::new("shared.rs"), "doc1", "code");
         living_docs.register_file(Path::new("shared.rs"), "doc2", "code");
 

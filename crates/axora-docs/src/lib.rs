@@ -44,26 +44,18 @@
 
 #![warn(missing_docs)]
 
-pub mod schema;
+pub mod adr;
 pub mod index;
 pub mod living;
-pub mod adr;
+pub mod schema;
 
 // Re-export main types
 pub use schema::{
-    DocSchema, DocSection, Document, DocId,
-    Endpoint, Parameter, CodeExample, TestCase,
-    SchemaError,
+    CodeExample, DocId, DocSchema, DocSection, Document, Endpoint, Parameter, SchemaError, TestCase,
 };
 
-pub use index::{
-    DocIndex, DocQuery, SearchResult, IndexError,
-};
+pub use index::{DocIndex, DocQuery, IndexError, SearchResult};
 
-pub use living::{
-    LivingDocs, DocUpdate, UpdateType, LivingDocsError, DiffStats,
-};
+pub use living::{DiffStats, DocUpdate, LivingDocs, LivingDocsError, UpdateType};
 
-pub use adr::{
-    Adr, AdrStatus, AdrLog, AdrError,
-};
+pub use adr::{Adr, AdrError, AdrLog, AdrStatus};

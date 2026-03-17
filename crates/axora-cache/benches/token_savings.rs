@@ -5,8 +5,8 @@
 //! - Diff-based communication (Sprint 2)
 //! - Combined optimizations
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use axora_cache::{CodeMinifier, UnifiedDiff};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 /// Sample Rust code for benchmarking
 const SAMPLE_RUST_CODE: &str = r#"
@@ -285,10 +285,12 @@ pub fn authenticate_user_with_credentials(
 
 fn benchmark_code_minification_savings(c: &mut Criterion) {
     let minifier = CodeMinifier::new();
-    
+
     c.bench_function("code_minification_savings", |b| {
         b.iter(|| {
-            let minified = minifier.minify(black_box(SAMPLE_RUST_CODE), "rust").unwrap();
+            let minified = minifier
+                .minify(black_box(SAMPLE_RUST_CODE), "rust")
+                .unwrap();
             let savings = minified.savings_percentage;
             assert!(savings > 15.0, "Expected >15% savings, got {:.1}%", savings);
             black_box(minified);
@@ -303,12 +305,16 @@ fn benchmark_diff_savings(c: &mut Criterion) {
                 black_box(SAMPLE_RUST_CODE),
                 black_box(MODIFIED_RUST_CODE),
                 "old.rs",
-                "new.rs"
+                "new.rs",
             );
             let original_tokens = SAMPLE_RUST_CODE.len() / 4;
             let diff_tokens = diff.to_string().len() / 4;
             let savings = ((original_tokens - diff_tokens) as f32 / original_tokens as f32) * 100.0;
-            assert!(savings > 50.0, "Expected >50% diff savings, got {:.1}%", savings);
+            assert!(
+                savings > 50.0,
+                "Expected >50% diff savings, got {:.1}%",
+                savings
+            );
             black_box(diff);
         })
     });
@@ -316,26 +322,33 @@ fn benchmark_diff_savings(c: &mut Criterion) {
 
 fn benchmark_combined_optimization(c: &mut Criterion) {
     let minifier = CodeMinifier::new();
-    
+
     c.bench_function("combined_minification_plus_diff", |b| {
         b.iter(|| {
             // Step 1: Minify original code
-            let minified = minifier.minify(black_box(SAMPLE_RUST_CODE), "rust").unwrap();
-            
+            let minified = minifier
+                .minify(black_box(SAMPLE_RUST_CODE), "rust")
+                .unwrap();
+
             // Step 2: Generate diff for change
             let diff = UnifiedDiff::generate(
                 black_box(SAMPLE_RUST_CODE),
                 black_box(MODIFIED_RUST_CODE),
                 "old.rs",
-                "new.rs"
+                "new.rs",
             );
-            
+
             // Step 3: Calculate combined savings
             let original_tokens = SAMPLE_RUST_CODE.len() / 4 * 2; // Sending full code twice
             let optimized_tokens = minified.content.len() / 4 + diff.to_string().len() / 4;
-            let savings = ((original_tokens - optimized_tokens) as f32 / original_tokens as f32) * 100.0;
-            
-            assert!(savings > 40.0, "Expected >40% combined savings, got {:.1}%", savings);
+            let savings =
+                ((original_tokens - optimized_tokens) as f32 / original_tokens as f32) * 100.0;
+
+            assert!(
+                savings > 40.0,
+                "Expected >40% combined savings, got {:.1}%",
+                savings
+            );
             black_box((minified, diff));
         })
     });
@@ -343,10 +356,12 @@ fn benchmark_combined_optimization(c: &mut Criterion) {
 
 fn benchmark_minification_by_language(c: &mut Criterion) {
     let minifier = CodeMinifier::new();
-    
+
     let languages = vec![
         ("rust", SAMPLE_RUST_CODE),
-        ("typescript", r#"
+        (
+            "typescript",
+            r#"
 // TypeScript authentication service
 // Handles user login and session management
 
@@ -399,8 +414,11 @@ export async function authenticateUserWithCredentials(
         expiresIn: 86400, // 24 hours
     };
 }
-"#),
-        ("python", r#"
+"#,
+        ),
+        (
+            "python",
+            r#"
 # Python authentication module
 # Provides user authentication and session management
 
@@ -472,11 +490,12 @@ def authenticate_user_with_credentials(
         'token': token,
         'expires_at': datetime.now() + timedelta(hours=24)
     }
-"#),
+"#,
+        ),
     ];
 
     let mut group = c.benchmark_group("minification_by_language");
-    
+
     for (lang, code) in languages {
         group.bench_with_input(BenchmarkId::from_parameter(lang), code, |b, code| {
             b.iter(|| {
@@ -486,7 +505,7 @@ def authenticate_user_with_credentials(
             })
         });
     }
-    
+
     group.finish();
 }
 
@@ -511,11 +530,16 @@ pub fn calculateMonthlyRevenueMetricsForDashboard(
 "#;
 
     let minifier = CodeMinifier::new();
-    
+
     c.bench_function("identifier_compression_savings", |b| {
         b.iter(|| {
-            let minified = minifier.minify(black_box(code_with_long_identifiers), "typescript").unwrap();
-            assert!(!minified.identifier_map.is_empty(), "Expected identifiers to be compressed");
+            let minified = minifier
+                .minify(black_box(code_with_long_identifiers), "typescript")
+                .unwrap();
+            assert!(
+                !minified.identifier_map.is_empty(),
+                "Expected identifiers to be compressed"
+            );
             black_box(minified);
         })
     });
@@ -558,10 +582,12 @@ pub fn my_function_with_documentation(
 "#;
 
     let minifier = CodeMinifier::new();
-    
+
     c.bench_function("comment_stripping_savings", |b| {
         b.iter(|| {
-            let minified = minifier.minify(black_box(code_with_comments), "rust").unwrap();
+            let minified = minifier
+                .minify(black_box(code_with_comments), "rust")
+                .unwrap();
             // Verify comments are stripped
             assert!(!minified.content.contains("/// This is a documentation"));
             assert!(!minified.content.contains("// This is an inline comment"));

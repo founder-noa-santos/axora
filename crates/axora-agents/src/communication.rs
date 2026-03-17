@@ -108,7 +108,10 @@ impl MessageBus {
 
     /// Send a message
     pub fn send(&mut self, message: AgentMessage) -> Result<(), String> {
-        debug!("Sending message: {} -> {:?}", message.sender_id, message.recipient_id);
+        debug!(
+            "Sending message: {} -> {:?}",
+            message.sender_id, message.recipient_id
+        );
 
         // Check TTL
         if let Some(ttl) = message.ttl_seconds {
@@ -233,7 +236,7 @@ impl MessageBus {
             .collect();
 
         let count = acknowledged.len();
-        
+
         for id in acknowledged {
             self.pending.remove(&id);
         }
@@ -393,7 +396,7 @@ mod tests {
     #[test]
     fn test_message_creation() {
         let mut bus = MessageBus::new();
-        
+
         let message = bus.create_message(
             "agent1",
             Some("agent2"),
@@ -410,7 +413,7 @@ mod tests {
     #[test]
     fn test_message_send() {
         let mut bus = MessageBus::new();
-        
+
         let message = bus.create_message(
             "agent1",
             Some("agent2"),
@@ -426,7 +429,7 @@ mod tests {
     #[test]
     fn test_message_acknowledgement() {
         let mut bus = MessageBus::new();
-        
+
         let message = bus.create_message(
             "agent1",
             Some("agent2"),
@@ -447,25 +450,13 @@ mod tests {
     #[test]
     fn test_get_pending() {
         let mut bus = MessageBus::new();
-        
-        let message1 = bus.create_message(
-            "agent1",
-            Some("agent2"),
-            MessageType::TaskAssign,
-            "Task 1",
-        );
-        let message2 = bus.create_message(
-            "agent1",
-            Some("agent2"),
-            MessageType::TaskAssign,
-            "Task 2",
-        );
-        let message3 = bus.create_message(
-            "agent1",
-            Some("agent3"),
-            MessageType::TaskAssign,
-            "Task 3",
-        );
+
+        let message1 =
+            bus.create_message("agent1", Some("agent2"), MessageType::TaskAssign, "Task 1");
+        let message2 =
+            bus.create_message("agent1", Some("agent2"), MessageType::TaskAssign, "Task 2");
+        let message3 =
+            bus.create_message("agent1", Some("agent3"), MessageType::TaskAssign, "Task 3");
 
         bus.send(message1).unwrap();
         bus.send(message2).unwrap();

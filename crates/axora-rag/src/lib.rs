@@ -6,13 +6,13 @@
 
 pub mod context;
 pub mod error;
-pub mod retriever;
 pub mod reranker;
+pub mod retriever;
 
 pub use context::ContextBuilder;
 pub use error::RagError;
-pub use retriever::{HybridRetriever, RetrievalResult};
 pub use reranker::CrossEncoder;
+pub use retriever::{HybridRetriever, RetrievalResult};
 
 use thiserror::Error;
 

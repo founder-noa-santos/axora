@@ -44,18 +44,14 @@ pub enum HeartbeatMessage {
         interval: Duration,
     },
     /// Wake an agent immediately
-    WakeNow {
-        agent_id: String,
-    },
+    WakeNow { agent_id: String },
     /// Wake an agent due to an event
     Event {
         agent_id: String,
         event: HeartbeatEvent,
     },
     /// Cancel scheduled wake
-    CancelWake {
-        agent_id: String,
-    },
+    CancelWake { agent_id: String },
     /// Persist agent state before sleep
     PersistState {
         agent_id: String,
@@ -231,7 +227,8 @@ impl Heartbeat {
         debug!("Registered agent {} with heartbeat system", agent_id);
 
         // Schedule initial wake
-        let _ = self.timer_tx
+        let _ = self
+            .timer_tx
             .send(HeartbeatMessage::ScheduleWake {
                 agent_id: agent_id.to_string(),
                 interval: self.config.default_interval,
@@ -555,15 +552,18 @@ impl Heartbeat {
 
             // Check for stuck agents
             if state.sleep_state.is_stuck(self.config.stuck_threshold) {
-                warn!("Agent {} is stuck ({} missed heartbeats)", 
-                    agent_id, state.sleep_state.missed_heartbeats);
+                warn!(
+                    "Agent {} is stuck ({} missed heartbeats)",
+                    agent_id, state.sleep_state.missed_heartbeats
+                );
             }
 
             // Check for max sleep time exceeded
             let sleep_duration = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_secs() - state.sleep_state.last_sleep_time;
+                .as_secs()
+                - state.sleep_state.last_sleep_time;
 
             if sleep_duration > self.config.max_sleep_time.as_secs() && !state.is_awake {
                 warn!("Agent {} exceeded max sleep time, forcing wake", agent_id);
@@ -625,7 +625,9 @@ mod tests {
         heartbeat.register_agent("agent1").await;
 
         // Schedule wake in 100ms
-        heartbeat.schedule_wake("agent1", Duration::from_millis(100)).await;
+        heartbeat
+            .schedule_wake("agent1", Duration::from_millis(100))
+            .await;
 
         // Give time for message to be processed
         sleep(Duration::from_millis(50)).await;
@@ -671,7 +673,7 @@ mod tests {
         // Give time for processing
         sleep(Duration::from_millis(50)).await;
 
-        // Verify state was persisted (note: in this implementation, 
+        // Verify state was persisted (note: in this implementation,
         // persist_state updates the internal state)
         let retrieved = heartbeat.get_agent_state("agent1").await;
         assert!(retrieved.is_some());
@@ -683,7 +685,9 @@ mod tests {
         heartbeat.register_agent("agent1").await;
 
         // Schedule timer wake
-        heartbeat.schedule_wake("agent1", Duration::from_millis(100)).await;
+        heartbeat
+            .schedule_wake("agent1", Duration::from_millis(100))
+            .await;
 
         // Also trigger event wake
         let event = HeartbeatEvent::Custom("test".to_string());
@@ -913,7 +917,9 @@ mod tests {
         heartbeat.register_agent("agent1").await;
 
         // Schedule wake
-        heartbeat.schedule_wake("agent1", Duration::from_secs(10)).await;
+        heartbeat
+            .schedule_wake("agent1", Duration::from_secs(10))
+            .await;
         sleep(Duration::from_millis(50)).await;
 
         // Cancel wake

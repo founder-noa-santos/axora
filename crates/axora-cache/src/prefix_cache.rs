@@ -96,7 +96,10 @@ impl PrefixCache {
             entry.access_count += 1;
             entry.last_accessed = now_millis();
             self.total_tokens_saved += entry.token_count;
-            debug!("Cache hit: {} (saved {} tokens)", entry.id, entry.token_count);
+            debug!(
+                "Cache hit: {} (saved {} tokens)",
+                entry.id, entry.token_count
+            );
             Some(entry)
         } else {
             debug!("Cache miss: {}", cache_key);
@@ -150,7 +153,8 @@ impl PrefixCache {
     fn enforce_capacity(&mut self) {
         if self.cache.len() >= self.max_entries {
             // Remove least recently accessed
-            let lru_key = self.cache
+            let lru_key = self
+                .cache
                 .iter()
                 .min_by_key(|(_, entry)| entry.last_accessed)
                 .map(|(key, _)| key.clone());
@@ -295,9 +299,9 @@ mod tests {
     #[test]
     fn test_prefix_cache_add() {
         let mut cache = PrefixCache::default();
-        
+
         let id = cache.add("test", "This is a test prefix", 5);
-        
+
         assert_eq!(id, "test");
         assert_eq!(cache.stats().total_entries, 1);
     }
@@ -305,13 +309,13 @@ mod tests {
     #[test]
     fn test_prefix_cache_hit() {
         let mut cache = PrefixCache::default();
-        
+
         let content = "This is a test prefix";
         cache.add("test", content, 5);
-        
+
         let cache_key = cache.compute_cache_key(content);
         let entry = cache.get(&cache_key);
-        
+
         assert!(entry.is_some());
         assert_eq!(entry.unwrap().access_count, 1);
     }
@@ -319,7 +323,7 @@ mod tests {
     #[test]
     fn test_prefix_cache_miss() {
         let mut cache = PrefixCache::default();
-        
+
         let entry = cache.get("nonexistent");
         assert!(entry.is_none());
     }
@@ -327,24 +331,24 @@ mod tests {
     #[test]
     fn test_cache_capacity_enforcement() {
         let mut cache = PrefixCache::new(3);
-        
+
         cache.add("1", "Content 1", 10);
         cache.add("2", "Content 2", 10);
         cache.add("3", "Content 3", 10);
         cache.add("4", "Content 4", 10); // Should evict LRU
-        
+
         assert_eq!(cache.stats().total_entries, 3);
     }
 
     #[test]
     fn test_cache_stats() {
         let mut cache = PrefixCache::default();
-        
+
         cache.add("test", "Test content", 10);
         let cache_key = cache.compute_cache_key("Test content");
         cache.get(&cache_key); // Access once
         cache.get(&cache_key); // Access twice
-        
+
         let stats = cache.stats();
         assert_eq!(stats.total_entries, 1);
         assert_eq!(stats.total_tokens_cached, 10);
@@ -354,11 +358,11 @@ mod tests {
     #[test]
     fn test_prompt_builder() {
         let mut builder = CachedPromptBuilder::new();
-        
+
         builder
             .add_system_prompt("You are a helpful assistant.")
             .add_dynamic("User question: What is Rust?");
-        
+
         let prompt = builder.build();
         assert!(prompt.contains("You are a helpful assistant."));
         assert!(prompt.contains("User question: What is Rust?"));
@@ -367,9 +371,9 @@ mod tests {
     #[test]
     fn test_prompt_builder_cache_stats() {
         let mut builder = CachedPromptBuilder::new();
-        
+
         builder.add_system_prompt("System prompt here");
-        
+
         let stats = builder.cache_stats();
         assert!(stats.total_entries > 0);
     }

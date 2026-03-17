@@ -341,7 +341,10 @@ impl TraceabilityMatrix {
                     let code_path_str = &cap[2];
 
                     // Try to resolve path relative to rules directory
-                    let code_path = rules_path.parent().unwrap_or(rules_path).join(code_path_str);
+                    let code_path = rules_path
+                        .parent()
+                        .unwrap_or(rules_path)
+                        .join(code_path_str);
 
                     if code_path.exists() {
                         let link = TraceabilityLink::new(code_path, &rule.rule_id, link_type);
@@ -381,10 +384,7 @@ pub struct TaskContext {
 
 impl TaskContext {
     /// Creates a new task context
-    pub fn new(
-        source_files: HashSet<PathBuf>,
-        business_rules: HashSet<BusinessRule>,
-    ) -> Self {
+    pub fn new(source_files: HashSet<PathBuf>, business_rules: HashSet<BusinessRule>) -> Self {
         let token_count = Self::estimate_tokens(&source_files, &business_rules);
 
         Self {
@@ -656,7 +656,11 @@ impl ContextManager {
     }
 
     /// Checks if a business rule applies to any of the influenced files
-    fn rule_applies_to_files(&self, rule: &BusinessRule, influenced_files: &HashSet<PathBuf>) -> bool {
+    fn rule_applies_to_files(
+        &self,
+        rule: &BusinessRule,
+        influenced_files: &HashSet<PathBuf>,
+    ) -> bool {
         // Check if rule content mentions any influenced file
         for file in influenced_files {
             if let Some(file_name) = file.file_name().and_then(|s| s.to_str()) {
@@ -687,7 +691,11 @@ impl ContextManager {
                 // Count all files in directory (brute-force approach)
                 for entry in walkdir::WalkDir::new(parent).max_depth(3) {
                     let entry = entry?;
-                    if entry.path().extension().map_or(false, |ext| is_code_extension(ext)) {
+                    if entry
+                        .path()
+                        .extension()
+                        .map_or(false, |ext| is_code_extension(ext))
+                    {
                         if let Ok(content) = fs::read_to_string(entry.path()) {
                             total += content.len() / 4;
                         }
@@ -743,10 +751,12 @@ impl ContextManager {
 
 /// Checks if a file extension is a code file
 fn is_code_extension(ext: &std::ffi::OsStr) -> bool {
-    ext.to_str().map_or(false, |s| matches!(
-        s,
-        "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "c" | "cpp" | "h" | "hpp" | "java"
-    ))
+    ext.to_str().map_or(false, |s| {
+        matches!(
+            s,
+            "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "go" | "c" | "cpp" | "h" | "hpp" | "java"
+        )
+    })
 }
 
 #[cfg(test)]
@@ -824,8 +834,9 @@ All password inputs must be validated:
         create_test_file(&temp_dir, "rules/sec-001.md", rule_content);
 
         // Load traceability matrix
-        let matrix = TraceabilityMatrix::load_from_directory(temp_dir.path().join("rules").as_path())
-            .unwrap_or_else(|_| TraceabilityMatrix::new());
+        let matrix =
+            TraceabilityMatrix::load_from_directory(temp_dir.path().join("rules").as_path())
+                .unwrap_or_else(|_| TraceabilityMatrix::new());
 
         let influence_graph = InfluenceGraph::new();
         let pruner = ContextManager::new(influence_graph)
@@ -841,8 +852,12 @@ All password inputs must be validated:
         let mut influence_graph = InfluenceGraph::new();
 
         // Create dependency graph
-        influence_graph.add_edge("src/main.rs", "src/auth.rs").unwrap();
-        influence_graph.add_edge("src/auth.rs", "src/db.rs").unwrap();
+        influence_graph
+            .add_edge("src/main.rs", "src/auth.rs")
+            .unwrap();
+        influence_graph
+            .add_edge("src/auth.rs", "src/db.rs")
+            .unwrap();
 
         let mut pruner = ContextManager::new(influence_graph);
 
@@ -861,8 +876,12 @@ All password inputs must be validated:
         let mut influence_graph = InfluenceGraph::new();
 
         // Create a chain: main.rs -> auth.rs -> db.rs
-        influence_graph.add_edge("src/main.rs", "src/auth.rs").unwrap();
-        influence_graph.add_edge("src/auth.rs", "src/db.rs").unwrap();
+        influence_graph
+            .add_edge("src/main.rs", "src/auth.rs")
+            .unwrap();
+        influence_graph
+            .add_edge("src/auth.rs", "src/db.rs")
+            .unwrap();
 
         let pruner = ContextManager::new(influence_graph);
 
@@ -912,9 +931,15 @@ All password inputs must be validated:
         // A's transitive closure should include B, C, D (deterministic)
         let a_vector = pruner.influence_graph().get_vector("src/a.rs").unwrap();
 
-        assert!(a_vector.transitive_closure.contains(&"src/b.rs".to_string()));
-        assert!(a_vector.transitive_closure.contains(&"src/c.rs".to_string()));
-        assert!(a_vector.transitive_closure.contains(&"src/d.rs".to_string()));
+        assert!(a_vector
+            .transitive_closure
+            .contains(&"src/b.rs".to_string()));
+        assert!(a_vector
+            .transitive_closure
+            .contains(&"src/c.rs".to_string()));
+        assert!(a_vector
+            .transitive_closure
+            .contains(&"src/d.rs".to_string()));
 
         // D should have exactly 4 files in closure (B, C, and any deps of D)
         let d_vector = pruner.influence_graph().get_vector("src/d.rs").unwrap();
@@ -947,14 +972,16 @@ All password inputs must be validated:
     fn test_traceability_matrix() {
         let mut matrix = TraceabilityMatrix::new();
 
-        let link = TraceabilityLink::new(
-            PathBuf::from("src/auth.rs"),
-            "SEC-001",
-            "implements",
-        );
+        let link = TraceabilityLink::new(PathBuf::from("src/auth.rs"), "SEC-001", "implements");
         matrix.add_link(link);
 
-        let rule = BusinessRule::new("SEC-001", "Password Validation", "security", "critical", "Validate passwords");
+        let rule = BusinessRule::new(
+            "SEC-001",
+            "Password Validation",
+            "security",
+            "critical",
+            "Validate passwords",
+        );
         matrix.add_rule(rule);
 
         // Test code -> rules lookup
@@ -1004,10 +1031,7 @@ This is a test business rule.
         let influence_graph = InfluenceGraph::new();
         let pruner = ContextManager::new(influence_graph);
 
-        let task = Task::new(
-            "test-1",
-            "Update auth::login and auth::logout functions",
-        );
+        let task = Task::new("test-1", "Update auth::login and auth::logout functions");
 
         let files = pruner.extract_mentioned_files(&task).unwrap();
 
@@ -1041,7 +1065,9 @@ All passwords must be validated.
 
         // Create influence graph
         let mut influence_graph = InfluenceGraph::new();
-        influence_graph.add_edge("src/main.rs", "src/auth.rs").unwrap();
+        influence_graph
+            .add_edge("src/main.rs", "src/auth.rs")
+            .unwrap();
 
         // Load traceability matrix
         let matrix = TraceabilityMatrix::load_from_directory(&rules_dir)
@@ -1059,7 +1085,7 @@ All passwords must be validated.
 
         // Verify traceability matrix loaded the rule
         assert!(pruner.traceability_matrix().get_rule("SEC-001").is_some());
-        
+
         // Context was created successfully
         assert!(context.token_count() >= 0);
     }

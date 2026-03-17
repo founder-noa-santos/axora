@@ -75,11 +75,11 @@ pub struct LifecycleConfig {
 impl Default for LifecycleConfig {
     fn default() -> Self {
         Self {
-            strength_threshold: 0.1,      // Delete if strength < 10%
-            utility_threshold: 0.3,       // Delete if utility < 30%
-            pruning_interval_secs: 3600,  // Prune every hour
-            half_life_days: 30.0,         // 30-day half-life
-            min_retrievals_protected: 5,  // Protected if retrieved 5+ times
+            strength_threshold: 0.1,     // Delete if strength < 10%
+            utility_threshold: 0.3,      // Delete if utility < 30%
+            pruning_interval_secs: 3600, // Prune every hour
+            half_life_days: 30.0,        // 30-day half-life
+            min_retrievals_protected: 5, // Protected if retrieved 5+ times
         }
     }
 }
@@ -314,7 +314,9 @@ impl MemoryLifecycle {
     pub fn calculate_strength<M: MemoryTrait>(&self, memory: &M) -> f32 {
         let time_decay = self.decay_model.exponential_decay(memory.created_at());
         let importance_boost = self.decay_model.importance_boost(memory.importance());
-        let retrieval_reinforcement = self.decay_model.retrieval_reinforcement(memory.retrieval_count());
+        let retrieval_reinforcement = self
+            .decay_model
+            .retrieval_reinforcement(memory.retrieval_count());
 
         // Combined strength: time_decay * importance * retrieval
         time_decay * importance_boost * retrieval_reinforcement
@@ -388,7 +390,8 @@ impl MemoryLifecycle {
             let strength = self.calculate_strength(skill);
 
             // Prune if below either threshold
-            if utility < self.config.utility_threshold || strength < self.config.strength_threshold {
+            if utility < self.config.utility_threshold || strength < self.config.strength_threshold
+            {
                 if let Ok(true) = should_delete(skill) {
                     // Remove utility tracking
                     self.utility_tracker.remove(skill.id()).await;
@@ -550,10 +553,7 @@ impl PruningWorker {
 
             match report {
                 Ok(report) => {
-                    tracing::info!(
-                        "Pruning complete: {} memories pruned",
-                        report.total_pruned
-                    );
+                    tracing::info!("Pruning complete: {} memories pruned", report.total_pruned);
                 }
                 Err(e) => {
                     tracing::error!("Pruning failed: {}", e);
@@ -608,7 +608,9 @@ impl TestMemory {
     }
 
     pub fn with_age(mut self, age_days: u32) -> Self {
-        self.created_at = self.created_at.saturating_sub(age_days as u64 * 24 * 60 * 60);
+        self.created_at = self
+            .created_at
+            .saturating_sub(age_days as u64 * 24 * 60 * 60);
         self
     }
 
@@ -689,8 +691,7 @@ mod tests {
         let lifecycle = MemoryLifecycle::with_defaults();
 
         // New, frequently retrieved memory should have high strength
-        let strong_memory = TestMemory::new("test", "content")
-            .with_retrievals(100);
+        let strong_memory = TestMemory::new("test", "content").with_retrievals(100);
         let strength = lifecycle.calculate_strength(&strong_memory);
         assert!(strength > 1.0);
 
@@ -738,8 +739,8 @@ mod tests {
         // Create memories with different ages
         let memories = vec![
             TestMemory::new("new", "content").with_retrievals(10), // Protected
-            TestMemory::new("old", "content").with_age(90), // Should be pruned
-            TestMemory::new("medium", "content").with_age(30), // Might be pruned
+            TestMemory::new("old", "content").with_age(90),        // Should be pruned
+            TestMemory::new("medium", "content").with_age(30),     // Might be pruned
         ];
 
         let mut deleted = Vec::new();
@@ -765,10 +766,22 @@ mod tests {
         let lifecycle = MemoryLifecycle::new(config);
 
         // Create skills with different utilities
-        lifecycle.update_utility("high-utility", true).await.unwrap();
-        lifecycle.update_utility("high-utility", true).await.unwrap();
-        lifecycle.update_utility("low-utility", false).await.unwrap();
-        lifecycle.update_utility("low-utility", false).await.unwrap();
+        lifecycle
+            .update_utility("high-utility", true)
+            .await
+            .unwrap();
+        lifecycle
+            .update_utility("high-utility", true)
+            .await
+            .unwrap();
+        lifecycle
+            .update_utility("low-utility", false)
+            .await
+            .unwrap();
+        lifecycle
+            .update_utility("low-utility", false)
+            .await
+            .unwrap();
 
         let skills = vec![
             TestMemory::new("high-utility", "content").with_retrievals(10), // Protected
@@ -803,7 +816,10 @@ mod tests {
         let protected_skill = TestMemory::new("protected", "content").with_retrievals(5);
 
         // Create skill with low utility and no protection
-        lifecycle.update_utility("unprotected", false).await.unwrap();
+        lifecycle
+            .update_utility("unprotected", false)
+            .await
+            .unwrap();
         let unprotected_skill = TestMemory::new("unprotected", "content").with_age(60);
 
         let skills = vec![protected_skill, unprotected_skill];
@@ -855,10 +871,14 @@ mod tests {
 
         let mut deleted = Vec::new();
         let report = lifecycle
-            .resolve_conflicts(memories, |_| "hash".to_string(), |id| {
-                deleted.push(id.to_string());
-                Ok(true)
-            })
+            .resolve_conflicts(
+                memories,
+                |_| "hash".to_string(),
+                |id| {
+                    deleted.push(id.to_string());
+                    Ok(true)
+                },
+            )
             .await
             .unwrap();
 
@@ -876,8 +896,7 @@ mod tests {
         let old_memory = TestMemory::new("old", "content")
             .with_age(60)
             .with_retrievals(5);
-        let new_memory = TestMemory::new("new", "content")
-            .with_retrievals(5);
+        let new_memory = TestMemory::new("new", "content").with_retrievals(5);
 
         let old_strength = lifecycle.calculate_strength(&old_memory);
         let new_strength = lifecycle.calculate_strength(&new_memory);

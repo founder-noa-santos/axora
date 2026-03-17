@@ -91,31 +91,29 @@ impl FrameExecutor {
         F: FnMut(FrameContext) -> Fut,
         Fut: std::future::Future<Output = ()>,
     {
-        info!("Starting frame executor with target FPS: {}", 1000 / self.target_duration.as_millis() as u64);
-        
+        info!(
+            "Starting frame executor with target FPS: {}",
+            1000 / self.target_duration.as_millis() as u64
+        );
+
         let mut ticker = interval(self.target_duration);
-        
+
         loop {
             ticker.tick().await;
-            
+
             let now = Instant::now();
             let delta_time = now.duration_since(self.last_frame_time);
             self.last_frame_time = now;
-            
+
             self.frame_number += 1;
-            
-            let frame = Frame::new(
-                self.frame_number,
-                now,
-                self.target_duration,
-                delta_time,
-            );
-            
+
+            let frame = Frame::new(self.frame_number, now, self.target_duration, delta_time);
+
             let context = FrameContext {
                 frame,
                 state: Arc::clone(&self.state),
             };
-            
+
             trace!("Frame {} started", self.frame_number);
             frame_handler(context).await;
             debug!("Frame {} completed", self.frame_number);
@@ -153,20 +151,22 @@ mod tests {
         let mut executor = FrameExecutor::new(60);
         let counter = Arc::new(RwLock::new(0));
         let counter_clone = Arc::clone(&counter);
-        
+
         // Run for a few frames
         tokio::spawn(async move {
-            executor.run(move |_ctx| {
-                let counter = Arc::clone(&counter_clone);
-                async move {
-                    let mut c = counter.write().await;
-                    *c += 1;
-                }
-            }).await;
+            executor
+                .run(move |_ctx| {
+                    let counter = Arc::clone(&counter_clone);
+                    async move {
+                        let mut c = counter.write().await;
+                        *c += 1;
+                    }
+                })
+                .await;
         });
-        
+
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let c = counter.read().await;
         assert!(*c >= 1);
     }
