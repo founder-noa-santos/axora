@@ -13,6 +13,7 @@ pub mod diff;
 pub mod l1_cache;
 pub mod l2_cache;
 pub mod l3_cache;
+pub mod latent_context;
 pub mod minifier;
 pub mod prefix_cache;
 pub mod rag;
@@ -50,13 +51,17 @@ pub use context_pruning::{
     TokenReductionBenchmark, TraceabilityLink, TraceabilityMatrix,
 };
 pub use diff::{
-    apply_patch, calculate_token_savings, DiffLine, Hunk, PatchResult, TokenSavings, UnifiedDiff,
+    apply_patch, calculate_token_savings, parse_unified_diff, DiffLine, Hunk, PatchResult,
+    TokenSavings, UnifiedDiff,
 };
 pub use l1_cache::L1Cache;
 pub use l2_cache::L2Cache;
 pub use l3_cache::L3Cache;
+pub use latent_context::{LatentContextRecord, LatentContextStore};
 pub use minifier::{CodeMinifier, MinifiedCode, MinifierConfig, MinifierError};
-pub use prefix_cache::{CacheStats, CachedPrefix, CachedPromptBuilder, PrefixCache};
+pub use prefix_cache::{
+    CacheStats, CachedPrefix, CachedPromptBuilder, PrefixCache, PrefixCacheLookup,
+};
 pub use rag::{DomainRagStore, Experience, RagResult, RetrievalStrategy};
 pub use toon::{Schema, ToonError, ToonSerializer, ToonStats};
 

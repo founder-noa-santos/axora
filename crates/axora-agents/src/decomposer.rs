@@ -10,8 +10,8 @@ mod llm_decomposer;
 mod parallel_groups;
 
 use crate::error::AgentError;
-use crate::graph::{ExecutionMode, WorkflowGraph};
-use crate::task::{Priority, Task, TaskStatus};
+use crate::graph::ExecutionMode;
+use crate::task::{Priority, Task, TaskStatus, TaskType};
 use crate::Result;
 use axora_indexing::InfluenceGraph;
 pub use graph_builder::GraphBuilder;
@@ -218,9 +218,6 @@ pub struct DecomposedMission {
     pub original_mission: String,
     /// Sequential/parallel mode hint.
     pub execution_mode: ExecutionMode,
-    /// Optional legacy workflow graph.
-    #[serde(skip)]
-    pub workflow_graph: Option<WorkflowGraph>,
 }
 
 impl DecomposedMission {
@@ -240,39 +237,7 @@ impl DecomposedMission {
             estimated_duration: Duration::ZERO,
             original_mission: original_mission.to_string(),
             execution_mode: ExecutionMode::Parallel,
-            workflow_graph: None,
         }
-    }
-
-    /// Creates a mission from a legacy workflow graph.
-    pub fn from_workflow(original_mission: &str, graph: WorkflowGraph) -> Self {
-        let mut mission = Self::new(original_mission);
-        mission.tasks = graph
-            .nodes
-            .iter()
-            .map(|node| {
-                let mut task = Task::new(&format!("{}: {}", node.role, node.description));
-                task.id = format!("task-{}", node.id);
-                task
-            })
-            .collect();
-        mission.dependency_graph = TaskDAG {
-            nodes: (0..mission.tasks.len()).collect(),
-            edges: graph
-                .edges
-                .iter()
-                .map(|edge| (edge.from, edge.to))
-                .collect(),
-        };
-        mission.dependencies = mission
-            .dependency_graph
-            .edges
-            .iter()
-            .map(|&(from, to)| Dependency::hard(from, to))
-            .collect();
-        mission.execution_mode = ExecutionMode::Sequential;
-        mission.workflow_graph = Some(graph);
-        mission
     }
 
     /// Returns the number of tasks.
@@ -343,7 +308,22 @@ impl MissionDecomposer {
     /// Synchronously decomposes a mission.
     pub fn decompose(&self, mission: &str) -> Result<DecomposedMission> {
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            return tokio::task::block_in_place(|| handle.block_on(self.decompose_async(mission)));
+            if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread {
+                return tokio::task::block_in_place(|| handle.block_on(self.decompose_async(mission)));
+            }
+
+            return std::thread::scope(|scope| {
+                let join_handle = scope.spawn(|| {
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map_err(|err| AgentError::ExecutionFailed(err.to_string()))?;
+                    runtime.block_on(self.decompose_async(mission))
+                });
+                join_handle.join().map_err(|_| {
+                    AgentError::ExecutionFailed("decomposition thread panicked".to_string())
+                })?
+            });
         }
 
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -509,6 +489,7 @@ impl MissionDecomposer {
             task.status = TaskStatus::Pending;
             task.assigned_to = None;
             task.parent_task = None;
+            task.task_type = infer_task_type(raw_task);
             tasks[runtime_id] = task;
         }
 
@@ -546,7 +527,6 @@ impl MissionDecomposer {
             } else {
                 ExecutionMode::Parallel
             },
-            workflow_graph: None,
         };
 
         self.validate_decomposition(&mission_out)?;
@@ -595,6 +575,39 @@ fn priority_from_capabilities(capabilities: &[String]) -> Priority {
         Priority::High
     } else {
         Priority::Normal
+    }
+}
+
+fn infer_task_type(raw_task: &RawTask) -> TaskType {
+    let description = raw_task.description.to_lowercase();
+    let capabilities = raw_task
+        .capabilities
+        .iter()
+        .map(|capability| capability.to_lowercase())
+        .collect::<Vec<_>>();
+    let has_explicit_target = !raw_task.target_files.is_empty();
+    let has_edit_intent = ["update", "edit", "fix", "refactor", "patch"]
+        .iter()
+        .any(|keyword| description.contains(keyword));
+    let has_implementation_intent = description.contains("implement");
+
+    if capabilities.iter().any(|value| value.contains("review")) || description.contains("review") {
+        TaskType::Review
+    } else if ["retrieve", "search", "index", "context"]
+        .iter()
+        .any(|keyword| description.contains(keyword))
+    {
+        TaskType::Retrieval
+    } else if has_explicit_target
+        && (has_edit_intent
+            || has_implementation_intent
+            || capabilities
+                .iter()
+                .any(|value| value.contains("developer") || value.contains("executor")))
+    {
+        TaskType::CodeModification
+    } else {
+        TaskType::General
     }
 }
 

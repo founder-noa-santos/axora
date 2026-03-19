@@ -1,79 +1,41 @@
 # AXORA Implementation Plan
 
-## Phase 1: Foundation (Week 1-2)
+## Status
 
-### Week 1: Project Setup
-- [x] Create monorepo structure
-- [x] Set up Rust workspace
-- [x] Configure pnpm workspace
-- [x] Create protobuf schemas
-- [ ] Set up CI/CD pipeline
+The backend workspace remains intact. The desktop frontend has been reset and rebuilt around Electron + Next.js.
 
-### Week 2: Core Infrastructure
-- [ ] Implement axora-proto with tonic
-- [ ] Create SQLite storage layer
-- [ ] Implement basic frame executor
-- [ ] Set up tracing/logging
+## Active implementation tracks
 
-## Phase 2: Core Features (Week 3-4)
+### Track 1: Desktop shell foundation
 
-### Week 3: Agent System
-- [ ] Agent registration/unregistration
-- [ ] Agent status management
-- [ ] Agent metadata storage
-- [ ] Basic agent lifecycle
+- [x] Remove legacy Tauri/Vite renderer shell
+- [x] Create Electron main, preload, and Next.js renderer boundaries
+- [x] Add Tailwind CSS v4 tokens and shadcn/ui component foundation
+- [x] Create macOS-first desktop shell layout
+- [x] Add typed shared contracts for preload and IPC
 
-### Week 4: Task Management
-- [ ] Task submission API
-- [ ] Task assignment logic
-- [ ] Task status tracking
-- [ ] Task result storage
+### Track 2: Desktop integration
 
-## Phase 3: Communication (Week 5-6)
+- [x] Add local preference persistence in Electron main
+- [x] Validate IPC payloads with shared schemas
+- [ ] Connect Electron main to live Rust daemon capabilities
+- [ ] Add typed mission, run, and workspace contracts backed by Rust services
 
-### Week 5: Message System
-- [ ] Message streaming API
-- [ ] Message persistence
-- [ ] Message routing
-- [ ] Real-time updates
+### Track 3: Backend productization
 
-### Week 6: Desktop UI
-- [ ] Tauri v2 setup
-- [ ] Basic UI components
-- [ ] Agent list view
-- [ ] Task dashboard
-
-## Phase 4: Integration (Week 7-8)
-
-### Week 7: End-to-End
-- [ ] Desktop-Daemon integration
-- [ ] Error handling
-- [ ] State synchronization
-- [ ] Performance optimization
-
-### Week 8: Testing & Polish
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] Documentation
-- [ ] Release preparation
+- [ ] Harden daemon lifecycle management for desktop ownership
+- [ ] Define launch, health, and shutdown semantics for Rust sidecar or embedded service mode
+- [ ] Add packaging, signing, and release automation for desktop distribution
 
 ## Milestones
 
-1. **M1 (Week 2)**: Daemon runs with basic storage
-2. **M2 (Week 4)**: Agents and tasks functional
-3. **M3 (Week 6)**: Desktop app communicates with daemon
-4. **M4 (Week 8)**: MVP complete and tested
+1. Desktop reset complete: Electron + Next shell boots and renders
+2. Secure bridge complete: preload API replaces direct renderer/native coupling
+3. Rust integration complete: main process brokers daemon and crate-backed features
+4. Release readiness complete: signed desktop bundles and documented operations
 
-## Dependencies
+## Non-goals
 
-```
-axora-daemon
-├── axora-core
-│   ├── axora-proto
-│   └── axora-storage
-│       └── axora-proto
-
-axora-desktop (Tauri)
-├── axora-proto (for types)
-└── axora-core (optional, for embedded mode)
-```
+- Reviving the previous Tauri renderer
+- Preserving compatibility layers for removed Vite/Tauri UI code
+- Exposing Node or Electron primitives directly to React components

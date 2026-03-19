@@ -35,6 +35,8 @@ pub struct Task {
     pub assigned_to: Option<String>,
     /// Parent task (for subtasks)
     pub parent_task: Option<String>,
+    /// High-level task type used for transport and result validation.
+    pub task_type: TaskType,
 }
 
 /// Task priority
@@ -50,6 +52,19 @@ pub enum Priority {
     Critical,
 }
 
+/// High-level task type used by the orchestration protocol.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TaskType {
+    /// Planning or coordination work.
+    General,
+    /// Code editing work that must emit unified diffs.
+    CodeModification,
+    /// Review or validation work.
+    Review,
+    /// Retrieval or indexing work.
+    Retrieval,
+}
+
 impl Task {
     /// Create new task
     pub fn new(description: &str) -> Self {
@@ -60,6 +75,7 @@ impl Task {
             status: TaskStatus::Pending,
             assigned_to: None,
             parent_task: None,
+            task_type: TaskType::General,
         }
     }
 
@@ -72,6 +88,12 @@ impl Task {
     /// Set parent task
     pub fn with_parent(mut self, parent_id: &str) -> Self {
         self.parent_task = Some(parent_id.to_string());
+        self
+    }
+
+    /// Set task type.
+    pub fn with_task_type(mut self, task_type: TaskType) -> Self {
+        self.task_type = task_type;
         self
     }
 
@@ -94,6 +116,11 @@ impl Task {
     /// Mark as failed
     pub fn fail(&mut self) {
         self.status = TaskStatus::Failed;
+    }
+
+    /// Returns true when the task must produce a patch-only result.
+    pub fn is_code_modification(&self) -> bool {
+        self.task_type == TaskType::CodeModification
     }
 }
 

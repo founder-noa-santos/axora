@@ -25,6 +25,7 @@ serde_json.workspace = true
 # Hashing
 sha2.workspace = true
 md5 = "0.7"
+blake3.workspace = true
 
 # Error handling
 thiserror.workspace = true
@@ -44,11 +45,11 @@ tokio-test.workspace = true
 criterion.workspace = true
 tempfile = "3.10"
 axora-docs.workspace = true
+axora-proto.workspace = true
 
-# Temporarily disabled - bench files need to be created
-# [[bench]]
-# name = "token_savings"
-# harness = false
+[[bench]]
+name = "token_savings"
+harness = false
 
 # [[bench]]
 # name = "performance"

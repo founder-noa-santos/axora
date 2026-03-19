@@ -3,6 +3,7 @@
 //! This module stays self-contained so a higher-level `v2.rs` can compose it
 //! with queue and coordinator-core components without circular dependencies.
 
+use crate::transport::InternalResultSubmission;
 use crate::task::{Task, TaskStatus};
 use dashmap::DashMap;
 use std::collections::VecDeque;
@@ -79,8 +80,10 @@ pub struct DispatchCompletion {
     pub worker_id: WorkerId,
     /// Whether the task succeeded.
     pub success: bool,
-    /// Output returned by the worker on success.
-    pub output: String,
+    /// Summary returned by the worker on success.
+    pub summary: String,
+    /// Typed result submission when one exists.
+    pub result_submission: Option<InternalResultSubmission>,
     /// Error returned by the worker on failure.
     pub error: Option<String>,
 }
@@ -90,13 +93,31 @@ impl DispatchCompletion {
     pub fn success(
         task_id: impl Into<String>,
         worker_id: impl Into<String>,
-        output: impl Into<String>,
+        summary: impl Into<String>,
     ) -> Self {
         Self {
             task_id: task_id.into(),
             worker_id: worker_id.into(),
             success: true,
-            output: output.into(),
+            summary: summary.into(),
+            result_submission: None,
+            error: None,
+        }
+    }
+
+    /// Build a successful completion with a typed result submission.
+    pub fn success_with_result(
+        task_id: impl Into<String>,
+        worker_id: impl Into<String>,
+        summary: impl Into<String>,
+        result_submission: InternalResultSubmission,
+    ) -> Self {
+        Self {
+            task_id: task_id.into(),
+            worker_id: worker_id.into(),
+            success: true,
+            summary: summary.into(),
+            result_submission: Some(result_submission),
             error: None,
         }
     }
@@ -111,7 +132,25 @@ impl DispatchCompletion {
             task_id: task_id.into(),
             worker_id: worker_id.into(),
             success: false,
-            output: String::new(),
+            summary: String::new(),
+            result_submission: None,
+            error: Some(error.into()),
+        }
+    }
+
+    /// Build a failed completion with a typed result submission.
+    pub fn failure_with_result(
+        task_id: impl Into<String>,
+        worker_id: impl Into<String>,
+        error: impl Into<String>,
+        result_submission: InternalResultSubmission,
+    ) -> Self {
+        Self {
+            task_id: task_id.into(),
+            worker_id: worker_id.into(),
+            success: false,
+            summary: String::new(),
+            result_submission: Some(result_submission),
             error: Some(error.into()),
         }
     }
@@ -140,6 +179,8 @@ pub struct CompletionReport {
     pub completed: usize,
     /// Number of failed completions applied.
     pub failed: usize,
+    /// Processed completions in application order.
+    pub processed_completions: Vec<DispatchCompletion>,
 }
 
 /// Basic dispatcher for Coordinator v2.
@@ -250,6 +291,7 @@ impl Dispatcher {
             worker.current_task = None;
             worker.last_heartbeat = Instant::now();
             self.active_assignments.remove(&completion.task_id);
+            report.processed_completions.push(completion);
         }
 
         Ok(report)
@@ -371,6 +413,11 @@ mod tests {
             CompletionReport {
                 completed: 1,
                 failed: 0,
+                processed_completions: vec![DispatchCompletion::success(
+                    tasks[0].id.clone(),
+                    "worker-1",
+                    "done",
+                )],
             }
         );
         assert_eq!(tasks[0].status, TaskStatus::Completed);
@@ -403,6 +450,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(report.failed, 1);
+        assert_eq!(report.processed_completions.len(), 1);
         assert_eq!(tasks[0].status, TaskStatus::Failed);
         assert_eq!(workers[0].status, DispatchWorkerStatus::Failed);
         assert_eq!(dispatcher.active_assignment_count(), 0);

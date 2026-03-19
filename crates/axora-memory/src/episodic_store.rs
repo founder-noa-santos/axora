@@ -37,6 +37,7 @@
 //! ```
 
 use chrono::{DateTime, Utc};
+use crate::lifecycle::MemoryTrait;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -197,6 +198,32 @@ impl EpisodicMemory {
     /// Create failure state memory
     pub fn failure_state(session_id: &str, turn_number: i32, error: &str) -> Self {
         Self::new(session_id, turn_number, error, MemoryType::FailureState, Some(false))
+    }
+}
+
+impl MemoryTrait for EpisodicMemory {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn created_at(&self) -> u64 {
+        self.created_at.timestamp().max(0) as u64
+    }
+
+    fn updated_at(&self) -> u64 {
+        self.created_at()
+    }
+
+    fn retrieval_count(&self) -> u32 {
+        0
+    }
+
+    fn importance(&self) -> f32 {
+        match self.success {
+            Some(true) => 0.9,
+            Some(false) => 0.4,
+            None => 0.6,
+        }
     }
 }
 
@@ -463,6 +490,38 @@ impl EpisodicStore {
             .optional()?;
 
         memory.ok_or_else(|| EpisodicError::NotFound(id.to_string()))
+    }
+
+    /// Retrieve all episodic memories.
+    pub async fn list_all(&self) -> Result<Vec<EpisodicMemory>> {
+        let db = self.db.read().unwrap();
+        let mut stmt = db.conn.prepare(
+            "SELECT id, session_id, turn_number, content, memory_type, success, created_at FROM episodic_memories ORDER BY created_at ASC",
+        )?;
+        let memories = stmt
+            .query_map([], |row| {
+                Ok(EpisodicMemory {
+                    id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    turn_number: row.get(2)?,
+                    content: row.get(3)?,
+                    memory_type: row.get(4)?,
+                    success: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap_or_else(|_| Utc::now()),
+                })
+            })?
+            .filter_map(|row| row.ok())
+            .collect();
+        Ok(memories)
+    }
+
+    /// Delete an episodic memory by ID.
+    pub async fn delete(&self, id: &str) -> Result<bool> {
+        let db = self.db.write().unwrap();
+        let affected = db
+            .conn
+            .execute("DELETE FROM episodic_memories WHERE id = ?", params![id])?;
+        Ok(affected > 0)
     }
 
     /// Log agent action (convenience method)

@@ -1,10 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/axora-cli",
     "crates/axora-proto",
     "crates/axora-storage",
     "crates/axora-core",
     "crates/axora-daemon",
+    "crates/axora-mcp-server",
     # Phase 1 crates
     "crates/axora-rag",
     "crates/axora-indexing",
@@ -14,8 +16,6 @@ members = [
     # Phase 2 crates
     "crates/axora-docs",
     "crates/axora-memory",
-    # Desktop app
-    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]
@@ -42,6 +42,7 @@ tonic = "0.11"
 tonic-build = "0.11"
 prost = "0.12"
 prost-types = "0.12"
+async-nats = "0.37"
 
 # Database
 rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid", "serde_json"] }
@@ -50,6 +51,7 @@ refinery = { version = "0.8", features = ["rusqlite"] }
 # Error handling
 thiserror = "1.0"
 anyhow = "1.0"
+secrecy = "0.8"
 
 # Logging & Tracing
 tracing = "0.1"
@@ -70,6 +72,7 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 axora-proto = { path = "crates/axora-proto" }
 axora-storage = { path = "crates/axora-storage" }
 axora-core = { path = "crates/axora-core" }
+axora-mcp-server = { path = "crates/axora-mcp-server" }
 axora-indexing = { path = "crates/axora-indexing" }
 axora-docs = { path = "crates/axora-docs" }
 axora-cache = { path = "crates/axora-cache" }
@@ -112,6 +115,7 @@ ollama-rs = "0.2"
 # Phase 1: Diff generation
 unified-diff = "0.3"
 patch = "0.5"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 
 # Phase 1: Token counting
 tiktoken-rs = "0.6"

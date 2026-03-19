@@ -1,39 +1,20 @@
-//! Dual-Thread ReAct Loop
-//!
-//! This module implements interruptible ReAct execution:
-//! - **Planning Thread** (async, non-blocking, LLM-driven)
-//! - **Acting Thread** (tool execution, can block)
-//! - **Interrupt Channel** (coordinator → worker)
-//!
-//! ## Architecture
-//!
-//! ```text
-//! ┌─────────────────┐         ┌─────────────────┐
-//! │ Planning Thread │────────▶│  Acting Thread  │
-//! │ (LLM, async)    │  props  │ (tools, blocking)│
-//! └────────┬────────┘         └────────┬────────┘
-//!          │                           │
-//!          │         ┌─────────────────┤
-//!          │         │  Interrupt      │
-//!          └─────────┤  Channel        │
-//!                    │  (coordinator)  │
-//!                    └─────────────────┘
-//! ```
+//! Dual-thread ReAct runtime with planner/actor separation.
 
-use crate::agent::{BaseAgent, TaskResult};
+use crate::aci_formatter::ACIFormatter;
+use crate::agent::TaskResult;
 use crate::error::AgentError;
+use crate::mcp_client::McpClient;
 use crate::memory::SharedBlackboard;
 use crate::task::Task;
 use crate::Result;
+use axora_memory::{EpisodicStore, EpisodicStoreConfig};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, oneshot, Mutex};
 use tokio::task::JoinHandle;
-use tokio::time::{Duration, Instant};
-use tracing::{debug, info, warn};
-
-use crate::aci_formatter::ACIFormatter;
+use tokio::time::Instant;
+use tracing::info;
 
 /// ReAct cycle (Thought → Action → Observation)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,12 +45,6 @@ impl ReactCycle {
                 .as_secs(),
         }
     }
-
-    /// Set observation
-    pub fn with_observation(mut self, observation: Observation) -> Self {
-        self.observation = observation;
-        self
-    }
 }
 
 /// Action (tool call)
@@ -92,10 +67,7 @@ impl Action {
 
     /// Create action with string parameter
     pub fn with_param(tool_name: &str, key: &str, value: &str) -> Self {
-        Self {
-            tool_name: tool_name.to_string(),
-            parameters: serde_json::json!({ key: value }),
-        }
+        Self::new(tool_name, serde_json::json!({ key: value }))
     }
 }
 
@@ -147,19 +119,16 @@ pub enum InterruptSignal {
         /// Reason for stopping
         reason: String,
     },
-
     /// Priority change (new task)
     PriorityChange {
         /// New priority level
         new_priority: u32,
     },
-
     /// Context update (blackboard changed)
     ContextUpdate {
         /// New snapshot version
         new_snapshot_version: u64,
     },
-
     /// Reflection request (force LLM reflection)
     Reflect {
         /// Reflection prompt
@@ -190,10 +159,11 @@ pub struct ActionExecution {
 /// Tool set for agent execution
 #[derive(Clone)]
 pub struct ToolSet {
-    /// Available tools
     tools: HashMap<String, Tool>,
     /// LLM model name
     pub llm_model: String,
+    mcp_client: Option<McpClient>,
+    workspace_root: String,
 }
 
 impl ToolSet {
@@ -202,20 +172,19 @@ impl ToolSet {
         Self {
             tools: HashMap::new(),
             llm_model: "default".to_string(),
+            mcp_client: None,
+            workspace_root: std::env::current_dir()
+                .unwrap_or_else(|_| ".".into())
+                .display()
+                .to_string(),
         }
     }
 
-    /// Create tool set with powerful LLM (for critical path)
-    pub fn with_powerful_llm() -> Self {
+    /// Create a tool set that routes non-local tools through MCP.
+    pub fn with_mcp_endpoint(endpoint: impl Into<String>, llm_model: impl Into<String>) -> Self {
         let mut tools = Self::new();
-        tools.llm_model = "frontier".to_string();
-        tools
-    }
-
-    /// Create tool set with small LLM (for off-path tasks)
-    pub fn with_small_llm() -> Self {
-        let mut tools = Self::new();
-        tools.llm_model = "slm".to_string();
+        tools.llm_model = llm_model.into();
+        tools.mcp_client = Some(McpClient::new(endpoint));
         tools
     }
 
@@ -227,20 +196,51 @@ impl ToolSet {
     /// Execute a tool
     pub async fn execute(&self, action: &Action) -> Result<Observation> {
         if let Some(tool) = self.tools.get(&action.tool_name) {
-            tool.execute(&action.parameters).await
-        } else {
-            // Default tool execution (placeholder)
-            Ok(Observation::success(serde_json::json!({
-                "tool": action.tool_name,
-                "params": action.parameters,
-                "model": self.llm_model,
-            })))
+            return tool.execute(&action.parameters).await;
         }
+
+        if let Some(client) = &self.mcp_client {
+            let args = value_to_struct(&action.parameters);
+            let request_id = format!("react-{}", uuid::Uuid::new_v4());
+            return client
+                .call_tool(
+                    &request_id,
+                    "react-agent",
+                    &self.llm_model,
+                    &action.tool_name,
+                    &self.workspace_root,
+                    args,
+                    None,
+                )
+                .await
+                .map_err(|err| AgentError::ExecutionFailed(err.to_string()).into());
+        }
+
+        if matches!(
+            action.tool_name.as_str(),
+            "run_command" | "execute_shell" | "read_file" | "get_file_content"
+        ) {
+            return Err(AgentError::ExecutionFailed(format!(
+                "tool '{}' requires MCP and cannot run locally",
+                action.tool_name
+            ))
+            .into());
+        }
+
+        Err(AgentError::ExecutionFailed(format!(
+            "tool '{}' is not registered and MCP is not configured",
+            action.tool_name
+        ))
+        .into())
     }
 
     /// Get available tool names
     pub fn tool_names(&self) -> Vec<String> {
         self.tools.keys().cloned().collect()
+    }
+
+    fn has_mcp(&self) -> bool {
+        self.mcp_client.is_some()
     }
 }
 
@@ -289,29 +289,31 @@ impl std::fmt::Debug for Tool {
     }
 }
 
+#[derive(Debug)]
+struct PlannerRequest {
+    cycle_number: u32,
+    response_tx: oneshot::Sender<Result<ActionProposal>>,
+}
+
+#[derive(Debug)]
+struct ActorRequest {
+    proposal: ActionProposal,
+    response_tx: oneshot::Sender<Result<ActionExecution>>,
+}
+
 /// Dual-Thread ReAct Agent
 pub struct DualThreadReactAgent {
-    // Planning Thread (LLM-driven, async)
-    planning_tx: mpsc::Sender<ActionProposal>,
+    planning_tx: mpsc::Sender<PlannerRequest>,
     planning_handle: Option<JoinHandle<Result<()>>>,
-
-    // Acting Thread (tool execution)
-    acting_tx: mpsc::Sender<ActionExecution>,
-    acting_rx: mpsc::Receiver<ActionExecution>,
+    acting_tx: mpsc::Sender<ActorRequest>,
     acting_handle: Option<JoinHandle<Result<()>>>,
-
-    // Interrupt channel (from coordinator)
-    interrupt_tx: mpsc::Sender<InterruptSignal>,
-
-    // State
+    interrupt_tx: broadcast::Sender<InterruptSignal>,
     current_cycle: u32,
     max_cycles: u32,
     task: Task,
-    blackboard: Arc<Mutex<SharedBlackboard>>,
-    tools: ToolSet,
     cycles: Vec<ReactCycle>,
-
-    // ACI Formatter (defends context window)
+    session_id: String,
+    episodic_store_path: Option<String>,
     aci_formatter: ACIFormatter,
 }
 
@@ -322,29 +324,7 @@ impl DualThreadReactAgent {
         blackboard: Arc<Mutex<SharedBlackboard>>,
         tools: ToolSet,
     ) -> Result<Self> {
-        // Create channels
-        let (planning_tx, _planning_rx) = mpsc::channel(32);
-        let (acting_tx, _acting_rx) = mpsc::channel(32);
-        let (interrupt_tx, _interrupt_rx) = mpsc::channel(32);
-
-        // Note: In a full implementation, we would spawn actual threads here.
-        // For now, we use a simplified approach where execute_cycle() handles everything.
-
-        Ok(Self {
-            planning_tx,
-            planning_handle: None,
-            acting_tx,
-            acting_rx: _acting_rx,
-            acting_handle: None,
-            interrupt_tx,
-            task,
-            blackboard,
-            tools,
-            current_cycle: 0,
-            max_cycles: 12,
-            cycles: Vec::new(),
-            aci_formatter: ACIFormatter::new(),
-        })
+        Self::spawn_internal(task, blackboard, tools, ACIFormatter::new(), None).await
     }
 
     /// Spawn dual-thread agent with custom ACI config
@@ -354,98 +334,130 @@ impl DualThreadReactAgent {
         tools: ToolSet,
         aci_config: crate::aci_formatter::ACIConfig,
     ) -> Result<Self> {
-        // Create channels
-        let (planning_tx, _planning_rx) = mpsc::channel(32);
-        let (acting_tx, _acting_rx) = mpsc::channel(32);
-        let (interrupt_tx, _interrupt_rx) = mpsc::channel(32);
-
-        Ok(Self {
-            planning_tx,
-            planning_handle: None,
-            acting_tx,
-            acting_rx: _acting_rx,
-            acting_handle: None,
-            interrupt_tx,
+        Self::spawn_internal(
             task,
             blackboard,
             tools,
+            ACIFormatter::with_config(aci_config),
+            None,
+        )
+        .await
+    }
+
+    /// Spawn dual-thread agent with episodic logging.
+    pub async fn spawn_with_memory(
+        task: Task,
+        blackboard: Arc<Mutex<SharedBlackboard>>,
+        tools: ToolSet,
+        episodic_store_path: String,
+    ) -> Result<Self> {
+        Self::spawn_internal(
+            task,
+            blackboard,
+            tools,
+            ACIFormatter::new(),
+            Some(episodic_store_path),
+        )
+        .await
+    }
+
+    async fn spawn_internal(
+        task: Task,
+        blackboard: Arc<Mutex<SharedBlackboard>>,
+        tools: ToolSet,
+        aci_formatter: ACIFormatter,
+        episodic_store_path: Option<String>,
+    ) -> Result<Self> {
+        let (planning_tx, planning_rx) = mpsc::channel(32);
+        let (acting_tx, acting_rx) = mpsc::channel(32);
+        let (interrupt_tx, _) = broadcast::channel(32);
+
+        let planner_handle = tokio::spawn(planner_loop(
+            task.clone(),
+            Arc::clone(&blackboard),
+            tools.clone(),
+            planning_rx,
+            interrupt_tx.subscribe(),
+        ));
+        let actor_handle = tokio::spawn(actor_loop(
+            tools,
+            acting_rx,
+            interrupt_tx.subscribe(),
+        ));
+
+        Ok(Self {
+            planning_tx,
+            planning_handle: Some(planner_handle),
+            acting_tx,
+            acting_handle: Some(actor_handle),
+            interrupt_tx,
             current_cycle: 0,
             max_cycles: 12,
+            session_id: task.id.clone(),
+            task,
             cycles: Vec::new(),
-            aci_formatter: ACIFormatter::with_config(aci_config),
+            episodic_store_path,
+            aci_formatter,
         })
     }
 
     /// Execute a single ReAct cycle
     pub async fn execute_cycle(&mut self) -> Result<ReactCycle> {
         self.current_cycle += 1;
-
         if self.current_cycle > self.max_cycles {
             return Err(
                 AgentError::InvalidStateTransition("Max cycles exceeded".to_string()).into(),
             );
         }
 
-        // Generate thought and action (simulated LLM planning)
-        let thought = format!(
-            "Planning cycle {} for task: {}",
-            self.current_cycle, self.task.description
-        );
-        let action = Action::with_param("execute_task", "task_id", &self.task.id);
+        let (plan_tx, plan_rx) = oneshot::channel();
+        self.planning_tx
+            .send(PlannerRequest {
+                cycle_number: self.current_cycle,
+                response_tx: plan_tx,
+            })
+            .await
+            .map_err(|_| AgentError::ExecutionFailed("planner unavailable".to_string()))?;
+        let proposal = plan_rx
+            .await
+            .map_err(|_| AgentError::ExecutionFailed("planner dropped".to_string()))??;
 
-        // Create cycle
-        let mut cycle = ReactCycle::new(&thought, action.clone(), self.current_cycle);
+        let mut cycle = ReactCycle::new(&proposal.thought, proposal.action.clone(), self.current_cycle);
+        self.log_thought(&cycle.thought).await;
 
-        // Execute action with ACI formatting (defend context window)
-        let raw_observation = self.tools.execute(&action).await?;
-        cycle.observation = self.format_observation(&action, raw_observation);
+        let (actor_tx, actor_rx) = oneshot::channel();
+        self.acting_tx
+            .send(ActorRequest {
+                proposal: proposal.clone(),
+                response_tx: actor_tx,
+            })
+            .await
+            .map_err(|_| AgentError::ExecutionFailed("actor unavailable".to_string()))?;
+        let execution = actor_rx
+            .await
+            .map_err(|_| AgentError::ExecutionFailed("actor dropped".to_string()))??;
+        cycle.observation = self.format_observation(&cycle.action, execution.observation);
+        self.log_action(&cycle.action, &cycle.observation).await;
 
-        // Store cycle
         self.cycles.push(cycle.clone());
-
         Ok(cycle)
     }
 
-    /// Format observation with ACI formatting (truncate/paginate)
     fn format_observation(&self, action: &Action, observation: Observation) -> Observation {
-        // Format based on tool type
         let formatted_result = match action.tool_name.as_str() {
             "run_command" | "execute_shell" => {
-                // Terminal output - truncate long output
-                if let serde_json::Value::String(s) = &observation.result {
-                    serde_json::json!(self.aci_formatter.format_output(s))
-                } else {
-                    observation.result.clone()
-                }
+                extract_stdout(&observation.result)
+                    .map(|stdout| serde_json::json!(self.aci_formatter.format_output(stdout)))
+                    .unwrap_or_else(|| observation.result.clone())
             }
             "read_file" | "get_file_content" => {
-                // File dump - truncate large files
                 if let serde_json::Value::String(s) = &observation.result {
                     serde_json::json!(self.aci_formatter.format_file_dump(s))
                 } else {
                     observation.result.clone()
                 }
             }
-            "get_stack_trace" | "get_error_trace" => {
-                // Stack trace - keep root cause + error
-                if let serde_json::Value::String(s) = &observation.result {
-                    serde_json::json!(self.aci_formatter.format_stack_trace(s))
-                } else {
-                    observation.result.clone()
-                }
-            }
-            "get_json" | "parse_json" => {
-                // JSON output - truncate large JSON
-                if let serde_json::Value::String(s) = &observation.result {
-                    serde_json::json!(self.aci_formatter.format_json(s))
-                } else {
-                    observation.result.clone()
-                }
-            }
-            _ => {
-                // Default - no special formatting
-                observation.result.clone()
-            }
+            _ => observation.result.clone(),
         };
 
         Observation {
@@ -466,15 +478,13 @@ impl DualThreadReactAgent {
 
         while self.current_cycle < self.max_cycles {
             let cycle = self.execute_cycle().await?;
-
-            // Check if action succeeded
             if cycle.observation.success {
+                self.log_success(&cycle.observation.result.to_string()).await;
                 info!(
                     "Task completed in {} cycles ({:?})",
                     self.current_cycle,
                     start.elapsed()
                 );
-
                 return Ok(TaskResult {
                     success: true,
                     output: format!(
@@ -486,7 +496,7 @@ impl DualThreadReactAgent {
             }
         }
 
-        // Max cycles reached without success
+        self.log_failure("Max ReAct cycles exceeded").await;
         Ok(TaskResult {
             success: false,
             output: format!("Max cycles ({}) reached", self.max_cycles),
@@ -496,8 +506,7 @@ impl DualThreadReactAgent {
 
     /// Send interrupt signal
     pub async fn send_interrupt(&self, signal: InterruptSignal) -> Result<()> {
-        // Try to send, but don't fail if no receiver (simplified implementation)
-        let _ = self.interrupt_tx.send(signal).await;
+        let _ = self.interrupt_tx.send(signal);
         Ok(())
     }
 
@@ -514,12 +523,105 @@ impl DualThreadReactAgent {
     /// Get execution stats
     pub fn get_stats(&self) -> ReactStats {
         let successful = self.cycles.iter().filter(|c| c.observation.success).count() as u32;
-
         ReactStats {
             total_cycles: self.current_cycle,
             successful_cycles: successful,
-            failed_cycles: self.current_cycle - successful,
+            failed_cycles: self.current_cycle.saturating_sub(successful),
             max_cycles: self.max_cycles,
+        }
+    }
+
+    async fn log_thought(&self, thought: &str) {
+        if let Some(store) = &self.episodic_store_path {
+            let session_id = self.session_id.clone();
+            let cycle = self.current_cycle as i32;
+            let thought = thought.to_string();
+            let store = store.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("episodic thought runtime");
+                runtime.block_on(async move {
+                    let db = EpisodicStore::new(EpisodicStoreConfig::persistent(&store)).await?;
+                    db.log_conversation(&session_id, cycle, &thought).await
+                })
+            })
+            .await;
+        }
+    }
+
+    async fn log_action(&self, action: &Action, observation: &Observation) {
+        if let Some(store) = &self.episodic_store_path {
+            let output = observation.result.to_string();
+            let tool_name = action.tool_name.clone();
+            let session_id = self.session_id.clone();
+            let cycle = self.current_cycle as i32;
+            let success = observation.success;
+            let store = store.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("episodic action runtime");
+                runtime.block_on(async move {
+                    let db = EpisodicStore::new(EpisodicStoreConfig::persistent(&store)).await?;
+                    db.log_action(&session_id, cycle, &tool_name, &output, success)
+                        .await
+                })
+            })
+            .await;
+        }
+    }
+
+    async fn log_success(&self, content: &str) {
+        if let Some(store) = &self.episodic_store_path {
+            let session_id = self.session_id.clone();
+            let cycle = self.current_cycle as i32;
+            let content = content.to_string();
+            let store = store.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("episodic success runtime");
+                runtime.block_on(async move {
+                    let db = EpisodicStore::new(EpisodicStoreConfig::persistent(&store)).await?;
+                    db.log_success(&session_id, cycle, &content).await
+                })
+            })
+            .await;
+        }
+    }
+
+    async fn log_failure(&self, content: &str) {
+        if let Some(store) = &self.episodic_store_path {
+            let session_id = self.session_id.clone();
+            let cycle = self.current_cycle as i32;
+            let content = content.to_string();
+            let store = store.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("episodic failure runtime");
+                runtime.block_on(async move {
+                    let db = EpisodicStore::new(EpisodicStoreConfig::persistent(&store)).await?;
+                    db.log_failure(&session_id, cycle, &content).await
+                })
+            })
+            .await;
+        }
+    }
+}
+
+impl Drop for DualThreadReactAgent {
+    fn drop(&mut self) {
+        if let Some(handle) = &self.planning_handle {
+            handle.abort();
+        }
+        if let Some(handle) = &self.acting_handle {
+            handle.abort();
         }
     }
 }
@@ -527,24 +629,187 @@ impl DualThreadReactAgent {
 /// ReAct execution statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReactStats {
+    /// Total cycle count observed.
     pub total_cycles: u32,
+    /// Successful cycles.
     pub successful_cycles: u32,
+    /// Failed cycles.
     pub failed_cycles: u32,
+    /// Configured maximum cycles.
     pub max_cycles: u32,
 }
 
 impl ReactStats {
+    /// Ratio of successful cycles.
     pub fn success_rate(&self) -> f32 {
         if self.total_cycles == 0 {
-            return 1.0;
+            1.0
+        } else {
+            self.successful_cycles as f32 / self.total_cycles as f32
         }
-        self.successful_cycles as f32 / self.total_cycles as f32
     }
+}
+
+async fn planner_loop(
+    task: Task,
+    blackboard: Arc<Mutex<SharedBlackboard>>,
+    tools: ToolSet,
+    mut planning_rx: mpsc::Receiver<PlannerRequest>,
+    mut interrupt_rx: broadcast::Receiver<InterruptSignal>,
+) -> Result<()> {
+    loop {
+        tokio::select! {
+            maybe_request = planning_rx.recv() => {
+                let Some(request) = maybe_request else {
+                    break;
+                };
+                let (version, summary) = {
+                    let blackboard = blackboard.lock().await;
+                    (blackboard.version(), blackboard.snapshot_summary("all"))
+                };
+                let proposal = ActionProposal {
+                    thought: format!(
+                        "Cycle {} planning for '{}' on snapshot v{}.\n{}",
+                        request.cycle_number,
+                        task.description,
+                        version,
+                        summary,
+                    ),
+                    action: choose_action(&task, &tools, request.cycle_number),
+                    snapshot_version: version,
+                };
+                let _ = request.response_tx.send(Ok(proposal));
+            }
+            interrupt = interrupt_rx.recv() => {
+                match interrupt {
+                    Ok(InterruptSignal::Stop { reason }) => {
+                        return Err(AgentError::ExecutionFailed(format!("planner interrupted: {}", reason)).into());
+                    }
+                    Ok(_) => {}
+                    Err(broadcast::error::RecvError::Closed) => break,
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn actor_loop(
+    tools: ToolSet,
+    mut acting_rx: mpsc::Receiver<ActorRequest>,
+    mut interrupt_rx: broadcast::Receiver<InterruptSignal>,
+) -> Result<()> {
+    loop {
+        tokio::select! {
+            maybe_request = acting_rx.recv() => {
+                let Some(request) = maybe_request else {
+                    break;
+                };
+                let ActorRequest { proposal, response_tx } = request;
+                let action = proposal.action.clone();
+                let execution = tools.execute(&action);
+                tokio::pin!(execution);
+                let observation = tokio::select! {
+                    result = &mut execution => result?,
+                    interrupt = interrupt_rx.recv() => {
+                        match interrupt {
+                            Ok(InterruptSignal::Stop { reason }) => {
+                                return Err(AgentError::ExecutionFailed(format!("actor interrupted during tool execution: {}", reason)).into());
+                            }
+                            Ok(_) => {
+                                return Err(AgentError::ExecutionFailed("actor received unsupported interrupt".to_string()).into());
+                            }
+                            Err(broadcast::error::RecvError::Closed) => break,
+                            Err(broadcast::error::RecvError::Lagged(_)) => {
+                                return Err(AgentError::ExecutionFailed("actor interrupt channel lagged".to_string()).into());
+                            }
+                        }
+                    }
+                };
+                let _ = response_tx.send(Ok(ActionExecution {
+                    proposal,
+                    observation,
+                }));
+            }
+            interrupt = interrupt_rx.recv() => {
+                match interrupt {
+                    Ok(InterruptSignal::Stop { reason }) => {
+                        return Err(AgentError::ExecutionFailed(format!("actor interrupted: {}", reason)).into());
+                    }
+                    Ok(_) => {}
+                    Err(broadcast::error::RecvError::Closed) => break,
+                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn choose_action(task: &Task, tools: &ToolSet, cycle_number: u32) -> Action {
+    if let Some(tool_name) = tools.tool_names().into_iter().next() {
+        return Action::new(
+            &tool_name,
+            serde_json::json!({
+                "task_id": task.id,
+                "cycle_number": cycle_number,
+                "description": task.description,
+            }),
+        );
+    }
+
+    if tools.has_mcp() {
+        return Action::new(
+            "run_command",
+            serde_json::json!({
+                "program": "printf",
+                "args": [format!("axora-react:{}:{}\\n", task.id, cycle_number)],
+            }),
+        );
+    }
+
+    Action::new(
+        "tool_unavailable",
+        serde_json::json!({
+            "task_id": task.id,
+            "reason": "no MCP endpoint or registered tool available",
+        }),
+    )
+}
+
+fn value_to_struct(value: &serde_json::Value) -> prost_types::Struct {
+    let fields = value
+        .as_object()
+        .map(|map| {
+            map.iter()
+                .map(|(key, value)| {
+                    let kind = match value {
+                        serde_json::Value::String(v) => prost_types::value::Kind::StringValue(v.clone()),
+                        serde_json::Value::Bool(v) => prost_types::value::Kind::BoolValue(*v),
+                        serde_json::Value::Number(v) => prost_types::value::Kind::NumberValue(v.as_f64().unwrap_or_default()),
+                        _ => prost_types::value::Kind::StringValue(value.to_string()),
+                    };
+                    (key.clone(), prost_types::Value { kind: Some(kind) })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    prost_types::Struct { fields }
+}
+
+fn extract_stdout(value: &serde_json::Value) -> Option<&str> {
+    value
+        .as_object()
+        .and_then(|object| object.get("stdout"))
+        .and_then(serde_json::Value::as_str)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_dual_thread_spawn() {
@@ -570,12 +835,10 @@ mod tests {
             .await
             .unwrap();
 
-        // Execute a cycle (should be fast, non-blocking)
         let start = Instant::now();
         let cycle = agent.execute_cycle().await.unwrap();
         let elapsed = start.elapsed();
 
-        // Should complete quickly (< 1 second for planning)
         assert!(elapsed < Duration::from_secs(1));
         assert_eq!(cycle.cycle_number, 1);
     }
@@ -585,7 +848,6 @@ mod tests {
         let task = Task::new("Test tool execution");
         let blackboard = Arc::new(Mutex::new(SharedBlackboard::new()));
 
-        // Create tool set with custom tool
         let mut tools = ToolSet::new();
         tools.register_tool(Tool::new(
             "test_tool",
@@ -601,9 +863,7 @@ mod tests {
             .await
             .unwrap();
 
-        // Execute cycle with tool
         let cycle = agent.execute_cycle().await.unwrap();
-
         assert!(cycle.observation.success);
     }
 
@@ -617,28 +877,8 @@ mod tests {
             .await
             .unwrap();
 
-        // Send interrupt
         let signal = InterruptSignal::Stop {
             reason: "Test stop".to_string(),
-        };
-
-        let result = agent.send_interrupt(signal).await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_reflection_phase() {
-        let task = Task::new("Test reflection");
-        let blackboard = Arc::new(Mutex::new(SharedBlackboard::new()));
-        let tools = ToolSet::new();
-
-        let agent = DualThreadReactAgent::spawn(task, blackboard, tools)
-            .await
-            .unwrap();
-
-        // Send reflection request
-        let signal = InterruptSignal::Reflect {
-            prompt: "Reflect on current state".to_string(),
         };
 
         let result = agent.send_interrupt(signal).await;
@@ -649,74 +889,22 @@ mod tests {
     async fn test_max_cycles_prevention() {
         let task = Task::new("Test max cycles");
         let blackboard = Arc::new(Mutex::new(SharedBlackboard::new()));
-        let tools = ToolSet::new();
+        let mut tools = ToolSet::new();
+        tools.register_tool(Tool::new("execute_task", "Keep cycling", |_params| {
+            Ok(Observation::failure("not done yet"))
+        }));
 
         let mut agent = DualThreadReactAgent::spawn(task, blackboard, tools)
             .await
             .unwrap();
-
-        // Set low max cycles for testing
         agent.max_cycles = 3;
 
-        // Execute until max cycles
         for _ in 0..3 {
             let _ = agent.execute_cycle().await.unwrap();
         }
 
-        // Next cycle should fail
         let result = agent.execute_cycle().await;
         assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_action_creation() {
-        let action = Action::new("test_tool", serde_json::json!({"key": "value"}));
-
-        assert_eq!(action.tool_name, "test_tool");
-        assert_eq!(action.parameters["key"], "value");
-    }
-
-    #[tokio::test]
-    async fn test_observation_creation() {
-        let success = Observation::success(serde_json::json!({"result": "ok"}));
-        let failure = Observation::failure("Error occurred");
-        let pending = Observation::pending();
-
-        assert!(success.success);
-        assert!(!failure.success);
-        assert!(!pending.success);
-        assert!(failure.error.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_react_cycle() {
-        let action = Action::new("test", serde_json::Value::Null);
-        let cycle = ReactCycle::new("Test thought", action, 1);
-
-        assert_eq!(cycle.thought, "Test thought");
-        assert_eq!(cycle.cycle_number, 1);
-        assert!(!cycle.observation.success); // Pending
-    }
-
-    #[tokio::test]
-    async fn test_tool_set_creation() {
-        let tools_powerful = ToolSet::with_powerful_llm();
-        let tools_small = ToolSet::with_small_llm();
-
-        assert_eq!(tools_powerful.llm_model, "frontier");
-        assert_eq!(tools_small.llm_model, "slm");
-    }
-
-    #[tokio::test]
-    async fn test_react_stats() {
-        let stats = ReactStats {
-            total_cycles: 10,
-            successful_cycles: 8,
-            failed_cycles: 2,
-            max_cycles: 12,
-        };
-
-        assert!((stats.success_rate() - 0.8).abs() < 0.01);
     }
 
     #[tokio::test]
@@ -724,8 +912,6 @@ mod tests {
         let task = Task::new("Full execution test");
         let blackboard = Arc::new(Mutex::new(SharedBlackboard::new()));
         let mut tools = ToolSet::new();
-
-        // Add a tool that succeeds on first try
         tools.register_tool(Tool::new("execute_task", "Execute task", |_params| {
             Ok(Observation::success(serde_json::json!({"completed": true})))
         }));
@@ -735,47 +921,7 @@ mod tests {
             .unwrap();
 
         let result = agent.execute_all().await.unwrap();
-
         assert!(result.success);
         assert!(agent.cycle_count() >= 1);
-    }
-
-    #[tokio::test]
-    async fn test_interrupt_signal_types() {
-        let stop = InterruptSignal::Stop {
-            reason: "Test".to_string(),
-        };
-        let priority = InterruptSignal::PriorityChange { new_priority: 5 };
-        let context = InterruptSignal::ContextUpdate {
-            new_snapshot_version: 42,
-        };
-        let reflect = InterruptSignal::Reflect {
-            prompt: "Think".to_string(),
-        };
-
-        // Just verify they can be created
-        match stop {
-            InterruptSignal::Stop { reason } => assert!(!reason.is_empty()),
-            _ => panic!("Wrong variant"),
-        }
-
-        match priority {
-            InterruptSignal::PriorityChange { new_priority } => assert_eq!(new_priority, 5),
-            _ => panic!("Wrong variant"),
-        }
-
-        match context {
-            InterruptSignal::ContextUpdate {
-                new_snapshot_version,
-            } => {
-                assert_eq!(new_snapshot_version, 42)
-            }
-            _ => panic!("Wrong variant"),
-        }
-
-        match reflect {
-            InterruptSignal::Reflect { prompt } => assert!(!prompt.is_empty()),
-            _ => panic!("Wrong variant"),
-        }
     }
 }

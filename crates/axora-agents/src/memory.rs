@@ -337,6 +337,8 @@ pub struct SharedBlackboard {
     memories: HashMap<String, MemoryEntry>,
     /// Access control (agent_id -> accessible memory_ids)
     access_control: HashMap<String, Vec<String>>,
+    /// Monotonic version incremented on every state change.
+    version: u64,
 }
 
 impl SharedBlackboard {
@@ -345,6 +347,7 @@ impl SharedBlackboard {
         Self {
             memories: HashMap::new(),
             access_control: HashMap::new(),
+            version: 0,
         }
     }
 
@@ -354,6 +357,7 @@ impl SharedBlackboard {
         let count = accessible_by.len();
 
         self.memories.insert(id.clone(), entry);
+        self.version = self.version.saturating_add(1);
 
         for agent_id in accessible_by {
             self.access_control
@@ -392,6 +396,22 @@ impl SharedBlackboard {
             accessible.retain(|id| id != memory_id);
         }
         self.memories.remove(memory_id);
+        self.version = self.version.saturating_add(1);
+    }
+
+    /// Current snapshot version.
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Summarize the current state for planning snapshots.
+    pub fn snapshot_summary(&self, agent_id: &str) -> String {
+        let accessible = self.get_accessible(agent_id);
+        let mut summary = format!("version={} entries={}", self.version, accessible.len());
+        for entry in accessible.into_iter().take(3) {
+            summary.push_str(&format!("\n- [{}] {}", entry.id, entry.content));
+        }
+        summary
     }
 }
 

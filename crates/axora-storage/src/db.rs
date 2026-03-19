@@ -1,10 +1,9 @@
 //! Database connection and configuration
 
 use rusqlite::Connection;
-use std::path::Path;
 use tracing::{debug, info};
 
-use crate::{Result, StorageError};
+use crate::Result;
 
 /// Database configuration
 #[derive(Debug, Clone)]
@@ -40,7 +39,8 @@ impl Database {
 
     /// Initialize the database with migrations
     pub fn init(&self) -> Result<Connection> {
-        let conn = self.connect()?;
+        let mut conn = self.connect()?;
+        self.migrate(&mut conn)?;
         info!("Database initialized at: {}", self.config.path);
         Ok(conn)
     }
@@ -63,8 +63,12 @@ impl Database {
 
     /// Run embedded migrations
     pub fn migrate(&self, conn: &mut Connection) -> Result<()> {
-        // Migrations will be embedded here
         info!("Running database migrations");
+
+        conn.execute_batch(include_str!("../migrations/0001_init.sql"))?;
+        conn.execute_batch(include_str!("../migrations/0002_memory_domains.sql"))?;
+        conn.execute_batch(include_str!("../migrations/0003_runtime_seeds.sql"))?;
+
         Ok(())
     }
 }
@@ -79,5 +83,24 @@ mod tests {
         assert_eq!(config.path, "axora.db");
         assert!(config.wal_mode);
         assert_eq!(config.busy_timeout_ms, 5000);
+    }
+
+    #[test]
+    fn test_migrations_create_memory_tables() {
+        let db = Database::new(DatabaseConfig {
+            path: ":memory:".to_string(),
+            ..Default::default()
+        });
+
+        let conn = db.init().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='episodic_events'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(count, 1);
     }
 }

@@ -118,6 +118,9 @@ Dependencies:
 ## 📝 Recent Changes
 
 ### 2026-03-17
+- ✅ **Frontend Reset Complete** — desktop shell now uses Electron + Next.js with preload isolation
+- ✅ **Legacy Tauri/Vite Frontend Removed** — obsolete renderer, tests, and docs discarded
+- ✅ **Secure IPC Boundary Added** — typed preload bridge with validated IPC handlers
 - ✅ **ALL PHASES 3 & 4 COMPLETE** — 100% done, all agents ready for next mission
 - ✅ **Sprint A3 Complete** — Progress Monitoring (Rust backend: ProgressTracker, BlockerDetector, StatusReporter, 18 tests)
 - ✅ **Sprint A5 Complete** — Progress Dashboard (TypeScript frontend: ProgressPanel, WebSocket, 42 tests)
@@ -203,9 +206,9 @@ Dependencies:
 #### Phase 4 Sprints
 | Sprint | Title | Status | Date | Token Reduction |
 |--------|-------|--------|------|-----------------|
-| C4 | Tauri v2 Setup | ✅ Complete | 2026-03-17 | N/A |
-| C5 | Chat Interface | ✅ Complete | 2026-03-17 | N/A |
-| C6 | Integration + Polish | ✅ Complete | 2026-03-17 | N/A |
+| C4 | Tauri v2 Setup | ✅ Complete, later superseded | 2026-03-17 | N/A |
+| C5 | Chat Interface | ✅ Complete, later superseded | 2026-03-17 | N/A |
+| C6 | Integration + Polish | ✅ Complete, later superseded | 2026-03-17 | N/A |
 
 #### Legacy Sprints
 | Sprint | Title | Status | Date | Token Reduction |
@@ -248,6 +251,10 @@ Dependencies:
 | **ADR-044** | Atomic Checkout | ✅ Active & Enforced | 2026-03-16 | 22 |
 | **ADR-045** | Repository Map | ✅ Active & Enforced | 2026-03-16 | 24 |
 | **ADR-046** | AGENTS.md Ledger | ✅ Active & Enforced | 2026-03-16 | 25 |
+| **ADR-050** | Use shadcn/ui for Desktop Components | ✅ Active & Updated | 2026-03-17 | Frontend Reset |
+| **ADR-051** | Use Electron as Desktop Shell | ✅ Active & Enforced | 2026-03-17 | Frontend Reset |
+| **ADR-052** | Use Next.js App Router as Renderer | ✅ Active & Enforced | 2026-03-17 | Frontend Reset |
+| **ADR-053** | Enforce Preload + IPC Boundary | ✅ Active & Enforced | 2026-03-17 | Frontend Reset |
 
 **See:** [`docs/ARCHITECTURE-LEDGER.md`](./docs/ARCHITECTURE-LEDGER.md) for detailed ADRs.
 

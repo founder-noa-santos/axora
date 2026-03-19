@@ -1,51 +1,72 @@
 # AXORA MVP
 
-> Multi-Agent Coding System - Core Infrastructure
+AXORA is a batteries-included multi-agent coding system with a Rust runtime and a macOS-first desktop shell.
 
-## Overview
-
-AXORA is a multi-agent coding system designed for collaborative software development. This repository contains the core infrastructure including the daemon, storage layer, and desktop application.
-
-## Project Structure
-
-```
-axora-mvp/
-├── proto/           # Protocol Buffer schemas
-├── crates/          # Rust workspace crates
-│   ├── axora-proto/     # Generated protobuf code
-│   ├── axora-storage/   # SQLite storage layer
-│   ├── axora-core/      # Core business logic
-│   └── axora-daemon/    # Main daemon executable
-├── apps/
-│   └── desktop/     # Tauri v2 desktop application
-└── docs/            # Documentation
-```
-
-## Quick Start
-
-### Prerequisites
-
-- Rust 1.75+
-- Node.js 20+
-- pnpm 8+
-- Protocol Buffers compiler
-
-### Development
+## Quick start
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Run the daemon
-cargo run -p axora-daemon
-
-# Run the desktop app
-pnpm dev:desktop
+export ANTHROPIC_API_KEY=...
+cargo run -p axora-cli -- do "add JWT auth"
 ```
 
-## Architecture
+AXORA now bootstraps its local runtime automatically for the mission path:
 
-See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
+- infers the workspace from the current directory
+- creates a local `.axora/` runtime directory
+- initializes SQLite, semantic memory, and the default skill library
+- starts the native MCP tool boundary
+- boots the default Base Squad inside `CoordinatorV2`
+
+## Current desktop architecture
+
+The desktop app in [apps/desktop](/Users/noasantos/Fluri/axora/apps/desktop) now uses:
+
+- Electron for the native shell
+- Next.js App Router for the renderer
+- React + TypeScript for UI code
+- Tailwind CSS v4 for styling tokens and utilities
+- shadcn/ui primitives for foundational components
+- Lucide React as the only icon system
+
+The renderer is isolated from privileged APIs. Native capabilities are exposed only through a typed preload bridge and IPC handlers owned by Electron main.
+
+## Project structure
+
+```text
+axora/
+├── apps/
+│   └── desktop/          # Electron + Next.js desktop app
+├── crates/              # Rust workspace crates
+├── docs/                # Architecture docs and ADRs
+├── planning/            # Historical planning material
+└── proto/               # Protocol buffer schemas
+```
+
+## Desktop shell
+
+```bash
+pnpm install
+pnpm --filter @axora/desktop dev
+```
+
+Useful commands:
+
+```bash
+pnpm --filter @axora/desktop lint
+pnpm --filter @axora/desktop typecheck
+pnpm --filter @axora/desktop test
+pnpm --filter @axora/desktop build
+pnpm --filter @axora/desktop package
+cargo test --workspace
+```
+
+## Documentation
+
+- Architecture overview: [docs/architecture.md](/Users/noasantos/Fluri/axora/docs/architecture.md)
+- Implementation status and ledger: [docs/ARCHITECTURE-LEDGER.md](/Users/noasantos/Fluri/axora/docs/ARCHITECTURE-LEDGER.md)
+- Desktop build and runtime guide: [docs/ELECTRON-RUST-BUILD-GUIDE.md](/Users/noasantos/Fluri/axora/docs/ELECTRON-RUST-BUILD-GUIDE.md)
+- Desktop and Rust integration plan: [docs/ELECTRON-RUST-MIGRATION-PLAN.md](/Users/noasantos/Fluri/axora/docs/ELECTRON-RUST-MIGRATION-PLAN.md)
+- Batteries-included analysis: [BATTERIES_INCLUDED_ANALYSIS.md](/Users/noasantos/Fluri/axora/BATTERIES_INCLUDED_ANALYSIS.md)
 
 ## License
 

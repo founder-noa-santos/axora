@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package mcp.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service ToolService {
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+  rpc CallTool(ToolCallRequest) returns (ToolCallResult);
+  rpc StreamAudit(StreamAuditRequest) returns (stream AuditEvent);
+}
+
+message ListToolsRequest {
+  string agent_id = 1;
+  string role = 2;
+}
+
+message ListToolsResponse {
+  repeated ToolDefinition tools = 1;
+}
+
+message ToolDefinition {
+  string name = 1;
+  string description = 2;
+  repeated string required_actions = 3;
+  repeated string allowed_scope_patterns = 4;
+  bool supports_streaming = 5;
+}
+
+message CapabilityPolicy {
+  string agent_id = 1;
+  string role = 2;
+  repeated string allowed_actions = 3;
+  repeated string allowed_scope_patterns = 4;
+  repeated string denied_scope_patterns = 5;
+  uint32 max_execution_seconds = 6;
+}
+
+message ToolCallRequest {
+  string request_id = 1;
+  string agent_id = 2;
+  string role = 3;
+  string tool_name = 4;
+  google.protobuf.Struct arguments = 5;
+  CapabilityPolicy policy = 6;
+  string workspace_root = 7;
+}
+
+message ToolCallResult {
+  string request_id = 1;
+  bool success = 2;
+  string stdout = 3;
+  string stderr = 4;
+  int32 exit_code = 5;
+  google.protobuf.Struct output = 6;
+  AuditEvent audit_event = 7;
+}
+
+message StreamAuditRequest {
+  string agent_id = 1;
+}
+
+message AuditEvent {
+  string event_id = 1;
+  string request_id = 2;
+  string agent_id = 3;
+  string role = 4;
+  string tool_name = 5;
+  string action = 6;
+  string scope = 7;
+  bool allowed = 8;
+  string detail = 9;
+  google.protobuf.Timestamp created_at = 10;
+}

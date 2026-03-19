@@ -1,424 +1,380 @@
-//! Merkle tree for efficient change detection
+//! Persisted Merkle-style index for file and block level change detection.
 
+use crate::chunker::{BlockId, Chunker};
 use crate::error::IndexingError;
 use crate::Result;
-use blake3::{Hash, Hasher};
-use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::{BufReader, Read};
+use blake3::hash;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
-/// Hash node in Merkle tree
-#[derive(Debug, Clone)]
-pub struct HashNode {
-    /// Node hash
-    pub hash: Hash,
-    /// Children paths (for internal nodes)
-    pub children: Vec<PathBuf>,
-    /// Content hash (for leaf nodes - files)
-    pub content_hash: Option<Hash>,
-    /// File path (for leaf nodes)
-    pub file_path: Option<PathBuf>,
+/// File-level hash entry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FileHashEntry {
+    /// Relative file path.
+    pub file_path: PathBuf,
+    /// BLAKE3 hash of the file content.
+    pub hash: String,
 }
 
-/// Merkle tree for efficient change detection
+/// Block-level hash entry.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BlockHashEntry {
+    /// Stable block identifier.
+    pub block_id: BlockId,
+    /// Relative file path.
+    pub file_path: PathBuf,
+    /// Line range.
+    pub line_range: (usize, usize),
+    /// Language tag.
+    pub language: String,
+    /// Symbol path when known.
+    pub symbol_path: Option<String>,
+    /// BLAKE3 hash of the chunk content.
+    pub hash: String,
+}
+
+/// Incremental indexing delta.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum IndexDelta {
+    /// Upsert a changed or new block.
+    UpsertBlock(BlockHashEntry),
+    /// Delete a removed block.
+    DeleteBlock {
+        /// Stable block identifier.
+        block_id: BlockId,
+        /// Relative file path.
+        file_path: PathBuf,
+    },
+    /// File did not require any block updates.
+    Noop {
+        /// Relative file path.
+        file_path: PathBuf,
+    },
+}
+
+/// Persisted Merkle-style index.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MerkleTree {
-    /// Root hash
-    pub root_hash: Hash,
-    /// All nodes indexed by path
-    pub nodes: HashMap<PathBuf, HashNode>,
-    /// Root path of the indexed directory
+    /// Root of the indexed workspace.
     pub root_path: PathBuf,
+    /// File-level hashes keyed by relative path.
+    pub file_hashes: HashMap<PathBuf, FileHashEntry>,
+    /// Block-level hashes keyed by stable block id.
+    pub block_hashes: HashMap<BlockId, BlockHashEntry>,
 }
 
 impl MerkleTree {
-    /// Build Merkle tree from filesystem
+    /// Build the index from the filesystem.
     pub fn build(root_path: &Path) -> Result<Self> {
-        info!("Building Merkle tree for: {:?}", root_path);
-
+        info!("Building persisted Merkle index for {:?}", root_path);
         if !root_path.exists() {
             return Err(IndexingError::MerkleTree("Root path does not exist".to_string()).into());
         }
 
-        let mut nodes: HashMap<PathBuf, HashNode> = HashMap::new();
-        let mut file_hashes: Vec<(PathBuf, Hash)> = Vec::new();
+        let mut chunker = Chunker::new()?;
+        let mut file_hashes = HashMap::new();
+        let mut block_hashes = HashMap::new();
 
-        // Walk the directory tree
-        Self::walk_directory(root_path, root_path, &mut file_hashes, &mut nodes)?;
+        for path in walk_files(root_path)? {
+            let relative_path = path
+                .strip_prefix(root_path)
+                .unwrap_or(&path)
+                .to_path_buf();
+            let content = fs::read_to_string(&path).map_err(|e| {
+                IndexingError::FileRead(format!("Failed to read {}: {}", path.display(), e))
+            })?;
+            let file_hash = hash(content.as_bytes()).to_hex().to_string();
+            file_hashes.insert(
+                relative_path.clone(),
+                FileHashEntry {
+                    file_path: relative_path.clone(),
+                    hash: file_hash,
+                },
+            );
 
-        // Build tree from file hashes
-        let root_hash = Self::build_tree(&file_hashes, root_path, &mut nodes)?;
-
-        info!(
-            "Merkle tree built: {} files, {} nodes",
-            file_hashes.len(),
-            nodes.len()
-        );
+            let language = Chunker::detect_language(&path).unwrap_or_else(|| "unknown".to_string());
+            let chunks = chunker.extract_chunks(&content, &relative_path, &language)?;
+            for chunk in chunks {
+                block_hashes.insert(
+                    chunk.id.clone(),
+                    BlockHashEntry {
+                        block_id: chunk.id,
+                        file_path: relative_path.clone(),
+                        line_range: chunk.line_range,
+                        language: chunk.language,
+                        symbol_path: chunk.metadata.symbol_path,
+                        hash: chunk.metadata.content_hash,
+                    },
+                );
+            }
+        }
 
         Ok(Self {
-            root_hash,
-            nodes,
             root_path: root_path.to_path_buf(),
+            file_hashes,
+            block_hashes,
         })
     }
 
-    /// Recursively walk directory and hash files
-    fn walk_directory(
-        root: &Path,
-        current: &Path,
-        file_hashes: &mut Vec<(PathBuf, Hash)>,
-        nodes: &mut HashMap<PathBuf, HashNode>,
-    ) -> Result<()> {
-        // Skip common directories that shouldn't be indexed
-        if let Some(name) = current.file_name().and_then(|n| n.to_str()) {
-            if Self::should_skip_directory(name) {
-                debug!("Skipping directory: {:?}", current);
-                return Ok(());
-            }
-        }
-
-        let entries = fs::read_dir(current)
-            .map_err(|e| IndexingError::MerkleTree(format!("Failed to read directory: {}", e)))?;
-
-        let mut child_paths = Vec::new();
-
-        for entry in entries {
-            let entry = entry
-                .map_err(|e| IndexingError::MerkleTree(format!("Failed to read entry: {}", e)))?;
-
-            let path = entry.path();
-
-            if path.is_dir() {
-                child_paths.push(path.clone());
-                Self::walk_directory(root, &path, file_hashes, nodes)?;
-            } else if path.is_file() {
-                // Hash file content
-                let hash = Self::hash_file(&path)?;
-                let relative_path = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
-
-                file_hashes.push((relative_path.clone(), hash));
-
-                // Create leaf node
-                let node = HashNode {
-                    hash,
-                    children: vec![],
-                    content_hash: Some(hash),
-                    file_path: Some(relative_path.clone()),
-                };
-                nodes.insert(relative_path, node);
-            }
-        }
-
-        // Create internal node for this directory
-        if !child_paths.is_empty() {
-            let dir_path = current.strip_prefix(root).unwrap_or(current).to_path_buf();
-            let dir_hash = Self::hash_children(&child_paths, nodes);
-
-            let node = HashNode {
-                hash: dir_hash,
-                children: child_paths.clone(),
-                content_hash: None,
-                file_path: None,
-            };
-            nodes.insert(dir_path, node);
-        }
-
+    /// Save the current index state to disk.
+    pub fn save_to_path(&self, path: &Path) -> Result<()> {
+        let serialized = serde_json::to_vec_pretty(self)
+            .map_err(|e| IndexingError::MerkleTree(format!("Failed to serialize state: {}", e)))?;
+        fs::write(path, serialized).map_err(|e| {
+            IndexingError::MerkleTree(format!("Failed to persist {}: {}", path.display(), e))
+        })?;
         Ok(())
     }
 
-    /// Build tree structure from file hashes
-    fn build_tree(
-        file_hashes: &[(PathBuf, Hash)],
-        _root_path: &Path,
-        nodes: &mut HashMap<PathBuf, HashNode>,
-    ) -> Result<Hash> {
-        if file_hashes.is_empty() {
-            // Empty directory
-            let empty_hash = Self::hash_content(b"");
-            return Ok(empty_hash);
-        }
-
-        // Group files by directory
-        let mut dir_files: HashMap<PathBuf, Vec<(PathBuf, Hash)>> = HashMap::new();
-
-        for (path, hash) in file_hashes {
-            let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-            dir_files
-                .entry(parent)
-                .or_default()
-                .push((path.clone(), *hash));
-        }
-
-        // Compute directory hashes bottom-up
-        let mut dirs: Vec<_> = dir_files.keys().cloned().collect();
-        dirs.sort_by(|a, b| b.cmp(a)); // Sort by depth (deepest first)
-
-        // First pass: create directory nodes
-        for dir in &dirs {
-            let files = &dir_files[dir];
-
-            // Hash of this directory is hash of all children
-            let child_hashes: Vec<Hash> = files.iter().map(|(_, h)| *h).collect();
-            let dir_hash = Self::hash_hashes(&child_hashes);
-
-            let child_paths: Vec<PathBuf> = files.iter().map(|(p, _)| p.clone()).collect();
-            let node = HashNode {
-                hash: dir_hash,
-                children: child_paths,
-                content_hash: None,
-                file_path: None,
-            };
-            nodes.insert(dir.clone(), node);
-        }
-
-        // Root hash - use hash of all file hashes for simplicity
-        let all_hashes: Vec<Hash> = file_hashes.iter().map(|(_, h)| *h).collect();
-        let root_hash = Self::hash_hashes(&all_hashes);
-
-        Ok(root_hash)
+    /// Load a previously persisted state.
+    pub fn load_from_path(path: &Path) -> Result<Self> {
+        let bytes = fs::read(path).map_err(|e| {
+            IndexingError::MerkleTree(format!("Failed to load {}: {}", path.display(), e))
+        })?;
+        serde_json::from_slice(&bytes)
+            .map_err(|e| IndexingError::MerkleTree(format!("Failed to parse state: {}", e)).into())
     }
 
-    /// Hash a file's content
-    fn hash_file(path: &Path) -> Result<Hash> {
-        let file = File::open(path)
-            .map_err(|e| IndexingError::MerkleTree(format!("Failed to open file: {}", e)))?;
-
-        let mut reader = BufReader::new(file);
-        let mut hasher = Hasher::new();
-        let mut buffer = [0u8; 8192];
-
-        loop {
-            let bytes_read = reader
-                .read(&mut buffer)
-                .map_err(|e| IndexingError::MerkleTree(format!("Failed to read file: {}", e)))?;
-
-            if bytes_read == 0 {
-                break;
-            }
-            hasher.update(&buffer[..bytes_read]);
-        }
-
-        Ok(hasher.finalize())
-    }
-
-    /// Hash content directly
-    fn hash_content(content: &[u8]) -> Hash {
-        blake3::hash(content)
-    }
-
-    /// Hash multiple child hashes together
-    fn hash_hashes(hashes: &[Hash]) -> Hash {
-        let mut hasher = Hasher::new();
-        for hash in hashes {
-            hasher.update(hash.as_bytes());
-        }
-        hasher.finalize()
-    }
-
-    /// Hash children nodes
-    fn hash_children(children: &[PathBuf], nodes: &HashMap<PathBuf, HashNode>) -> Hash {
-        let hashes: Vec<Hash> = children
-            .iter()
-            .filter_map(|path| nodes.get(path).map(|n| n.hash))
+    /// Compute block-level deltas against a previous state.
+    pub fn diff(&self, old_tree: &MerkleTree) -> Vec<IndexDelta> {
+        let mut deltas = Vec::new();
+        let file_paths: HashSet<PathBuf> = self
+            .file_hashes
+            .keys()
+            .chain(old_tree.file_hashes.keys())
+            .cloned()
             .collect();
-        Self::hash_hashes(&hashes)
-    }
 
-    /// Check if directory should be skipped
-    fn should_skip_directory(name: &str) -> bool {
-        matches!(
-            name,
-            "target"
-                | "node_modules"
-                | ".git"
-                | "dist"
-                | "build"
-                | "__pycache__"
-                | ".venv"
-                | "vendor"
-        )
-    }
+        for file_path in file_paths {
+            let new_hash = self.file_hashes.get(&file_path).map(|entry| entry.hash.as_str());
+            let old_hash = old_tree
+                .file_hashes
+                .get(&file_path)
+                .map(|entry| entry.hash.as_str());
 
-    /// Find changed files compared to old tree
-    pub fn find_changed(&self, old_tree: &MerkleTree) -> Vec<PathBuf> {
-        debug!("Finding changed files");
+            if new_hash == old_hash {
+                deltas.push(IndexDelta::Noop { file_path });
+                continue;
+            }
 
-        let mut changed = Vec::new();
+            let old_blocks = old_tree.blocks_for_file(&file_path);
+            let new_blocks = self.blocks_for_file(&file_path);
 
-        // If root hash is the same, nothing changed
-        if self.root_hash == old_tree.root_hash {
-            debug!("Root hashes match, no changes");
-            return changed;
-        }
-
-        // Find differing nodes
-        for (path, node) in &self.nodes {
-            if let Some(old_node) = old_tree.nodes.get(path) {
-                if node.hash != old_node.hash {
-                    // Node changed
-                    if node.content_hash.is_some() {
-                        // File changed
-                        if let Some(file_path) = &node.file_path {
-                            changed.push(file_path.clone());
-                        }
+            for (block_id, old_entry) in &old_blocks {
+                match new_blocks.get(block_id) {
+                    None => deltas.push(IndexDelta::DeleteBlock {
+                        block_id: block_id.clone(),
+                        file_path: old_entry.file_path.clone(),
+                    }),
+                    Some(new_entry) if new_entry.hash != old_entry.hash => {
+                        deltas.push(IndexDelta::UpsertBlock(new_entry.clone()))
                     }
-                    // For directories, we'll check children recursively
+                    Some(_) => {}
                 }
-            } else {
-                // New file/directory
-                if let Some(file_path) = &node.file_path {
-                    debug!("New file: {:?}", file_path);
-                    changed.push(file_path.clone());
+            }
+
+            for (block_id, new_entry) in &new_blocks {
+                if !old_blocks.contains_key(block_id) {
+                    deltas.push(IndexDelta::UpsertBlock(new_entry.clone()));
                 }
             }
         }
 
-        // Check for deleted files
-        for (path, node) in &old_tree.nodes {
-            if !self.nodes.contains_key(path) {
-                if let Some(file_path) = &node.file_path {
-                    debug!("Deleted file: {:?}", file_path);
-                    // Mark as changed (will be processed as deletion)
-                    changed.push(file_path.clone());
-                }
-            }
-        }
-
-        info!("Found {} changed files", changed.len());
-        changed
+        deltas
     }
 
-    /// Update tree with new content
+    /// Find changed files compared to a previous state.
+    pub fn find_changed(&self, old_tree: &MerkleTree) -> Vec<PathBuf> {
+        let mut changed = HashSet::new();
+        for delta in self.diff(old_tree) {
+            match delta {
+                IndexDelta::UpsertBlock(entry) => {
+                    changed.insert(entry.file_path);
+                }
+                IndexDelta::DeleteBlock { file_path, .. } => {
+                    changed.insert(file_path);
+                }
+                IndexDelta::Noop { .. } => {}
+            }
+        }
+        changed.into_iter().collect()
+    }
+
+    /// Update a single file in memory with new content.
     pub fn update(&mut self, file_path: &Path, new_content: &[u8]) -> Result<()> {
-        debug!("Updating tree for file: {:?}", file_path);
-
-        // Hash new content
-        let new_hash = Self::hash_content(new_content);
-
-        // Get relative path
         let relative_path = file_path
             .strip_prefix(&self.root_path)
             .unwrap_or(file_path)
             .to_path_buf();
+        let content = String::from_utf8(new_content.to_vec()).map_err(|e| {
+            IndexingError::MerkleTree(format!("File {} is not valid UTF-8: {}", file_path.display(), e))
+        })?;
+        let mut chunker = Chunker::new()?;
+        let language = Chunker::detect_language(&relative_path).unwrap_or_else(|| "unknown".to_string());
 
-        // Update or create leaf node
-        let node = HashNode {
-            hash: new_hash,
-            children: vec![],
-            content_hash: Some(new_hash),
-            file_path: Some(relative_path.clone()),
-        };
+        self.file_hashes.insert(
+            relative_path.clone(),
+            FileHashEntry {
+                file_path: relative_path.clone(),
+                hash: hash(content.as_bytes()).to_hex().to_string(),
+            },
+        );
 
-        self.nodes.insert(relative_path.clone(), node);
-
-        // Recompute root hash
-        // In a full implementation, we'd update all parent hashes
-        // For now, rebuild the tree
-        let file_hashes: Vec<(PathBuf, Hash)> = self
-            .nodes
-            .iter()
-            .filter_map(|(path, node)| node.content_hash.map(|h| (path.clone(), h)))
-            .collect();
-
-        self.root_hash = Self::build_tree(&file_hashes, &self.root_path, &mut self.nodes)?;
+        self.block_hashes
+            .retain(|_, entry| entry.file_path != relative_path);
+        for chunk in chunker.extract_chunks(&content, &relative_path, &language)? {
+            self.block_hashes.insert(
+                chunk.id.clone(),
+                BlockHashEntry {
+                    block_id: chunk.id,
+                    file_path: relative_path.clone(),
+                    line_range: chunk.line_range,
+                    language: chunk.language,
+                    symbol_path: chunk.metadata.symbol_path,
+                    hash: chunk.metadata.content_hash,
+                },
+            );
+        }
 
         Ok(())
     }
 
-    /// Get the hash for a specific file
-    pub fn get_file_hash(&self, path: &Path) -> Option<Hash> {
-        self.nodes.get(path).and_then(|n| n.content_hash)
+    /// Get the hash for a specific file.
+    pub fn get_file_hash(&self, path: &Path) -> Option<String> {
+        self.file_hashes.get(path).map(|entry| entry.hash.clone())
     }
 
-    /// Get number of files in tree
+    /// Get number of indexed files.
     pub fn file_count(&self) -> usize {
-        self.nodes
-            .values()
-            .filter(|n| n.content_hash.is_some())
-            .count()
+        self.file_hashes.len()
     }
 
-    /// Get number of nodes (files + directories)
+    /// Get total number of entries.
     pub fn node_count(&self) -> usize {
-        self.nodes.len()
+        self.file_hashes.len() + self.block_hashes.len()
     }
+
+    fn blocks_for_file(&self, file_path: &Path) -> HashMap<BlockId, BlockHashEntry> {
+        self.block_hashes
+            .iter()
+            .filter(|(_, entry)| entry.file_path == file_path)
+            .map(|(block_id, entry)| (block_id.clone(), entry.clone()))
+            .collect()
+    }
+}
+
+fn walk_files(root_path: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    walk_dir(root_path, root_path, &mut files)?;
+    Ok(files)
+}
+
+fn walk_dir(root_path: &Path, current: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    if let Some(name) = current.file_name().and_then(|value| value.to_str()) {
+        if should_skip_directory(name) {
+            debug!("Skipping directory {}", current.display());
+            return Ok(());
+        }
+    }
+
+    let entries = fs::read_dir(current).map_err(|e| {
+        IndexingError::MerkleTree(format!("Failed to read {}: {}", current.display(), e))
+    })?;
+
+    for entry in entries {
+        let entry = entry.map_err(|e| {
+            IndexingError::MerkleTree(format!("Failed to read entry in {}: {}", current.display(), e))
+        })?;
+        let path = entry.path();
+        if path.is_dir() {
+            walk_dir(root_path, &path, files)?;
+        } else if path.is_file() && path.starts_with(root_path) {
+            files.push(path);
+        }
+    }
+
+    Ok(())
+}
+
+fn should_skip_directory(name: &str) -> bool {
+    matches!(
+        name,
+        "target" | "node_modules" | ".git" | "dist" | "build" | "__pycache__" | ".venv" | "vendor"
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
     use tempfile::TempDir;
 
     #[test]
     fn test_merkle_tree_creation() {
         let temp_dir = TempDir::new().unwrap();
-
-        // Create some test files
         fs::write(temp_dir.path().join("file1.txt"), "content1").unwrap();
         fs::write(temp_dir.path().join("file2.txt"), "content2").unwrap();
 
         let tree = MerkleTree::build(temp_dir.path()).unwrap();
 
         assert_eq!(tree.file_count(), 2);
-        assert!(tree.node_count() >= 2); // Files + possibly directory nodes
+        assert!(tree.node_count() >= 2);
     }
 
     #[test]
     fn test_merkle_tree_change_detection() {
         let temp_dir = TempDir::new().unwrap();
-
-        // Create initial file
-        fs::write(temp_dir.path().join("file.txt"), "original").unwrap();
+        fs::write(temp_dir.path().join("file.rs"), "fn alpha() {}\n").unwrap();
         let tree1 = MerkleTree::build(temp_dir.path()).unwrap();
 
-        // Modify file
-        fs::write(temp_dir.path().join("file.txt"), "modified").unwrap();
+        fs::write(temp_dir.path().join("file.rs"), "fn beta() {}\n").unwrap();
         let tree2 = MerkleTree::build(temp_dir.path()).unwrap();
 
         let changed = tree2.find_changed(&tree1);
-
-        assert_eq!(changed.len(), 1);
-        assert!(changed.iter().any(|p| p.file_name().unwrap() == "file.txt"));
+        assert_eq!(changed, vec![PathBuf::from("file.rs")]);
     }
 
     #[test]
-    fn test_merkle_tree_new_file() {
+    fn test_merkle_tree_produces_block_deltas() {
         let temp_dir = TempDir::new().unwrap();
-
-        // Create initial tree (empty)
+        let file_path = temp_dir.path().join("file.rs");
+        fs::write(&file_path, "fn alpha() {}\nfn beta() {}\n").unwrap();
         let tree1 = MerkleTree::build(temp_dir.path()).unwrap();
 
-        // Add new file
-        fs::write(temp_dir.path().join("new.txt"), "new content").unwrap();
+        fs::write(&file_path, "fn alpha() {}\nfn gamma() {}\n").unwrap();
         let tree2 = MerkleTree::build(temp_dir.path()).unwrap();
 
-        let changed = tree2.find_changed(&tree1);
-
-        assert_eq!(changed.len(), 1);
-        assert!(changed.iter().any(|p| p.file_name().unwrap() == "new.txt"));
+        let deltas = tree2.diff(&tree1);
+        assert!(deltas.iter().any(|delta| matches!(delta, IndexDelta::UpsertBlock(_))));
+        assert!(deltas.iter().any(|delta| matches!(delta, IndexDelta::DeleteBlock { .. })));
     }
 
     #[test]
-    fn test_skip_directories() {
-        assert!(MerkleTree::should_skip_directory("target"));
-        assert!(MerkleTree::should_skip_directory("node_modules"));
-        assert!(MerkleTree::should_skip_directory(".git"));
-        assert!(!MerkleTree::should_skip_directory("src"));
-        assert!(!MerkleTree::should_skip_directory("my_project"));
-    }
-
-    #[test]
-    fn test_file_hash_consistency() {
+    fn test_merkle_tree_state_roundtrip() {
         let temp_dir = TempDir::new().unwrap();
-        let file_path = temp_dir.path().join("test.txt");
+        fs::write(temp_dir.path().join("file.rs"), "fn alpha() {}\n").unwrap();
+        let tree = MerkleTree::build(temp_dir.path()).unwrap();
+        let state_path = temp_dir.path().join("merkle.json");
 
-        fs::write(&file_path, "test content").unwrap();
+        tree.save_to_path(&state_path).unwrap();
+        let loaded = MerkleTree::load_from_path(&state_path).unwrap();
 
-        let hash1 = MerkleTree::hash_file(&file_path).unwrap();
-        let hash2 = MerkleTree::hash_file(&file_path).unwrap();
+        assert_eq!(loaded.file_count(), tree.file_count());
+        assert_eq!(loaded.block_hashes.len(), tree.block_hashes.len());
+    }
 
-        assert_eq!(hash1, hash2, "Same content should produce same hash");
+    #[test]
+    fn test_merkle_tree_update_refreshes_blocks() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("file.rs");
+        fs::write(&file_path, "fn alpha() {}\n").unwrap();
+        let mut tree = MerkleTree::build(temp_dir.path()).unwrap();
+        let original_blocks = tree.block_hashes.len();
+
+        tree.update(&file_path, b"fn beta() {}\n").unwrap();
+        assert_eq!(tree.file_count(), 1);
+        assert_eq!(tree.block_hashes.len(), original_blocks);
     }
 }

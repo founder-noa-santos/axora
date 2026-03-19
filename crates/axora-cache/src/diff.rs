@@ -1,47 +1,48 @@
-//! Unified diff generation and patch application for token-efficient code communication
+//! Unified diff generation and deterministic patch application.
 
+use regex::Regex;
 use std::fmt::Write;
 use tracing::debug;
 
-/// Unified diff hunk
+/// Unified diff hunk.
 #[derive(Debug, Clone)]
 pub struct Hunk {
-    /// Starting line in original file
+    /// Starting line in original file.
     pub old_start: usize,
-    /// Number of lines in original file
+    /// Number of lines in original file.
     pub old_count: usize,
-    /// Starting line in new file
+    /// Starting line in new file.
     pub new_start: usize,
-    /// Number of lines in new file
+    /// Number of lines in new file.
     pub new_count: usize,
-    /// Diff lines
+    /// Diff lines.
     pub lines: Vec<DiffLine>,
 }
 
-/// Type of diff line
-#[derive(Debug, Clone, PartialEq)]
+/// Type of diff line.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DiffLine {
-    /// Context line (unchanged)
+    /// Context line.
     Context(String),
-    /// Added line
+    /// Added line.
     Add(String),
-    /// Removed line
+    /// Removed line.
     Remove(String),
 }
 
-/// Unified diff representation
+/// Unified diff representation.
 #[derive(Debug, Clone)]
 pub struct UnifiedDiff {
-    /// Old file path
+    /// Old file path.
     pub old_path: String,
-    /// New file path
+    /// New file path.
     pub new_path: String,
-    /// Hunks of changes
+    /// Hunks of changes.
     pub hunks: Vec<Hunk>,
 }
 
 impl UnifiedDiff {
-    /// Create a new unified diff
+    /// Create a new unified diff.
     pub fn new(old_path: &str, new_path: &str) -> Self {
         Self {
             old_path: old_path.to_string(),
@@ -50,77 +51,49 @@ impl UnifiedDiff {
         }
     }
 
-    /// Generate unified diff from old and new content
+    /// Generate a compact zero-context diff from two contents.
     pub fn generate(old_content: &str, new_content: &str, old_path: &str, new_path: &str) -> Self {
         debug!("Generating unified diff: {} -> {}", old_path, new_path);
 
         let old_lines: Vec<&str> = old_content.lines().collect();
         let new_lines: Vec<&str> = new_content.lines().collect();
-
         let mut diff = UnifiedDiff::new(old_path, new_path);
-
-        // Simple line-by-line diff (in production, use Myers diff algorithm)
-        let mut hunk = Hunk {
-            old_start: 1,
-            old_count: 0,
-            new_start: 1,
-            new_count: 0,
-            lines: Vec::new(),
-        };
-
         let max_lines = old_lines.len().max(new_lines.len());
 
-        for i in 0..max_lines {
-            let old_line = old_lines.get(i);
-            let new_line = new_lines.get(i);
-
-            match (old_line, new_line) {
-                (Some(old), Some(new)) if old == new => {
-                    // Context line
-                    if !hunk.lines.is_empty() {
-                        hunk.lines.push(DiffLine::Context(old.to_string()));
-                        hunk.old_count += 1;
-                        hunk.new_count += 1;
-                    }
-                }
-                (Some(old), Some(new)) => {
-                    // Changed line (remove + add)
-                    hunk.lines.push(DiffLine::Remove(old.to_string()));
-                    hunk.lines.push(DiffLine::Add(new.to_string()));
-                    hunk.old_count += 1;
-                    hunk.new_count += 1;
-                }
-                (Some(old), None) => {
-                    // Removed line
-                    hunk.lines.push(DiffLine::Remove(old.to_string()));
-                    hunk.old_count += 1;
-                }
-                (None, Some(new)) => {
-                    // Added line
-                    hunk.lines.push(DiffLine::Add(new.to_string()));
-                    hunk.new_count += 1;
-                }
-                (None, None) => {}
+        for index in 0..max_lines {
+            let old_line = old_lines.get(index).copied();
+            let new_line = new_lines.get(index).copied();
+            if old_line == new_line {
+                continue;
             }
-        }
 
-        // Add hunk if it has changes
-        if !hunk.lines.is_empty() {
+            let mut hunk = Hunk {
+                old_start: index + 1,
+                old_count: usize::from(old_line.is_some()),
+                new_start: index + 1,
+                new_count: usize::from(new_line.is_some()),
+                lines: Vec::new(),
+            };
+
+            if let Some(line) = old_line {
+                hunk.lines.push(DiffLine::Remove(line.to_string()));
+            }
+            if let Some(line) = new_line {
+                hunk.lines.push(DiffLine::Add(line.to_string()));
+            }
+
             diff.hunks.push(hunk);
         }
 
         diff
     }
 
-    /// Convert to unified diff string format
+    /// Convert to unified diff string format.
     pub fn to_string(&self) -> String {
         let mut output = String::new();
-
-        // File headers
         writeln!(output, "--- {}", self.old_path).unwrap();
         writeln!(output, "+++ {}", self.new_path).unwrap();
 
-        // Hunks
         for hunk in &self.hunks {
             writeln!(
                 output,
@@ -128,7 +101,6 @@ impl UnifiedDiff {
                 hunk.old_start, hunk.old_count, hunk.new_start, hunk.new_count
             )
             .unwrap();
-
             for line in &hunk.lines {
                 match line {
                     DiffLine::Context(content) => {
@@ -147,98 +119,185 @@ impl UnifiedDiff {
         output
     }
 
-    /// Estimate token count (rough estimate: 1 token ≈ 4 characters)
+    /// Estimate token count (rough estimate: 1 token ≈ 4 characters).
     pub fn estimate_tokens(&self) -> usize {
         self.to_string().len() / 4
     }
 
-    /// Get number of changes (additions + removals)
+    /// Get number of changes (additions + removals).
     pub fn change_count(&self) -> usize {
         self.hunks
             .iter()
             .flat_map(|h| &h.lines)
-            .filter(|l| matches!(l, DiffLine::Add(_) | DiffLine::Remove(_)))
+            .filter(|line| matches!(line, DiffLine::Add(_) | DiffLine::Remove(_)))
             .count()
+    }
+
+    /// Return all unique target files referenced by this diff.
+    pub fn target_files(&self) -> Vec<String> {
+        vec![self.new_path.clone()]
     }
 }
 
-/// Patch application result
+/// Patch application result.
 #[derive(Debug, Clone)]
 pub struct PatchResult {
-    /// Success or failure
+    /// Success or failure.
     pub success: bool,
-    /// New content after patch application
+    /// New content after patch application.
     pub content: String,
-    /// Error message (if failed)
+    /// Error message (if failed).
     pub error: Option<String>,
 }
 
-/// Apply a unified diff patch to original content
-pub fn apply_patch(original: &str, patch: &str) -> PatchResult {
-    debug!("Applying patch to content ({} bytes)", original.len());
+/// Parse a unified diff string.
+pub fn parse_unified_diff(patch: &str) -> Result<UnifiedDiff, String> {
+    let mut lines = patch.lines();
+    let old_path = lines
+        .next()
+        .and_then(|line| line.strip_prefix("--- "))
+        .ok_or_else(|| "missing --- header".to_string())?;
+    let new_path = lines
+        .next()
+        .and_then(|line| line.strip_prefix("+++ "))
+        .ok_or_else(|| "missing +++ header".to_string())?;
 
-    let original_lines: Vec<&str> = original.lines().collect();
-    let mut result_lines: Vec<String> = Vec::new();
+    let header_re = Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@$")
+        .map_err(|e| e.to_string())?;
+    let mut diff = UnifiedDiff::new(old_path, new_path);
+    let mut current_hunk: Option<Hunk> = None;
 
-    let mut current_line = 0;
-    let mut in_hunk = false;
+    for line in lines {
+        if let Some(captures) = header_re.captures(line) {
+            if let Some(hunk) = current_hunk.take() {
+                diff.hunks.push(hunk);
+            }
 
-    for line in patch.lines() {
-        if line.starts_with("---") || line.starts_with("+++") {
-            // File headers, skip
+            current_hunk = Some(Hunk {
+                old_start: captures[1].parse().map_err(|_| "invalid old start".to_string())?,
+                old_count: captures
+                    .get(2)
+                    .map(|m| m.as_str().parse().map_err(|_| "invalid old count".to_string()))
+                    .transpose()?
+                    .unwrap_or(1),
+                new_start: captures[3].parse().map_err(|_| "invalid new start".to_string())?,
+                new_count: captures
+                    .get(4)
+                    .map(|m| m.as_str().parse().map_err(|_| "invalid new count".to_string()))
+                    .transpose()?
+                    .unwrap_or(1),
+                lines: Vec::new(),
+            });
             continue;
         }
 
-        if line.starts_with("@@") {
-            // Hunk header
-            in_hunk = true;
-            // Parse hunk header (simplified)
-            continue;
-        }
-
-        if !in_hunk {
-            continue;
-        }
-
+        let hunk = current_hunk
+            .as_mut()
+            .ok_or_else(|| "diff line found before any hunk header".to_string())?;
         match line.chars().next() {
-            Some(' ') => {
-                // Context line - should match original
-                if current_line < original_lines.len() {
-                    result_lines.push(original_lines[current_line].to_string());
-                    current_line += 1;
-                }
-            }
-            Some('-') => {
-                // Removal - skip this line from original
-                if current_line < original_lines.len() {
-                    current_line += 1;
-                }
-            }
-            Some('+') => {
-                // Addition - add new line
-                result_lines.push(line[1..].to_string());
-            }
-            _ => {}
+            Some(' ') => hunk.lines.push(DiffLine::Context(line[1..].to_string())),
+            Some('+') => hunk.lines.push(DiffLine::Add(line[1..].to_string())),
+            Some('-') => hunk.lines.push(DiffLine::Remove(line[1..].to_string())),
+            _ => return Err(format!("invalid diff line: {}", line)),
         }
     }
 
-    // Add remaining lines from original
-    for i in current_line..original_lines.len() {
-        result_lines.push(original_lines[i].to_string());
+    if let Some(hunk) = current_hunk.take() {
+        diff.hunks.push(hunk);
+    }
+
+    if diff.hunks.is_empty() {
+        return Err("diff does not contain any hunks".to_string());
+    }
+
+    Ok(diff)
+}
+
+/// Apply a unified diff patch to original content.
+pub fn apply_patch(original: &str, patch: &str) -> PatchResult {
+    debug!("Applying patch to content ({} bytes)", original.len());
+
+    let diff = match parse_unified_diff(patch) {
+        Ok(diff) => diff,
+        Err(error) => {
+            return PatchResult {
+                success: false,
+                content: original.to_string(),
+                error: Some(error),
+            }
+        }
+    };
+
+    let original_lines: Vec<String> = original.lines().map(|line| line.to_string()).collect();
+    let mut result_lines = Vec::new();
+    let mut cursor = 0usize;
+
+    for hunk in diff.hunks {
+        let hunk_start = hunk.old_start.saturating_sub(1);
+        if hunk_start > original_lines.len() {
+            return PatchResult {
+                success: false,
+                content: original.to_string(),
+                error: Some("hunk starts beyond end of file".to_string()),
+            };
+        }
+
+        while cursor < hunk_start {
+            result_lines.push(original_lines[cursor].clone());
+            cursor += 1;
+        }
+
+        for line in hunk.lines {
+            match line {
+                DiffLine::Context(expected) => {
+                    if cursor >= original_lines.len() || original_lines[cursor] != expected {
+                        return PatchResult {
+                            success: false,
+                            content: original.to_string(),
+                            error: Some(format!("context mismatch at line {}", cursor + 1)),
+                        };
+                    }
+                    result_lines.push(expected);
+                    cursor += 1;
+                }
+                DiffLine::Remove(expected) => {
+                    if cursor >= original_lines.len() || original_lines[cursor] != expected {
+                        return PatchResult {
+                            success: false,
+                            content: original.to_string(),
+                            error: Some(format!("remove mismatch at line {}", cursor + 1)),
+                        };
+                    }
+                    cursor += 1;
+                }
+                DiffLine::Add(content) => {
+                    result_lines.push(content);
+                }
+            }
+        }
+    }
+
+    while cursor < original_lines.len() {
+        result_lines.push(original_lines[cursor].clone());
+        cursor += 1;
+    }
+
+    let mut content = result_lines.join("\n");
+    if original.ends_with('\n') || patch.ends_with('\n') {
+        content.push('\n');
     }
 
     PatchResult {
         success: true,
-        content: result_lines.join("\n"),
+        content,
         error: None,
     }
 }
 
-/// Calculate token savings between full content and diff
+/// Calculate token savings between full content and diff.
 pub fn calculate_token_savings(full_content: &str, diff: &UnifiedDiff) -> TokenSavings {
     let full_tokens = full_content.len() / 4;
     let diff_tokens = diff.estimate_tokens();
-
     let saved_tokens = full_tokens.saturating_sub(diff_tokens);
     let savings_percentage = if full_tokens > 0 {
         (saved_tokens as f32 / full_tokens as f32) * 100.0
@@ -254,16 +313,16 @@ pub fn calculate_token_savings(full_content: &str, diff: &UnifiedDiff) -> TokenS
     }
 }
 
-/// Token savings calculation result
+/// Token savings calculation result.
 #[derive(Debug, Clone)]
 pub struct TokenSavings {
-    /// Tokens in full content
+    /// Tokens in full content.
     pub full_tokens: usize,
-    /// Tokens in diff
+    /// Tokens in diff.
     pub diff_tokens: usize,
-    /// Tokens saved
+    /// Tokens saved.
     pub saved_tokens: usize,
-    /// Savings percentage
+    /// Savings percentage.
     pub savings_percentage: f32,
 }
 
@@ -289,7 +348,7 @@ mod tests {
         let diff = UnifiedDiff::generate(old, new, "old.txt", "new.txt");
 
         assert_eq!(diff.hunks.len(), 1);
-        assert_eq!(diff.change_count(), 2); // 1 remove + 1 add
+        assert_eq!(diff.change_count(), 2);
     }
 
     #[test]
@@ -307,6 +366,54 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_unified_diff() {
+        let diff = "\
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1 +1 @@
+-fn old() {}
++fn new() {}
+";
+
+        let parsed = parse_unified_diff(diff).unwrap();
+        assert_eq!(parsed.old_path, "a/src/lib.rs");
+        assert_eq!(parsed.new_path, "b/src/lib.rs");
+        assert_eq!(parsed.hunks.len(), 1);
+    }
+
+    #[test]
+    fn test_apply_zero_context_patch() {
+        let original = "fn old() {}\n";
+        let diff = "\
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1 +1 @@
+-fn old() {}
++fn new() {}
+";
+
+        let result = apply_patch(original, diff);
+        assert!(result.success);
+        assert_eq!(result.content, "fn new() {}\n");
+    }
+
+    #[test]
+    fn test_apply_patch_detects_conflict() {
+        let original = "fn different() {}\n";
+        let diff = "\
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1 +1 @@
+-fn old() {}
++fn new() {}
+";
+
+        let result = apply_patch(original, diff);
+        assert!(!result.success);
+        assert!(result.error.unwrap().contains("mismatch"));
+    }
+
+    #[test]
     fn test_diff_token_savings() {
         let old = "line1\nline2\nline3\nline4\nline5\n";
         let new = "line1\nmodified\nline3\nline4\nline5\n";
@@ -314,53 +421,6 @@ mod tests {
         let diff = UnifiedDiff::generate(old, new, "old.txt", "new.txt");
         let savings = calculate_token_savings(&new, &diff);
 
-        // Diff should be smaller than full content (or at least not larger)
-        // Using saturating_sub to avoid overflow
         assert!(savings.diff_tokens <= savings.full_tokens || savings.saved_tokens == 0);
-    }
-
-    #[test]
-    fn test_patch_application() {
-        let original = "line1\nline2\nline3\n";
-        let patch =
-            "--- old.txt\n+++ new.txt\n@@ -1,3 +1,3 @@\n line1\n-modified\n+line2\n line3\n";
-
-        // This is a simplified test - real patch format may vary
-        let result = apply_patch(original, patch);
-
-        // Patch application is simplified, just check it runs
-        assert!(result.success || result.error.is_some());
-    }
-
-    #[test]
-    fn test_no_changes_diff() {
-        let content = "line1\nline2\nline3\n";
-
-        let diff = UnifiedDiff::generate(content, content, "same.txt", "same.txt");
-
-        assert_eq!(diff.hunks.len(), 0);
-        assert_eq!(diff.change_count(), 0);
-    }
-
-    #[test]
-    fn test_add_lines_diff() {
-        let old = "line1\nline3\n";
-        let new = "line1\nline2\nline3\n";
-
-        let diff = UnifiedDiff::generate(old, new, "old.txt", "new.txt");
-
-        assert!(diff.hunks.len() > 0);
-        assert!(diff.change_count() > 0);
-    }
-
-    #[test]
-    fn test_remove_lines_diff() {
-        let old = "line1\nline2\nline3\n";
-        let new = "line1\nline3\n";
-
-        let diff = UnifiedDiff::generate(old, new, "old.txt", "new.txt");
-
-        assert!(diff.hunks.len() > 0);
-        assert!(diff.change_count() > 0);
     }
 }

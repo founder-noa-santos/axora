@@ -7,12 +7,16 @@
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
 
+pub mod bootstrap;
 pub mod config;
 pub mod frame;
+pub mod runtime_services;
 pub mod server;
 
+pub use bootstrap::{RuntimeBootstrap, RuntimeBootstrapOptions};
 pub use config::CoreConfig;
 pub use frame::{Frame, FrameContext, FrameExecutor};
+pub use runtime_services::{DocSyncService, MemoryServices};
 pub use server::CollectiveServer;
 
 use thiserror::Error;

@@ -53,6 +53,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use walkdir::WalkDir;
 
 /// SCIP Index error types
 #[derive(Error, Debug)]
@@ -648,9 +649,8 @@ impl CodeParser for RustParser {
                 SCIPIndex::decode_from_bytes(&scip_bytes[..])
             }
             Err(_e) => {
-                // rust-analyzer not available, generate minimal SCIP index
                 let package = self.get_package_info(codebase)?;
-                Ok(SCIPIndex::new(package))
+                generate_fallback_scip(Language::Rust, codebase, package)
             }
         }
     }
@@ -723,9 +723,8 @@ impl CodeParser for TypeScriptParser {
                 SCIPIndex::decode_from_bytes(&scip_bytes[..])
             }
             Err(_e) => {
-                // scip-typescript not available, generate minimal SCIP index
                 let package = self.get_package_info(codebase)?;
-                Ok(SCIPIndex::new(package))
+                generate_fallback_scip(Language::TypeScript, codebase, package)
             }
         }
     }
@@ -792,9 +791,8 @@ impl CodeParser for PythonParser {
                 SCIPIndex::decode_from_bytes(&scip_bytes[..])
             }
             Err(_e) => {
-                // scip-python not available, generate minimal SCIP index
                 let package = self.get_package_info(codebase)?;
-                Ok(SCIPIndex::new(package))
+                generate_fallback_scip(Language::Python, codebase, package)
             }
         }
     }
@@ -852,6 +850,187 @@ fn extract_setup_value(content: &str, key: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+fn generate_fallback_scip(language: Language, codebase: &Path, package: PackageInfo) -> Result<SCIPIndex> {
+    let mut index = SCIPIndex::new(package);
+    let extensions = fallback_extensions(language);
+
+    for entry in WalkDir::new(codebase).into_iter().filter_map(std::result::Result::ok) {
+        let path = entry.path();
+        if !path.is_file() || !has_supported_extension(path, extensions) {
+            continue;
+        }
+
+        let relative_path = path
+            .strip_prefix(codebase)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let content = std::fs::read_to_string(path)?;
+        let module_name = module_name_from_path(&relative_path);
+
+        for (line_index, line) in content.lines().enumerate() {
+            if let Some((name, kind)) = detect_definition(language, line) {
+                let symbol_name = format!("{module_name}::{name}");
+                index
+                    .symbols
+                    .push(Symbol::new(&symbol_name, kind, line.trim()).with_documentation(""));
+                index.occurrences.push(
+                    Occurrence::new(&relative_path, line_index as i32, 0, &symbol_name, true)
+                        .with_end_position(line_index as i32, line.len() as i32)
+                        .with_snippet(line.trim()),
+                );
+            }
+
+            for referenced_symbol in detect_references(language, line) {
+                index.occurrences.push(
+                    Occurrence::new(&relative_path, line_index as i32, 0, &referenced_symbol, false)
+                        .with_end_position(line_index as i32, line.len() as i32)
+                        .with_snippet(line.trim()),
+                );
+            }
+        }
+    }
+
+    deduplicate_symbols(&mut index.symbols);
+    Ok(index)
+}
+
+fn fallback_extensions(language: Language) -> &'static [&'static str] {
+    match language {
+        Language::Rust => &["rs"],
+        Language::TypeScript => &["ts", "tsx", "js", "jsx"],
+        Language::Python => &["py"],
+        Language::Go => &["go"],
+    }
+}
+
+fn has_supported_extension(path: &Path, extensions: &[&str]) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| extensions.iter().any(|candidate| candidate == &ext))
+        .unwrap_or(false)
+}
+
+fn module_name_from_path(relative_path: &str) -> String {
+    relative_path
+        .trim_end_matches(".rs")
+        .trim_end_matches(".ts")
+        .trim_end_matches(".tsx")
+        .trim_end_matches(".js")
+        .trim_end_matches(".jsx")
+        .trim_end_matches(".py")
+        .trim_start_matches("src/")
+        .trim_start_matches("./")
+        .replace('/', "::")
+}
+
+fn detect_definition(language: Language, line: &str) -> Option<(String, SymbolKind)> {
+    let trimmed = line.trim();
+    let (prefix, kind) = match language {
+        Language::Rust if trimmed.starts_with("fn ") || trimmed.starts_with("pub fn ") => ("fn ", SymbolKind::Function),
+        Language::Rust if trimmed.starts_with("struct ") || trimmed.starts_with("pub struct ") => ("struct ", SymbolKind::Struct),
+        Language::Rust if trimmed.starts_with("enum ") || trimmed.starts_with("pub enum ") => ("enum ", SymbolKind::Enum),
+        Language::Rust if trimmed.starts_with("trait ") || trimmed.starts_with("pub trait ") => ("trait ", SymbolKind::Trait),
+        Language::TypeScript if trimmed.starts_with("function ") || trimmed.starts_with("export function ") => ("function ", SymbolKind::Function),
+        Language::TypeScript if trimmed.starts_with("class ") || trimmed.starts_with("export class ") => ("class ", SymbolKind::Class),
+        Language::TypeScript if trimmed.starts_with("interface ") || trimmed.starts_with("export interface ") => ("interface ", SymbolKind::Interface),
+        Language::TypeScript if trimmed.starts_with("type ") || trimmed.starts_with("export type ") => ("type ", SymbolKind::Type),
+        Language::Python if trimmed.starts_with("def ") => ("def ", SymbolKind::Function),
+        Language::Python if trimmed.starts_with("class ") => ("class ", SymbolKind::Class),
+        _ => return None,
+    };
+
+    let name = trimmed
+        .split(prefix)
+        .nth(1)?
+        .split(|ch: char| ch == '(' || ch == ':' || ch == '<' || ch.is_whitespace())
+        .next()?;
+    Some((name.trim().to_string(), kind))
+}
+
+fn detect_references(language: Language, line: &str) -> Vec<String> {
+    let trimmed = line.trim();
+    match language {
+        Language::Rust => detect_rust_references(trimmed),
+        Language::TypeScript => detect_typescript_references(trimmed),
+        Language::Python => detect_python_references(trimmed),
+        Language::Go => Vec::new(),
+    }
+}
+
+fn detect_rust_references(line: &str) -> Vec<String> {
+    if let Some(rest) = line.strip_prefix("use ") {
+        return rest
+            .trim_end_matches(';')
+            .split(',')
+            .filter_map(|segment| {
+                let normalized = segment.trim().trim_start_matches("crate::").trim_start_matches("self::");
+                let parts = normalized.split("::").collect::<Vec<_>>();
+                if parts.len() >= 2 {
+                    Some(parts.join("::"))
+                } else {
+                    None
+                }
+            })
+            .collect();
+    }
+    Vec::new()
+}
+
+fn detect_typescript_references(line: &str) -> Vec<String> {
+    if !line.starts_with("import ") {
+        return Vec::new();
+    }
+    let module = line
+        .split(" from ")
+        .nth(1)
+        .map(|part| part.trim().trim_matches(';').trim_matches('\'').trim_matches('"'))
+        .unwrap_or_default()
+        .trim_start_matches("./")
+        .replace('/', "::");
+    let imported = line
+        .split('{')
+        .nth(1)
+        .and_then(|part| part.split('}').next())
+        .unwrap_or("");
+    imported
+        .split(',')
+        .filter_map(|name| {
+            let name = name.trim();
+            if name.is_empty() || module.is_empty() {
+                None
+            } else {
+                Some(format!("{module}::{name}"))
+            }
+        })
+        .collect()
+}
+
+fn detect_python_references(line: &str) -> Vec<String> {
+    if let Some(rest) = line.strip_prefix("from ") {
+        let mut segments = rest.split(" import ");
+        let module = segments.next().unwrap_or("").trim().replace('.', "::");
+        let names = segments.next().unwrap_or("");
+        return names
+            .split(',')
+            .filter_map(|name| {
+                let name = name.trim();
+                if module.is_empty() || name.is_empty() {
+                    None
+                } else {
+                    Some(format!("{module}::{name}"))
+                }
+            })
+            .collect();
+    }
+    Vec::new()
+}
+
+fn deduplicate_symbols(symbols: &mut Vec<Symbol>) {
+    let mut seen = HashMap::new();
+    symbols.retain(|symbol| seen.insert(symbol.symbol.clone(), ()).is_none());
 }
 
 // ============================================================================
@@ -1244,5 +1423,94 @@ require (
         // Symbols belong to different packages
         assert!(local_symbol.symbol.starts_with("my_app::"));
         assert!(external_symbol.symbol.starts_with("serde::"));
+    }
+
+    #[test]
+    fn test_rust_fallback_scip_extracts_symbols_and_occurrences() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("Cargo.toml"),
+            "[package]\nname='demo'\nversion='0.1.0'\n",
+        )
+        .unwrap();
+        std::fs::create_dir_all(temp.path().join("src")).unwrap();
+        std::fs::write(
+            temp.path().join("src/auth.rs"),
+            "pub fn login() {}\nuse crate::db::query;\n",
+        )
+        .unwrap();
+        std::fs::write(temp.path().join("src/db.rs"), "pub fn query() {}\n").unwrap();
+
+        let index = generate_fallback_scip(
+            Language::Rust,
+            temp.path(),
+            PackageInfo::new("cargo", "demo", "0.1.0"),
+        )
+        .unwrap();
+
+        assert!(index.symbols.iter().any(|symbol| symbol.symbol == "auth::login"));
+        assert!(index.occurrences.iter().any(|occurrence| !occurrence.is_definition));
+    }
+
+    #[test]
+    fn test_typescript_fallback_scip_extracts_imports() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("package.json"),
+            r#"{"name":"demo","version":"0.1.0"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            temp.path().join("util.ts"),
+            "export function query() {}\n",
+        )
+        .unwrap();
+        std::fs::write(
+            temp.path().join("auth.ts"),
+            "import { query } from './util';\nexport function login() { return query(); }\n",
+        )
+        .unwrap();
+
+        let index = generate_fallback_scip(
+            Language::TypeScript,
+            temp.path(),
+            PackageInfo::new("npm", "demo", "0.1.0"),
+        )
+        .unwrap();
+
+        assert!(index.symbols.iter().any(|symbol| symbol.symbol == "auth::login"));
+        assert!(index
+            .occurrences
+            .iter()
+            .any(|occurrence| occurrence.symbol == "util::query" && !occurrence.is_definition));
+    }
+
+    #[test]
+    fn test_python_fallback_scip_extracts_imports() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("pyproject.toml"),
+            "[project]\nname='demo'\nversion='0.1.0'\n",
+        )
+        .unwrap();
+        std::fs::write(temp.path().join("db.py"), "def query():\n    return 1\n").unwrap();
+        std::fs::write(
+            temp.path().join("auth.py"),
+            "from db import query\n\ndef login():\n    return query()\n",
+        )
+        .unwrap();
+
+        let index = generate_fallback_scip(
+            Language::Python,
+            temp.path(),
+            PackageInfo::new("pip", "demo", "0.1.0"),
+        )
+        .unwrap();
+
+        assert!(index.symbols.iter().any(|symbol| symbol.symbol == "auth::login"));
+        assert!(index
+            .occurrences
+            .iter()
+            .any(|occurrence| occurrence.symbol == "db::query" && !occurrence.is_definition));
     }
 }

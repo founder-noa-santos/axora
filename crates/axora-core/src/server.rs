@@ -3,8 +3,8 @@
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio_stream::{Stream, StreamExt};
-use tonic::{Request, Response, Status, Streaming};
+use tokio_stream::Stream;
+use tonic::{Request, Response, Status};
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
@@ -176,6 +176,7 @@ impl CollectiveService for CollectiveServer {
         request: Request<SendMessageRequest>,
     ) -> std::result::Result<Response<()>, Status> {
         let req = request.into_inner();
+        validate_typed_message_request(&req)?;
 
         let message = Message {
             id: Uuid::new_v4().to_string(),
@@ -184,6 +185,15 @@ impl CollectiveService for CollectiveServer {
             message_type: req.message_type,
             content: req.content,
             timestamp: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
+            patch: req.patch,
+            patch_receipt: req.patch_receipt,
+            context_pack: req.context_pack,
+            validation_result: req.validation_result,
+            task_assignment: req.task_assignment,
+            progress_update: req.progress_update,
+            result_submission: req.result_submission,
+            blocker_alert: req.blocker_alert,
+            workflow_transition: req.workflow_transition,
         };
 
         if let Err(e) = self.message_tx.send(message).await {
@@ -193,6 +203,49 @@ impl CollectiveService for CollectiveServer {
 
         Ok(Response::new(()))
     }
+}
+
+fn validate_typed_message_request(req: &SendMessageRequest) -> std::result::Result<(), Status> {
+    let message_type = MessageType::try_from(req.message_type).unwrap_or(MessageType::Unspecified);
+    let expects_empty_content = matches!(
+        message_type,
+        MessageType::Patch
+            | MessageType::PatchResult
+            | MessageType::ContextPack
+            | MessageType::ValidationResult
+            | MessageType::TaskAssignment
+            | MessageType::ProgressUpdate
+            | MessageType::ResultSubmission
+            | MessageType::BlockerAlert
+            | MessageType::WorkflowTransition
+    );
+
+    if expects_empty_content && !req.content.trim().is_empty() {
+        return Err(Status::invalid_argument(
+            "typed orchestration messages must not use generic content",
+        ));
+    }
+
+    let typed_present = match message_type {
+        MessageType::Patch => req.patch.is_some(),
+        MessageType::PatchResult => req.patch_receipt.is_some(),
+        MessageType::ContextPack => req.context_pack.is_some(),
+        MessageType::ValidationResult => req.validation_result.is_some(),
+        MessageType::TaskAssignment => req.task_assignment.is_some(),
+        MessageType::ProgressUpdate => req.progress_update.is_some(),
+        MessageType::ResultSubmission => req.result_submission.is_some(),
+        MessageType::BlockerAlert => req.blocker_alert.is_some(),
+        MessageType::WorkflowTransition => req.workflow_transition.is_some(),
+        _ => true,
+    };
+
+    if !typed_present {
+        return Err(Status::invalid_argument(
+            "typed orchestration payload missing for message type",
+        ));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -205,5 +258,36 @@ mod tests {
         let server = CollectiveServer::new(config);
         // Server created successfully
         assert!(server.agents.read().await.is_empty());
+    }
+
+    #[test]
+    fn test_server_rejects_typed_message_with_generic_content() {
+        let req = SendMessageRequest {
+            sender_id: "agent-1".to_string(),
+            recipient_id: "agent-2".to_string(),
+            message_type: MessageType::TaskAssignment as i32,
+            content: "{\"task_id\":\"task-1\"}".to_string(),
+            patch: None,
+            patch_receipt: None,
+            context_pack: None,
+            validation_result: None,
+            task_assignment: Some(axora_proto::collective::v1::TaskAssignment {
+                task_id: "task-1".to_string(),
+                title: "Title".to_string(),
+                description: "Desc".to_string(),
+                task_type: axora_proto::collective::v1::TaskPayloadType::General as i32,
+                target_files: Vec::new(),
+                target_symbols: Vec::new(),
+                token_budget: 10,
+                context_pack: None,
+            }),
+            progress_update: None,
+            result_submission: None,
+            blocker_alert: None,
+            workflow_transition: None,
+        };
+
+        let result = validate_typed_message_request(&req);
+        assert!(result.is_err());
     }
 }

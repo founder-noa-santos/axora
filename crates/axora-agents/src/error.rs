@@ -36,4 +36,16 @@ pub enum AgentError {
     /// Serialization or parsing failed
     #[error("serialization failed: {0}")]
     Serialization(String),
+
+    /// Agent output violated diff-only policy
+    #[error("diff-only output required: {0}")]
+    DiffRequired(String),
+
+    /// Patch application failed
+    #[error("patch application failed: {0}")]
+    PatchApplication(String),
+
+    /// Base revision is stale
+    #[error("stale base revision: expected {expected}, got {actual}")]
+    StaleBaseRevision { expected: String, actual: String },
 }

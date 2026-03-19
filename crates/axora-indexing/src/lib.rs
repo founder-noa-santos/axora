@@ -15,11 +15,11 @@ pub mod task_queue;
 pub mod traceability;
 pub mod vector_store;
 
-pub use chunker::{Chunker, CodeChunk};
+pub use chunker::{BlockId, ChunkMetadata, ChunkType, Chunker, CodeChunk};
 pub use error::IndexingError;
 pub use indexer::IncrementalIndexer;
 pub use influence::{FileId, InfluenceError, InfluenceGraph, InfluenceGraphStats, InfluenceVector};
-pub use merkle::MerkleTree;
+pub use merkle::{BlockHashEntry, FileHashEntry, IndexDelta, MerkleTree};
 pub use repository_map::{
     RepositoryMap, RepositoryMapError, RepositoryMapper, Symbol as RepoSymbol,
     SymbolKind as RepoSymbolKind,

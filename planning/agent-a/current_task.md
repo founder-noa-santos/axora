@@ -1,97 +1,114 @@
 # Agent A — Current Task
 
-**Date:** 2026-03-17
-**Status:** ✅ **READY FOR NEXT MISSION**
-**Priority:** HIGH
+**Date:** 2026-03-18  
+**Status:** ⏸️ **IDLE (Weeks 1-3)** → ⏳ **START Week 4**  
+**Priority:** HIGH  
 
 ---
 
-## ✅ What You Already Completed
+## 📋 Your Complete Sequence
 
-### Phase 3
-1. **Sprint A1** — Context Compacting (60-80% token reduction) ✅
-2. **Sprint A2** — Blackboard v2 (versioned context + subscribe/notify) ✅
-3. **Sprint A3** — Progress Monitoring (ETA, blockers, status reports) ✅
+| Phase | Sprints | Status | Timing |
+|-------|---------|--------|--------|
+| Phase 1 | — | ⏸️ **IDLE** | Weeks 1-3 |
+| Phase 2 | — | ⏸️ **IDLE** | Weeks 1-3 |
+| Phase 3 | A4, A5 | ⏳ **START Week 4** | Week 4 |
 
-**Phase 3: 100% COMPLETE!** 🎉
-
-### Phase 4
-1. **Sprint A4** — shadcn/ui Components (15 components) ✅
-2. **Tailwind CSS v4 Migration** ✅
-3. **assistant-ui Integration** — Chat interface ✅
-
-**All your UI work is DONE!** 🎉
+**Total:** 2 sprints (4 days of work)  
+**Utilization:** 20% (idle Weeks 1-3, active Week 4)
 
 ---
 
-## 🎯 Status: AVAILABLE FOR NEW ASSIGNMENTS
+## 🎯 Your Missions
 
-**You have completed all assigned sprints.**
+### Mission: Multi-Agent API Optimization (Phase 4 Only)
 
-**Current Availability:**
-- ✅ Phase 3: **100% complete**
-- ✅ Phase 4: **Ready for A5** (Progress Dashboard)
-- ✅ No blockers
-- ✅ All tests passing
+**Why Only Phase 4?**
+- Phase 1-3: Implementation (Agents B & C)
+- Phase 4: Validation & Documentation (Agent A)
 
----
-
-## 📊 Your Sprint Status
-
-| Phase | Sprint | Status | Notes |
-|-------|--------|--------|-------|
-| **Phase 3** | A1 | ✅ Complete | Context Compacting |
-| **Phase 3** | A2 | ✅ Complete | Blackboard v2 |
-| **Phase 3** | A3 | ✅ Complete | Progress Monitoring |
-| **Phase 4** | A4 | ✅ Complete | UI Components |
-| **Phase 4** | A5 | ⏳ **READY** | Progress Dashboard (next) |
+**Your Role:** Validate 90-95% cost reduction and document everything
 
 ---
 
-## 📋 Potential Next Tasks
+## 📊 Complete Task List
 
-### Option 1: Phase 4 Sprint A5
-**Progress Dashboard** — Visual UI for mission progress
-- Integrate with Phase 3 monitoring (A3)
-- Real-time progress bars
-- ETA display
-- Worker status panel
+**See:** [`planning/MASTER-TASK-LIST.md`](../planning/MASTER-TASK-LIST.md)
 
-**File:** `planning/archive/phase-4/agent-a/SPRINT-A5-PROGRESS-DASHBOARD.md`
-
-### Option 2: New Mission
-Wait for Coordinator to assign new sprint.
+**Your Sprints:**
+- **A4:** Token Savings Benchmarking (2 days)
+- **A5:** Production Readiness & Documentation (2 days)
 
 ---
 
-## 📚 Reference Files
+## 🚀 Starting Soon: Sprint A4 (Week 4)
 
+**Sprint A4: Token Savings Benchmarking**
+
+**Duration:** 2 days  
+**Priority:** 🟡 MEDIUM
+
+**Tasks:**
+1. [ ] Set up benchmark suite for:
+   - Prefix caching (target: 50-90% savings)
+   - Diff communication (target: 89-98% savings)
+   - Context pruning (target: 95-99% savings)
+2. [ ] Run benchmarks (before/after comparison)
+3. [ ] Generate validation report
+4. [ ] Verify 90-95% total cost reduction
+
+**Deliverables:**
+- `benches/token_savings_bench.rs` — Benchmark suite
+- `docs/TOKEN-SAVINGS-VALIDATION.md` — Validation report
+
+**Reference:** `planning/MASTER-TASK-LIST.md#sprint-a4-token-savings-benchmarking`
+
+---
+
+## 📚 While Idle (Weeks 1-3)
+
+**Optional Preparation:**
+1. [ ] Review research: `research/findings/multi-agent-optimization/R-17-MULTI-AGENT-OPTIMIZATION.md`
+2. [ ] Prepare benchmark templates
+3. [ ] Set up documentation structure
+4. [ ] Review completed sprints from Agents B & C
+
+**Not Required:** Just be ready to start Sprint A4 in Week 4.
+
+---
+
+## 📖 Reference Files
+
+- **Master Task List:** `planning/MASTER-TASK-LIST.md` (ALL tasks for all agents)
+- **Research:** `research/findings/multi-agent-optimization/R-17-MULTI-AGENT-OPTIMIZATION.md`
+- **Plan:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md`
 - **Your Status:** `planning/agent-a/AGENT-A-STATUS.md`
-- **Phase 3 Status:** `planning/archive/phase-3/CURRENT-STATUS.md`
-- **Phase 4 Summary:** `planning/archive/phase-4/QUICK-STATUS.md`
 - **Dashboard:** `planning/STATUS-DASHBOARD.md`
 
 ---
 
-## ✅ Definition of Ready
+## ✅ Definition of Ready for Sprint A4
 
 Agent A is ready when:
-- [x] All Phase 3 sprints complete (A1, A2, A3)
-- [x] All Phase 4 UI sprints complete (A4)
-- [x] Status files updated
-- [x] Completion reports created
-- [x] No pending tasks
+- [ ] All Phase 1-3 sprints complete (Agents B & C)
+- [ ] Benchmark environment set up
+- [ ] Access to metrics from Sprints C7, C8, B9, B10, C11, C12
+- [ ] No pending tasks
 
-**Status:** ✅ **ALL CRITERIA MET**
+**Status:** ⏸️ **WAITING** for Phase 1-3 completion
 
 ---
 
 ## 🚀 Next Steps
 
-**Wait for Coordinator assignment** OR **Start Phase 4 A5** (Progress Dashboard).
+**Weeks 1-3:**
+- ⏸️ IDLE (Agents B & C working)
+- Optional: Review research, prepare templates
 
-**Questions?** Check `planning/STATUS-DASHBOARD.md` or `planning/CURRENT-STATUS.md`
+**Week 4:**
+- ⏳ START Sprint A4 (Benchmarking)
+- Then Sprint A5 (Documentation)
 
 ---
 
-**Agent A is READY for next mission!** 🚀
+**Agent A is IDLE for Weeks 1-3, STARTS Week 4 with Sprint A4!** 🚀

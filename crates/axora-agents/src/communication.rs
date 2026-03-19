@@ -1,9 +1,16 @@
 //! Inter-agent communication using NATS
 
+use crate::patch_protocol::{
+    ContextPack, PatchEnvelope, PatchReceipt, ValidationResult as PatchValidationResult,
+};
+use crate::transport::{
+    InternalBlockerAlert, InternalProgressUpdate, InternalResultSubmission, InternalTaskAssignment,
+    InternalWorkflowTransitionEvent,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// Agent message
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +27,24 @@ pub struct AgentMessage {
     pub recipient_id: Option<String>,
     /// Message content
     pub content: String,
+    /// Typed patch envelope.
+    pub patch: Option<PatchEnvelope>,
+    /// Typed deterministic patch receipt.
+    pub patch_receipt: Option<PatchReceipt>,
+    /// Typed context pack.
+    pub context_pack: Option<ContextPack>,
+    /// Typed validation result.
+    pub validation_result: Option<PatchValidationResult>,
+    /// Typed task assignment.
+    pub task_assignment: Option<InternalTaskAssignment>,
+    /// Typed progress update.
+    pub progress_update: Option<InternalProgressUpdate>,
+    /// Typed result submission.
+    pub result_submission: Option<InternalResultSubmission>,
+    /// Typed blocker alert.
+    pub blocker_alert: Option<InternalBlockerAlert>,
+    /// Typed workflow transition event.
+    pub workflow_transition: Option<InternalWorkflowTransitionEvent>,
     /// Timestamp
     pub timestamp: u64,
     /// Time to live in seconds
@@ -43,6 +68,24 @@ pub enum MessageType {
     Coordination,
     /// Meta-communication (capability advertisement, etc.)
     Meta,
+    /// Diff or AST patch envelope
+    Patch,
+    /// Deterministic patch application result
+    PatchResult,
+    /// Context pack prepared for a worker
+    ContextPack,
+    /// Validation result for an agent output
+    ValidationResult,
+    /// Typed task assignment
+    TypedTaskAssignment,
+    /// Typed progress update
+    TypedProgressUpdate,
+    /// Typed result submission
+    TypedResultSubmission,
+    /// Typed blocker alert
+    TypedBlockerAlert,
+    /// Typed workflow transition event
+    TypedWorkflowTransition,
 }
 
 /// Message with delivery metadata
@@ -98,6 +141,15 @@ impl MessageBus {
             sender_id: sender_id.to_string(),
             recipient_id: recipient_id.map(|s| s.to_string()),
             content: content.to_string(),
+            patch: None,
+            patch_receipt: None,
+            context_pack: None,
+            validation_result: None,
+            task_assignment: None,
+            progress_update: None,
+            result_submission: None,
+            blocker_alert: None,
+            workflow_transition: None,
             timestamp: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
@@ -112,6 +164,8 @@ impl MessageBus {
             "Sending message: {} -> {:?}",
             message.sender_id, message.recipient_id
         );
+
+        validate_message_structure(&message)?;
 
         // Check TTL
         if let Some(ttl) = message.ttl_seconds {
@@ -362,6 +416,141 @@ impl CommunicationProtocol {
         self.bus.send(message)
     }
 
+    /// Send a patch envelope.
+    pub fn send_patch_envelope(
+        &mut self,
+        recipient_id: &str,
+        envelope: &PatchEnvelope,
+    ) -> Result<(), String> {
+        let mut message =
+            self.bus
+                .create_message(&self.agent_id, Some(recipient_id), MessageType::Patch, "");
+        message.patch = Some(envelope.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a patch receipt.
+    pub fn send_patch_receipt(
+        &mut self,
+        recipient_id: &str,
+        receipt: &PatchReceipt,
+    ) -> Result<(), String> {
+        let mut message =
+            self.bus
+                .create_message(&self.agent_id, Some(recipient_id), MessageType::PatchResult, "");
+        message.patch_receipt = Some(receipt.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a compact context pack.
+    pub fn send_context_pack(
+        &mut self,
+        recipient_id: &str,
+        context_pack: &ContextPack,
+    ) -> Result<(), String> {
+        let mut message = self
+            .bus
+            .create_message(&self.agent_id, Some(recipient_id), MessageType::ContextPack, "");
+        message.context_pack = Some(context_pack.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a validation result.
+    pub fn send_validation_result(
+        &mut self,
+        recipient_id: &str,
+        result: &PatchValidationResult,
+    ) -> Result<(), String> {
+        let mut message = self.bus.create_message(
+            &self.agent_id,
+            Some(recipient_id),
+            MessageType::ValidationResult,
+            "",
+        );
+        message.validation_result = Some(result.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a typed task assignment.
+    pub fn send_typed_task_assignment(
+        &mut self,
+        recipient_id: &str,
+        assignment: &InternalTaskAssignment,
+    ) -> Result<(), String> {
+        let mut message = self.bus.create_message(
+            &self.agent_id,
+            Some(recipient_id),
+            MessageType::TypedTaskAssignment,
+            "",
+        );
+        message.task_assignment = Some(assignment.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a typed progress update.
+    pub fn send_typed_progress_update(
+        &mut self,
+        recipient_id: &str,
+        update: &InternalProgressUpdate,
+    ) -> Result<(), String> {
+        let mut message = self.bus.create_message(
+            &self.agent_id,
+            Some(recipient_id),
+            MessageType::TypedProgressUpdate,
+            "",
+        );
+        message.progress_update = Some(update.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a typed result submission.
+    pub fn send_typed_result_submission(
+        &mut self,
+        recipient_id: &str,
+        result: &InternalResultSubmission,
+    ) -> Result<(), String> {
+        let mut message = self.bus.create_message(
+            &self.agent_id,
+            Some(recipient_id),
+            MessageType::TypedResultSubmission,
+            "",
+        );
+        message.result_submission = Some(result.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a typed blocker alert.
+    pub fn send_typed_blocker_alert(
+        &mut self,
+        recipient_id: &str,
+        alert: &InternalBlockerAlert,
+    ) -> Result<(), String> {
+        let mut message = self.bus.create_message(
+            &self.agent_id,
+            Some(recipient_id),
+            MessageType::TypedBlockerAlert,
+            "",
+        );
+        message.blocker_alert = Some(alert.clone());
+        self.bus.send(message)
+    }
+
+    /// Send a typed workflow transition event.
+    pub fn send_typed_workflow_transition(
+        &mut self,
+        recipient_id: &str,
+        event: &InternalWorkflowTransitionEvent,
+    ) -> Result<(), String> {
+        let mut message = self.bus.create_message(
+            &self.agent_id,
+            Some(recipient_id),
+            MessageType::TypedWorkflowTransition,
+            "",
+        );
+        message.workflow_transition = Some(event.clone());
+        self.bus.send(message)
+    }
+
     /// Broadcast status update
     pub fn broadcast_status(&mut self, status: &str) -> Result<(), String> {
         let message = self.bus.create_message(
@@ -389,6 +578,47 @@ impl CommunicationProtocol {
     }
 }
 
+fn validate_message_structure(message: &AgentMessage) -> Result<(), String> {
+    let expects_empty_content = matches!(
+        message.message_type,
+        MessageType::Patch
+            | MessageType::PatchResult
+            | MessageType::ContextPack
+            | MessageType::ValidationResult
+            | MessageType::TypedTaskAssignment
+            | MessageType::TypedProgressUpdate
+            | MessageType::TypedResultSubmission
+            | MessageType::TypedBlockerAlert
+            | MessageType::TypedWorkflowTransition
+    );
+
+    if expects_empty_content && !message.content.trim().is_empty() {
+        return Err("typed orchestration messages must not use generic content".to_string());
+    }
+
+    let typed_present = match message.message_type {
+        MessageType::Patch => message.patch.is_some(),
+        MessageType::PatchResult => message.patch_receipt.is_some(),
+        MessageType::ContextPack => message.context_pack.is_some(),
+        MessageType::ValidationResult => message.validation_result.is_some(),
+        MessageType::TypedTaskAssignment => message.task_assignment.is_some(),
+        MessageType::TypedProgressUpdate => message.progress_update.is_some(),
+        MessageType::TypedResultSubmission => message.result_submission.is_some(),
+        MessageType::TypedBlockerAlert => message.blocker_alert.is_some(),
+        MessageType::TypedWorkflowTransition => message.workflow_transition.is_some(),
+        _ => true,
+    };
+
+    if !typed_present {
+        return Err(format!(
+            "typed payload missing for message type {:?}",
+            message.message_type
+        ));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -408,6 +638,7 @@ mod tests {
         assert_eq!(message.sender_id, "agent1");
         assert_eq!(message.recipient_id, Some("agent2".to_string()));
         assert_eq!(message.message_type, MessageType::TaskAssign);
+        assert!(message.patch.is_none());
     }
 
     #[test]
@@ -475,5 +706,55 @@ mod tests {
 
         let result = protocol.broadcast_status("Ready for tasks");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_send_patch_envelope() {
+        let mut protocol = CommunicationProtocol::new("architect");
+        let envelope = PatchEnvelope {
+            task_id: "task-1".to_string(),
+            target_files: vec!["src/lib.rs".to_string()],
+            format: crate::patch_protocol::PatchFormat::UnifiedDiffZero,
+            patch_text: Some(
+                "\
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -1 +1 @@
+-fn old() {}
++fn new() {}
+"
+                .to_string(),
+            ),
+            search_replace_blocks: Vec::new(),
+            base_revision: "rev-1".to_string(),
+            validation: Vec::new(),
+        };
+
+        let result = protocol.send_patch_envelope("coder", &envelope);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_typed_message_rejects_generic_content() {
+        let mut bus = MessageBus::new();
+        let mut message = bus.create_message(
+            "agent1",
+            Some("agent2"),
+            MessageType::TypedTaskAssignment,
+            "{\"task_id\":\"task-1\"}",
+        );
+        message.task_assignment = Some(InternalTaskAssignment {
+            task_id: "task-1".to_string(),
+            title: "Title".to_string(),
+            description: "Description".to_string(),
+            task_type: crate::task::TaskType::General,
+            target_files: Vec::new(),
+            target_symbols: Vec::new(),
+            token_budget: 100,
+            context_pack: None,
+        });
+
+        let result = bus.send(message);
+        assert!(result.is_err());
     }
 }

@@ -32,20 +32,39 @@ use self::v2_dispatcher::{
     DispatcherError,
 };
 use self::v2_queue_integration::{QueueIntegrationError, TaskQueueIntegration};
+use crate::communication::CommunicationProtocol;
 use crate::decomposer::MissionDecomposer;
 use crate::memory::{MemoryEntry, MemoryType, SharedBlackboard};
-use crate::task::{Task, TaskStatus};
+use crate::patch_protocol::{
+    AstSummary, ContextPack, ContextSpan, DeterministicPatchApplier, DiffOutputValidator,
+    PatchApplyStatus, PatchEnvelope, PatchFormat, RetrievalHit, SymbolMap, ValidationFact,
+};
+use crate::prompt_assembly::PromptAssembly;
+use crate::provider::{
+    CacheRetention, ModelRequest, ModelResponse, ProviderKind, ProviderUsage,
+};
+use crate::provider_transport::{default_transport, ProviderTransport};
+use crate::retrieval::{GraphRetrievalConfig, GraphRetrievalRequest, GraphRetriever};
+use crate::task::{Task, TaskStatus, TaskType};
+use crate::transport::{
+    InternalContextReference, InternalResultSubmission, InternalTaskAssignment, InternalTokenUsage,
+};
 use crate::worker_pool::{WorkerId, WorkerStatus};
+use axora_indexing::{InfluenceGraph, Language, ParserRegistry};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tokio::sync::Mutex;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use uuid::Uuid;
 
 pub use self::v2_core::{
-    Coordinator as CoordinatorCore, WorkerInfo, WorkerInfo as RegisteredWorkerInfo, WorkerRegistry,
+    BaseSquadBootstrapper, Coordinator as CoordinatorCore, OutputContract, PlanningActingPolicy,
+    SquadRole, WorkerInfo, WorkerInfo as RegisteredWorkerInfo, WorkerProfile, WorkerRegistry,
 };
 pub use self::v2_dispatcher::{
     CompletionReport as DispatchCompletionReport, DispatchLoopReport,
@@ -91,6 +110,18 @@ pub enum CoordinatorV2Error {
     /// The mission could not make progress.
     #[error("mission stalled: {0}")]
     StalledMission(String),
+
+    /// Runtime protocol contract was violated.
+    #[error("protocol violation: {0}")]
+    ProtocolViolation(String),
+
+    /// Task execution failed.
+    #[error("task execution failed: {0}")]
+    ExecutionFailed(String),
+
+    /// Task execution timed out.
+    #[error("task execution timed out: {0}")]
+    Timeout(String),
 }
 
 /// Coordinator runtime configuration.
@@ -102,14 +133,41 @@ pub struct CoordinatorConfig {
     pub dispatch_interval: Duration,
     /// Whether worker monitoring is enabled.
     pub enable_monitoring: bool,
+    /// Provider used for runtime model execution.
+    pub provider: ProviderKind,
+    /// Model identifier for runtime execution.
+    pub model: String,
+    /// Workspace root used for patch application and retrieval.
+    pub workspace_root: PathBuf,
+    /// Per-task timeout.
+    pub task_timeout: Duration,
+    /// Retry budget for retryable failures.
+    pub retry_budget: u32,
+    /// Token budget used by graph retrieval.
+    pub retrieval_token_budget: usize,
+    /// Maximum hydrated retrieval documents.
+    pub retrieval_max_documents: usize,
+    /// Whether graph retrieval should be attempted for anchored tasks.
+    pub enable_graph_retrieval: bool,
+    /// Hard token budget embedded into task assignments.
+    pub task_token_budget: u32,
 }
 
 impl Default for CoordinatorConfig {
     fn default() -> Self {
         Self {
-            max_workers: 10,
+            max_workers: 5,
             dispatch_interval: Duration::from_secs(1),
             enable_monitoring: true,
+            provider: ProviderKind::Anthropic,
+            model: "claude-sonnet-4-5".to_string(),
+            workspace_root: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+            task_timeout: Duration::from_secs(5),
+            retry_budget: 1,
+            retrieval_token_budget: 2_000,
+            retrieval_max_documents: 8,
+            enable_graph_retrieval: true,
+            task_token_budget: 2_500,
         }
     }
 }
@@ -148,6 +206,19 @@ pub struct MissionStatus {
     pub total_tasks: usize,
 }
 
+/// Live CoordinatorV2 metrics.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CoordinatorMetrics {
+    /// Workflow transition count observed by the live coordinator.
+    pub transition_count: u64,
+    /// Timeout failures observed during task execution.
+    pub timeout_failures: u64,
+    /// Retry budget exhaustion events.
+    pub retry_exhaustions: u64,
+    /// Protocol or schema validation failures.
+    pub protocol_validation_failures: u64,
+}
+
 /// Phase 3 coordinator.
 pub struct Coordinator {
     /// Registry of workers under coordinator control.
@@ -160,6 +231,11 @@ pub struct Coordinator {
     pub blackboard: Arc<BlackboardV2>,
     /// Runtime configuration.
     pub config: CoordinatorConfig,
+    communication: CommunicationProtocol,
+    provider_transport: Arc<dyn ProviderTransport>,
+    diff_validator: DiffOutputValidator,
+    patch_applier: DeterministicPatchApplier,
+    metrics: CoordinatorMetrics,
     mission_id: Option<String>,
     mission_started_at: Option<Instant>,
     merged_outputs: Vec<String>,
@@ -169,6 +245,17 @@ pub struct Coordinator {
 impl Coordinator {
     /// Creates a new Coordinator v2 and pre-registers worker slots.
     pub fn new(config: CoordinatorConfig, blackboard: Arc<BlackboardV2>) -> Result<Self> {
+        let provider_transport = default_transport(config.provider, config.workspace_root.clone())
+            .map_err(|err| CoordinatorV2Error::ExecutionFailed(err.to_string()))?;
+        Self::new_with_provider_transport(config, blackboard, Arc::from(provider_transport))
+    }
+
+    /// Creates a new coordinator with an explicit provider transport.
+    pub fn new_with_provider_transport(
+        config: CoordinatorConfig,
+        blackboard: Arc<BlackboardV2>,
+        provider_transport: Arc<dyn ProviderTransport>,
+    ) -> Result<Self> {
         if config.max_workers == 0 {
             return Err(CoordinatorV2Error::InvalidConfig(
                 "max_workers must be at least 1".to_string(),
@@ -176,8 +263,12 @@ impl Coordinator {
         }
 
         let registry = WorkerRegistry::new();
-        for idx in 0..config.max_workers {
-            registry.register_worker(WorkerInfo::new(format!("worker-{}", idx + 1)));
+        for worker in BaseSquadBootstrapper::build(
+            config.max_workers,
+            config.retry_budget,
+            config.retrieval_token_budget,
+        ) {
+            registry.register_worker(worker);
         }
 
         Ok(Self {
@@ -186,6 +277,11 @@ impl Coordinator {
             dispatcher: Dispatcher::new(),
             blackboard,
             config,
+            communication: CommunicationProtocol::new("coordinator-v2"),
+            provider_transport,
+            diff_validator: DiffOutputValidator::new(8 * 1024),
+            patch_applier: DeterministicPatchApplier,
+            metrics: CoordinatorMetrics::default(),
             mission_id: None,
             mission_started_at: None,
             merged_outputs: Vec::new(),
@@ -236,11 +332,7 @@ impl Coordinator {
             };
 
             let assigned_worker = self.dispatch_task(task.clone()).await?;
-            let completion = DispatchCompletion::success(
-                task.id.clone(),
-                assigned_worker.clone(),
-                format!("Completed: {}", task.description),
-            );
+            let completion = self.execute_task_on_worker(&task, &assigned_worker).await;
             self.dispatcher.submit_completion(completion).await;
 
             let completion_report = self.handle_dispatcher_completions().await?;
@@ -354,20 +446,34 @@ impl Coordinator {
             .handle_completions(&mut tasks, &mut workers)
             .await?;
 
-        for task in tasks {
+        for completion in &report.processed_completions {
+            let Some(task) = tasks.iter().find(|task| task.id == completion.task_id) else {
+                continue;
+            };
+
             match task.status {
                 TaskStatus::Completed => {
                     self.task_queue.mark_task_complete(&task.id)?;
-                    self.publish_completion(&task.id, &task.description, true, None)
-                        .await;
-                    self.merged_outputs
-                        .push(format!("{}: completed", task.description));
+                    if let Some(result_submission) = completion.result_submission.as_ref() {
+                        self.publish_result_submission(result_submission).await?;
+                        self.merged_outputs.push(result_submission.summary.clone());
+                    } else {
+                        let result_submission =
+                            self.completion_result_submission(task, completion, true);
+                        self.publish_result_submission(&result_submission).await?;
+                        self.merged_outputs.push(result_submission.summary.clone());
+                    }
                 }
                 TaskStatus::Failed => {
                     self.task_queue.mark_task_complete(&task.id)?;
                     self.tasks_failed += 1;
-                    self.publish_completion(&task.id, &task.description, false, Some("failed"))
-                        .await;
+                    if let Some(result_submission) = completion.result_submission.as_ref() {
+                        self.publish_result_submission(result_submission).await?;
+                    } else {
+                        let result_submission =
+                            self.completion_result_submission(task, completion, false);
+                        self.publish_result_submission(&result_submission).await?;
+                    }
                 }
                 _ => {}
             }
@@ -442,32 +548,664 @@ impl Coordinator {
         self.sync_workers_from_dispatcher(workers);
     }
 
-    async fn publish_completion(
+    /// Returns live coordinator metrics.
+    pub fn metrics(&self) -> CoordinatorMetrics {
+        self.metrics.clone()
+    }
+
+    async fn execute_task_on_worker(
+        &mut self,
+        task: &Task,
+        worker_id: &str,
+    ) -> DispatchCompletion {
+        let assignment = match self.build_task_assignment(task) {
+            Ok(assignment) => assignment,
+            Err(err) => {
+                let result = self.failure_result_submission(task, None, &err.to_string());
+                return DispatchCompletion::failure_with_result(
+                    task.id.clone(),
+                    worker_id.to_string(),
+                    err.to_string(),
+                    result,
+                );
+            }
+        };
+
+        if let Err(err) = self
+            .communication
+            .send_typed_task_assignment(worker_id, &assignment)
+        {
+            self.metrics.protocol_validation_failures += 1;
+            let result = self.failure_result_submission(task, Some(&assignment), &err);
+            return DispatchCompletion::failure_with_result(
+                task.id.clone(),
+                worker_id.to_string(),
+                err,
+                result,
+            );
+        }
+
+        if let Some(context_pack) = assignment.context_pack.as_ref() {
+            if let Err(err) = self.communication.send_context_pack(worker_id, context_pack) {
+                self.metrics.protocol_validation_failures += 1;
+                let result = self.failure_result_submission(task, Some(&assignment), &err);
+                return DispatchCompletion::failure_with_result(
+                    task.id.clone(),
+                    worker_id.to_string(),
+                    err,
+                    result,
+                );
+            }
+        }
+
+        self.emit_transition(
+            worker_id,
+            &task.id,
+            "assigned",
+            "running",
+            "task dispatched",
+            0,
+            false,
+        );
+
+        let mut attempt = 0u32;
+        loop {
+            attempt += 1;
+            let _ = self.communication.send_typed_progress_update(
+                worker_id,
+                &crate::transport::InternalProgressUpdate {
+                    task_id: task.id.clone(),
+                    stage: "provider_execution".to_string(),
+                    message: format!("attempt {attempt}"),
+                    completion_ratio: 0.25,
+                },
+            );
+
+            match timeout(
+                self.config.task_timeout,
+                self.execute_task_once(task, worker_id, &assignment),
+            )
+            .await
+            {
+                Ok(Ok(result_submission)) => {
+                    let _ = self
+                        .communication
+                        .send_typed_result_submission(worker_id, &result_submission);
+                    self.emit_transition(
+                        worker_id,
+                        &task.id,
+                        "running",
+                        "completed",
+                        "task finished",
+                        attempt.saturating_sub(1),
+                        true,
+                    );
+                    return DispatchCompletion::success_with_result(
+                        task.id.clone(),
+                        worker_id.to_string(),
+                        result_submission.summary.clone(),
+                        result_submission,
+                    );
+                }
+                Ok(Err(err)) => {
+                    let message = err.to_string();
+                    let result = self.failure_result_submission(task, Some(&assignment), &message);
+                    let _ = self.communication.send_typed_blocker_alert(
+                        worker_id,
+                        &crate::transport::InternalBlockerAlert {
+                            task_id: task.id.clone(),
+                            severity: "critical".to_string(),
+                            message: message.clone(),
+                            retryable: false,
+                        },
+                    );
+                    let _ = self
+                        .communication
+                        .send_typed_result_submission(worker_id, &result);
+                    self.emit_transition(
+                        worker_id,
+                        &task.id,
+                        "running",
+                        "failed",
+                        &message,
+                        attempt.saturating_sub(1),
+                        true,
+                    );
+                    return DispatchCompletion::failure_with_result(
+                        task.id.clone(),
+                        worker_id.to_string(),
+                        message,
+                        result,
+                    );
+                }
+                Err(_) => {
+                    self.metrics.timeout_failures += 1;
+                    if attempt <= self.config.retry_budget {
+                        continue;
+                    }
+                    self.metrics.retry_exhaustions += 1;
+                    let message = format!("task timed out after {:?}", self.config.task_timeout);
+                    let result = self.failure_result_submission(task, Some(&assignment), &message);
+                    let _ = self.communication.send_typed_blocker_alert(
+                        worker_id,
+                        &crate::transport::InternalBlockerAlert {
+                            task_id: task.id.clone(),
+                            severity: "critical".to_string(),
+                            message: message.clone(),
+                            retryable: false,
+                        },
+                    );
+                    let _ = self
+                        .communication
+                        .send_typed_result_submission(worker_id, &result);
+                    self.emit_transition(
+                        worker_id,
+                        &task.id,
+                        "running",
+                        "failed",
+                        &message,
+                        attempt,
+                        true,
+                    );
+                    return DispatchCompletion::failure_with_result(
+                        task.id.clone(),
+                        worker_id.to_string(),
+                        message,
+                        result,
+                    );
+                }
+            }
+        }
+    }
+
+    async fn execute_task_once(
+        &mut self,
+        task: &Task,
+        worker_id: &str,
+        assignment: &InternalTaskAssignment,
+    ) -> Result<InternalResultSubmission> {
+        if task.task_type == TaskType::CodeModification {
+            self.execute_code_task(task, worker_id, assignment).await
+        } else {
+            self.execute_non_code_task(task, assignment).await
+        }
+    }
+
+    async fn execute_code_task(
+        &mut self,
+        task: &Task,
+        worker_id: &str,
+        assignment: &InternalTaskAssignment,
+    ) -> Result<InternalResultSubmission> {
+        if assignment.target_files.is_empty() {
+            return Err(CoordinatorV2Error::ProtocolViolation(
+                "code modification task requires a target file".to_string(),
+            ));
+        }
+
+        let model_response = self.execute_provider_request(task, assignment).await?;
+        let validated = self
+            .diff_validator
+            .validate(&model_response.output_text)
+            .map_err(|err| CoordinatorV2Error::ProtocolViolation(err.to_string()))?;
+        let patch = self.build_patch_envelope(task, assignment, &validated.raw_output, validated.format)?;
+        if let Err(err) = self.communication.send_patch_envelope(worker_id, &patch) {
+            self.metrics.protocol_validation_failures += 1;
+            return Err(CoordinatorV2Error::ProtocolViolation(err));
+        }
+
+        let patch_receipt = self
+            .patch_applier
+            .apply_to_workspace(&self.config.workspace_root, &patch)
+            .map_err(|err| CoordinatorV2Error::ExecutionFailed(err.to_string()))?;
+        if let Err(err) = self
+            .communication
+            .send_patch_receipt(worker_id, &patch_receipt)
+        {
+            self.metrics.protocol_validation_failures += 1;
+            return Err(CoordinatorV2Error::ProtocolViolation(err));
+        }
+
+        if patch_receipt.status != PatchApplyStatus::Applied {
+            return Err(CoordinatorV2Error::ExecutionFailed(format!(
+                "patch application failed: {}",
+                patch_receipt.message
+            )));
+        }
+
+        Ok(InternalResultSubmission {
+            task_id: task.id.clone(),
+            success: true,
+            patch: Some(patch),
+            patch_receipt: Some(patch_receipt),
+            token_usage: to_internal_token_usage(self.config.provider, &model_response.usage),
+            context_references: context_references_from_assignment(assignment),
+            summary: format!("applied patch for {}", task.description),
+            error_message: String::new(),
+        })
+    }
+
+    async fn execute_non_code_task(
+        &mut self,
+        task: &Task,
+        assignment: &InternalTaskAssignment,
+    ) -> Result<InternalResultSubmission> {
+        let model_response = self.execute_provider_request(task, assignment).await?;
+
+        Ok(InternalResultSubmission {
+            task_id: task.id.clone(),
+            success: true,
+            patch: None,
+            patch_receipt: None,
+            token_usage: to_internal_token_usage(self.config.provider, &model_response.usage),
+            context_references: context_references_from_assignment(assignment),
+            summary: model_response.output_text,
+            error_message: String::new(),
+        })
+    }
+
+    async fn execute_provider_request(
+        &mut self,
+        task: &Task,
+        assignment: &InternalTaskAssignment,
+    ) -> Result<ModelResponse> {
+        let model_request = self.build_model_request(task, assignment);
+        self.provider_transport
+            .execute(&model_request)
+            .await
+            .map_err(|err| CoordinatorV2Error::ExecutionFailed(err.to_string()))
+    }
+
+    fn build_model_request(&self, task: &Task, assignment: &InternalTaskAssignment) -> ModelRequest {
+        PromptAssembly::for_task(task, assignment).into_model_request(
+            self.config.provider,
+            self.config.model.clone(),
+            512,
+            Some(0.0),
+            false,
+            CacheRetention::Extended,
+        )
+    }
+
+    fn build_patch_envelope(
         &self,
-        task_id: &str,
-        description: &str,
+        task: &Task,
+        assignment: &InternalTaskAssignment,
+        raw_output: &str,
+        format: PatchFormat,
+    ) -> Result<PatchEnvelope> {
+        let base_revision = assignment
+            .context_pack
+            .as_ref()
+            .map(|pack| pack.base_revision.clone())
+            .or_else(|| {
+                assignment
+                    .target_files
+                    .first()
+                    .and_then(|file| current_revision_for_path(&self.config.workspace_root, file).ok())
+            })
+            .unwrap_or_else(|| "UNKNOWN".to_string());
+
+        let (patch_text, search_replace_blocks) = match format {
+            PatchFormat::UnifiedDiffZero => (Some(raw_output.to_string()), Vec::new()),
+            PatchFormat::AstSearchReplace => (
+                None,
+                self.diff_validator
+                    .validate(raw_output)
+                    .map_err(|err| CoordinatorV2Error::ProtocolViolation(err.to_string()))?
+                    .search_replace_blocks,
+            ),
+        };
+
+        Ok(PatchEnvelope {
+            task_id: task.id.clone(),
+            target_files: assignment.target_files.clone(),
+            format,
+            patch_text,
+            search_replace_blocks,
+            base_revision: base_revision.clone(),
+            validation: vec![
+                ValidationFact {
+                    key: "diff_only".to_string(),
+                    value: "true".to_string(),
+                },
+                ValidationFact {
+                    key: "base_revision".to_string(),
+                    value: base_revision,
+                },
+            ],
+        })
+    }
+
+    fn build_task_assignment(&self, task: &Task) -> Result<InternalTaskAssignment> {
+        let (target_files, target_symbols) = extract_targets(&task.description);
+        let context_pack = self.build_context_pack(task, &target_files, &target_symbols)?;
+
+        Ok(InternalTaskAssignment {
+            task_id: task.id.clone(),
+            title: task.description.clone(),
+            description: task.description.clone(),
+            task_type: task.task_type.clone(),
+            target_files,
+            target_symbols,
+            token_budget: self.config.task_token_budget,
+            context_pack,
+        })
+    }
+
+    fn build_context_pack(
+        &self,
+        task: &Task,
+        target_files: &[String],
+        target_symbols: &[String],
+    ) -> Result<Option<ContextPack>> {
+        if target_files.is_empty() && target_symbols.is_empty() {
+            return Ok(None);
+        }
+
+        let mut spans = Vec::new();
+        let mut retrieval_hits = Vec::new();
+        let mut ast_summaries = Vec::new();
+        let mut symbol_maps = Vec::new();
+        let mut validation_facts = Vec::new();
+
+        for file in target_files {
+            let path = self.config.workspace_root.join(file);
+            if let Ok(content) = fs::read_to_string(&path) {
+                let line_count = content.lines().count().max(1);
+                let base_revision = revision_for_content(&content);
+                spans.push(ContextSpan {
+                    file_path: file.clone(),
+                    start_line: 1,
+                    end_line: line_count,
+                    symbol_path: target_symbols.first().cloned().unwrap_or_default(),
+                });
+                retrieval_hits.push(RetrievalHit {
+                    file_path: file.clone(),
+                    symbol_path: target_symbols.first().cloned().unwrap_or_default(),
+                    start_line: 1,
+                    end_line: line_count,
+                    snippet: truncate_snippet(&content, 1200),
+                    base_revision: base_revision.clone(),
+                });
+                validation_facts.push(ValidationFact {
+                    key: format!("base_revision:{file}"),
+                    value: base_revision,
+                });
+            }
+        }
+
+        for symbol in target_symbols {
+            ast_summaries.push(AstSummary {
+                file_path: target_files
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "unknown".to_string()),
+                symbol_path: symbol.clone(),
+                kind: "symbol".to_string(),
+                start_line: 0,
+                end_line: 0,
+            });
+            symbol_maps.push(SymbolMap {
+                file_path: target_files
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "unknown".to_string()),
+                symbol_path: symbol.clone(),
+                references: target_symbols.to_vec(),
+            });
+        }
+
+        if self.config.enable_graph_retrieval {
+            if let Some(graph_pack) =
+                self.graph_retrieval_pack(task, target_files, target_symbols)?
+            {
+                spans = graph_pack.spans;
+                retrieval_hits = graph_pack.retrieval_hits;
+                ast_summaries.extend(graph_pack.ast_summaries);
+                symbol_maps.extend(graph_pack.symbol_maps);
+                validation_facts.extend(graph_pack.validation_facts);
+            } else {
+                validation_facts.push(ValidationFact {
+                    key: "retrieval".to_string(),
+                    value: "fallback".to_string(),
+                });
+            }
+        }
+
+        let base_revision = validation_facts
+            .iter()
+            .find(|fact| fact.key.starts_with("base_revision:"))
+            .map(|fact| fact.value.clone())
+            .unwrap_or_else(|| "UNKNOWN".to_string());
+
+        Ok(Some(ContextPack {
+            id: format!("ctx-{}", task.id),
+            task_id: task.id.clone(),
+            target_files: target_files.to_vec(),
+            symbols: target_symbols.to_vec(),
+            spans,
+            retrieval_hits,
+            ast_summaries,
+            symbol_maps,
+            validation_facts,
+            base_revision,
+        }))
+    }
+
+    fn graph_retrieval_pack(
+        &self,
+        task: &Task,
+        target_files: &[String],
+        target_symbols: &[String],
+    ) -> Result<Option<ContextPack>> {
+        let Some(language) = target_files
+            .first()
+            .and_then(|file| detect_language(file))
+        else {
+            return Ok(None);
+        };
+
+        let registry = ParserRegistry::new();
+        let scip = match registry.parse(language, &self.config.workspace_root) {
+            Ok(index) => index,
+            Err(_) => return Ok(None),
+        };
+        let influence = match InfluenceGraph::from_scip(&scip) {
+            Ok(graph) => graph,
+            Err(_) => return Ok(None),
+        };
+        let documents = load_documents(&self.config.workspace_root, &scip);
+        let retriever = GraphRetriever::new(
+            scip,
+            influence,
+            documents,
+            GraphRetrievalConfig {
+                token_budget: self.config.retrieval_token_budget,
+                max_documents: self.config.retrieval_max_documents,
+            },
+        );
+        let result = match retriever.retrieve(&GraphRetrievalRequest {
+            task_id: task.id.clone(),
+            query: task.description.clone(),
+            focal_file: target_files.first().cloned(),
+            focal_symbol: target_symbols.first().cloned(),
+        }) {
+            Ok(result) => result,
+            Err(_) => return Ok(None),
+        };
+
+        Ok(Some(ContextPack {
+            id: format!("graph-ctx-{}", task.id),
+            task_id: task.id.clone(),
+            target_files: result.documents.iter().map(|doc| doc.file_path.clone()).collect(),
+            symbols: target_symbols.to_vec(),
+            spans: result
+                .documents
+                .iter()
+                .map(|doc| ContextSpan {
+                    file_path: doc.file_path.clone(),
+                    start_line: 1,
+                    end_line: doc.content.lines().count().max(1),
+                    symbol_path: doc.symbols.first().cloned().unwrap_or_default(),
+                })
+                .collect(),
+            retrieval_hits: result
+                .documents
+                .iter()
+                .map(|doc| RetrievalHit {
+                    file_path: doc.file_path.clone(),
+                    symbol_path: doc.symbols.first().cloned().unwrap_or_default(),
+                    start_line: 1,
+                    end_line: doc.content.lines().count().max(1),
+                    snippet: truncate_snippet(&doc.content, 1200),
+                    base_revision: current_revision_for_path(&self.config.workspace_root, &doc.file_path)
+                        .unwrap_or_else(|_| "UNKNOWN".to_string()),
+                })
+                .collect(),
+            ast_summaries: result
+                .documents
+                .iter()
+                .flat_map(|doc| {
+                    doc.symbols.iter().map(move |symbol| AstSummary {
+                        file_path: doc.file_path.clone(),
+                        symbol_path: symbol.clone(),
+                        kind: "graph".to_string(),
+                        start_line: 1,
+                        end_line: doc.content.lines().count().max(1),
+                    })
+                })
+                .collect(),
+            symbol_maps: result
+                .documents
+                .iter()
+                .map(|doc| SymbolMap {
+                    file_path: doc.file_path.clone(),
+                    symbol_path: doc.symbols.first().cloned().unwrap_or_default(),
+                    references: doc.symbols.clone(),
+                })
+                .collect(),
+            validation_facts: result
+                .diagnostics
+                .iter()
+                .map(|diagnostic| ValidationFact {
+                    key: diagnostic.kind.clone(),
+                    value: diagnostic.message.clone(),
+                })
+                .collect(),
+            base_revision: target_files
+                .first()
+                .and_then(|file| current_revision_for_path(&self.config.workspace_root, file).ok())
+                .unwrap_or_else(|| "UNKNOWN".to_string()),
+        }))
+    }
+
+    fn failure_result_submission(
+        &self,
+        task: &Task,
+        assignment: Option<&InternalTaskAssignment>,
+        message: &str,
+    ) -> InternalResultSubmission {
+        InternalResultSubmission {
+            task_id: task.id.clone(),
+            success: false,
+            patch: None,
+            patch_receipt: None,
+            token_usage: InternalTokenUsage {
+                provider: format!("{:?}", self.config.provider).to_lowercase(),
+                input_tokens: 0,
+                output_tokens: 0,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+                uncached_input_tokens: 0,
+                effective_tokens_saved: 0,
+            },
+            context_references: assignment
+                .map(context_references_from_assignment)
+                .unwrap_or_default(),
+            summary: String::new(),
+            error_message: message.to_string(),
+        }
+    }
+
+    fn completion_result_submission(
+        &self,
+        task: &Task,
+        completion: &DispatchCompletion,
         success: bool,
-        error: Option<&str>,
+    ) -> InternalResultSubmission {
+        InternalResultSubmission {
+            task_id: task.id.clone(),
+            success,
+            patch: None,
+            patch_receipt: None,
+            token_usage: InternalTokenUsage {
+                provider: format!("{:?}", self.config.provider).to_lowercase(),
+                input_tokens: 0,
+                output_tokens: 0,
+                cache_write_tokens: 0,
+                cache_read_tokens: 0,
+                uncached_input_tokens: 0,
+                effective_tokens_saved: 0,
+            },
+            context_references: Vec::new(),
+            summary: if success {
+                format!("{}: completed", task.description)
+            } else {
+                String::new()
+            },
+            error_message: completion
+                .error
+                .clone()
+                .unwrap_or_else(|| "worker completed without a structured result".to_string()),
+        }
+    }
+
+    fn emit_transition(
+        &mut self,
+        worker_id: &str,
+        task_id: &str,
+        from_state: &str,
+        to_state: &str,
+        reason: &str,
+        retry_count: u32,
+        terminal: bool,
     ) {
+        self.metrics.transition_count += 1;
+        if self
+            .communication
+            .send_typed_workflow_transition(
+                worker_id,
+                &crate::transport::InternalWorkflowTransitionEvent {
+                    task_id: task_id.to_string(),
+                    from_state: from_state.to_string(),
+                    to_state: to_state.to_string(),
+                    reason: reason.to_string(),
+                    retry_count,
+                    terminal,
+                },
+            )
+            .is_err()
+        {
+            self.metrics.protocol_validation_failures += 1;
+        }
+    }
+
+    async fn publish_result_submission(
+        &self,
+        result_submission: &InternalResultSubmission,
+    ) -> Result<()> {
         let mut blackboard = self.blackboard.lock().await;
         let now = now_secs();
-        let content = if success {
-            format!("Task {} completed: {}", task_id, description)
-        } else {
-            format!(
-                "Task {} failed: {} ({})",
-                task_id,
-                description,
-                error.unwrap_or("unknown error")
-            )
-        };
+        let content = serde_json::to_string(result_submission)
+            .map_err(|err| CoordinatorV2Error::ProtocolViolation(err.to_string()))?;
 
         blackboard.publish(
             MemoryEntry {
-                id: format!("mission-result-{}", task_id),
+                id: format!("mission-result-{}", result_submission.task_id),
                 content,
                 memory_type: MemoryType::Shared,
-                importance: if success { 0.8 } else { 1.0 },
+                importance: if result_submission.success { 0.8 } else { 1.0 },
                 access_count: 0,
                 created_at: now,
                 last_accessed: now,
@@ -475,7 +1213,133 @@ impl Coordinator {
             },
             vec!["coordinator".to_string()],
         );
+        Ok(())
     }
+
+}
+
+fn load_documents(
+    workspace_root: &Path,
+    scip: &axora_indexing::SCIPIndex,
+) -> HashMap<String, String> {
+    let mut documents = HashMap::new();
+    for file_path in scip.occurrences.iter().map(|occurrence| occurrence.file_path.clone()) {
+        if documents.contains_key(&file_path) {
+            continue;
+        }
+        if let Ok(content) = fs::read_to_string(workspace_root.join(&file_path)) {
+            documents.insert(file_path, content);
+        }
+    }
+    documents
+}
+
+fn detect_language(file_path: &str) -> Option<Language> {
+    if file_path.ends_with(".rs") {
+        Some(Language::Rust)
+    } else if file_path.ends_with(".ts")
+        || file_path.ends_with(".tsx")
+        || file_path.ends_with(".js")
+        || file_path.ends_with(".jsx")
+    {
+        Some(Language::TypeScript)
+    } else if file_path.ends_with(".py") {
+        Some(Language::Python)
+    } else {
+        None
+    }
+}
+
+fn extract_targets(description: &str) -> (Vec<String>, Vec<String>) {
+    let mut files = Vec::new();
+    let mut symbols = Vec::new();
+
+    for token in description.split_whitespace() {
+        let cleaned = token
+            .trim_matches(|ch: char| matches!(ch, ',' | '.' | ';' | ':' | '(' | ')' | '"' | '\''))
+            .to_string();
+        if cleaned.contains("::") {
+            symbols.push(cleaned.clone());
+        }
+        if cleaned.contains('/')
+            || [".rs", ".ts", ".tsx", ".js", ".jsx", ".py"]
+                .iter()
+                .any(|ext| cleaned.ends_with(ext))
+        {
+            files.push(cleaned);
+        }
+    }
+
+    files.sort();
+    files.dedup();
+    symbols.sort();
+    symbols.dedup();
+    (files, symbols)
+}
+
+fn context_references_from_assignment(
+    assignment: &InternalTaskAssignment,
+) -> Vec<InternalContextReference> {
+    if let Some(context_pack) = assignment.context_pack.as_ref() {
+        if !context_pack.spans.is_empty() {
+            return context_pack
+                .spans
+                .iter()
+                .map(|span| InternalContextReference {
+                    file_path: span.file_path.clone(),
+                    symbol_path: if span.symbol_path.is_empty() {
+                        None
+                    } else {
+                        Some(span.symbol_path.clone())
+                    },
+                    start_line: span.start_line as u32,
+                    end_line: span.end_line as u32,
+                    block_id: None,
+                })
+                .collect();
+        }
+    }
+
+    assignment
+        .target_files
+        .iter()
+        .map(|file_path| InternalContextReference {
+            file_path: file_path.clone(),
+            symbol_path: assignment.target_symbols.first().cloned(),
+            start_line: 1,
+            end_line: 1,
+            block_id: None,
+        })
+        .collect()
+}
+
+fn to_internal_token_usage(provider: ProviderKind, usage: &ProviderUsage) -> InternalTokenUsage {
+    InternalTokenUsage {
+        provider: format!("{provider:?}").to_lowercase(),
+        input_tokens: usage.input_tokens as u32,
+        output_tokens: usage.output_tokens as u32,
+        cache_write_tokens: usage.cache_write_tokens as u32,
+        cache_read_tokens: usage.cache_read_tokens as u32,
+        uncached_input_tokens: usage.uncached_input_tokens as u32,
+        effective_tokens_saved: usage.cache_read_tokens as u32,
+    }
+}
+
+fn truncate_snippet(content: &str, max_len: usize) -> String {
+    if content.len() <= max_len {
+        content.to_string()
+    } else {
+        content[..max_len].to_string()
+    }
+}
+
+fn current_revision_for_path(workspace_root: &Path, file_path: &str) -> std::result::Result<String, std::io::Error> {
+    let content = fs::read_to_string(workspace_root.join(file_path))?;
+    Ok(revision_for_content(&content))
+}
+
+fn revision_for_content(content: &str) -> String {
+    blake3::hash(content.as_bytes()).to_hex().to_string()
 }
 
 fn now_secs() -> u64 {
@@ -507,18 +1371,29 @@ fn to_dispatch_status(status: &WorkerStatus) -> DispatchWorkerStatus {
 #[cfg(test)]
 mod tests {
     use super::{BlackboardV2, Coordinator, CoordinatorConfig};
+    use crate::patch_protocol::PatchApplyStatus;
+    use crate::provider_transport::SyntheticTransport;
+    use crate::transport::InternalResultSubmission;
+    use std::fs;
     use std::sync::Arc;
+    use tempfile::tempdir;
+
+    fn test_coordinator(config: CoordinatorConfig) -> Coordinator {
+        let workspace_root = config.workspace_root.clone();
+        Coordinator::new_with_provider_transport(
+            config,
+            Arc::new(BlackboardV2::default()),
+            Arc::new(SyntheticTransport::new(workspace_root)),
+        )
+        .unwrap()
+    }
 
     #[tokio::test]
     async fn new_registers_configured_workers() {
-        let coordinator = Coordinator::new(
-            CoordinatorConfig {
-                max_workers: 3,
-                ..CoordinatorConfig::default()
-            },
-            Arc::new(BlackboardV2::default()),
-        )
-        .unwrap();
+        let coordinator = test_coordinator(CoordinatorConfig {
+            max_workers: 3,
+            ..CoordinatorConfig::default()
+        });
 
         assert_eq!(coordinator.worker_registry.len(), 3);
         assert!(coordinator.get_available_worker().is_some());
@@ -526,27 +1401,19 @@ mod tests {
 
     #[tokio::test]
     async fn execute_mission_runs_simple_workflow() {
-        let mut coordinator = Coordinator::new(
-            CoordinatorConfig::default(),
-            Arc::new(BlackboardV2::default()),
-        )
-        .unwrap();
+        let mut coordinator = test_coordinator(CoordinatorConfig::default());
 
         let result = coordinator.execute_mission("simple task").await.unwrap();
 
         assert!(result.success);
         assert!(result.tasks_completed >= 1);
         assert_eq!(result.tasks_failed, 0);
-        assert!(result.output.contains("completed"));
+        assert!(result.output.to_lowercase().contains("completed"));
     }
 
     #[tokio::test]
     async fn status_reaches_full_progress_after_execution() {
-        let mut coordinator = Coordinator::new(
-            CoordinatorConfig::default(),
-            Arc::new(BlackboardV2::default()),
-        )
-        .unwrap();
+        let mut coordinator = test_coordinator(CoordinatorConfig::default());
 
         let result = coordinator.execute_mission("simple task").await.unwrap();
         let status = coordinator.get_mission_status();
@@ -554,5 +1421,48 @@ mod tests {
         assert_eq!(status.mission_id, result.mission_id);
         assert_eq!(status.progress, 100.0);
         assert_eq!(status.completed_tasks, result.tasks_completed);
+    }
+
+    #[tokio::test]
+    async fn code_edit_missions_publish_typed_patch_results() {
+        let tempdir = tempdir().unwrap();
+        let src_dir = tempdir.path().join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("lib.rs"), "pub fn example() {}\n").unwrap();
+
+        let blackboard = Arc::new(BlackboardV2::default());
+        let mut coordinator = Coordinator::new_with_provider_transport(
+            CoordinatorConfig {
+                workspace_root: tempdir.path().to_path_buf(),
+                enable_graph_retrieval: false,
+                ..CoordinatorConfig::default()
+            },
+            blackboard.clone(),
+            Arc::new(SyntheticTransport::new(tempdir.path())),
+        )
+        .unwrap();
+
+        let result = coordinator.execute_mission("update src/lib.rs").await.unwrap();
+
+        assert!(result.success);
+        assert_eq!(result.tasks_failed, 0);
+
+        let blackboard = blackboard.lock().await;
+        let published = blackboard.get_accessible("coordinator");
+        let typed_results = published
+            .iter()
+            .filter_map(|entry| serde_json::from_str::<InternalResultSubmission>(&entry.content).ok())
+            .collect::<Vec<_>>();
+
+        assert!(!typed_results.is_empty());
+        assert!(typed_results.iter().any(|result| {
+            result.patch.is_some()
+                && result.patch_receipt.as_ref().is_some_and(|receipt| {
+                    receipt.status == PatchApplyStatus::Applied
+                })
+        }));
+        assert!(typed_results
+            .iter()
+            .all(|result| result.success || !result.error_message.is_empty()));
     }
 }

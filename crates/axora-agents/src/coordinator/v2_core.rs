@@ -25,11 +25,194 @@ pub enum CoordinatorCoreError {
     WorkerUnavailable(String),
 }
 
+/// Role assigned to a built-in squad member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SquadRole {
+    /// Plans architecture and decomposition.
+    Architect,
+    /// Implements code changes.
+    Coder,
+    /// Verifies behavior through tests.
+    Tester,
+    /// Runs bounded local commands and patch actions.
+    Executor,
+    /// Reviews output contracts and regressions.
+    Reviewer,
+}
+
+impl SquadRole {
+    /// Stable role identifier used across runtime components.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SquadRole::Architect => "architect",
+            SquadRole::Coder => "coder",
+            SquadRole::Tester => "tester",
+            SquadRole::Executor => "executor",
+            SquadRole::Reviewer => "reviewer",
+        }
+    }
+
+    /// Human-readable display name.
+    pub fn display_name(self) -> &'static str {
+        match self {
+            SquadRole::Architect => "Architect",
+            SquadRole::Coder => "Coder",
+            SquadRole::Tester => "Tester",
+            SquadRole::Executor => "Executor",
+            SquadRole::Reviewer => "Reviewer",
+        }
+    }
+}
+
+/// Planning and acting policy attached to a squad member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlanningActingPolicy {
+    /// Continuous planning with high retrieval context.
+    Strategic,
+    /// Standard code authoring loop.
+    Driver,
+    /// Verification-first acting loop.
+    Verification,
+    /// Tool-heavy acting with bounded reasoning.
+    SandboxedExecution,
+    /// Arbiter policy focused on review contracts.
+    Arbiter,
+}
+
+/// Expected output contract for a squad member.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputContract {
+    /// A short architectural plan or decomposition note.
+    Plan,
+    /// A code patch or implementation summary.
+    Patch,
+    /// A test report or execution result.
+    TestEvidence,
+    /// A bounded command result or patch receipt.
+    ExecutionReceipt,
+    /// A review verdict with findings.
+    ReviewVerdict,
+}
+
+/// Static runtime profile for a built-in squad member.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkerProfile {
+    /// Display name shown in runtime state.
+    pub name: String,
+    /// Semantic role in the Base Squad.
+    pub role: SquadRole,
+    /// Tools this worker may invoke by default.
+    pub tool_permissions: Vec<String>,
+    /// ReAct planning/acting policy.
+    pub planning_policy: PlanningActingPolicy,
+    /// Retry budget for task execution.
+    pub retry_budget: u32,
+    /// Retrieval budget for context hydration.
+    pub retrieval_budget: usize,
+    /// Expected output contract.
+    pub output_contract: OutputContract,
+}
+
+/// Zero-config bootstrapper for the batteries-included Base Squad.
+pub struct BaseSquadBootstrapper;
+
+impl BaseSquadBootstrapper {
+    /// Build the default runtime squad for the given worker count.
+    pub fn build(max_workers: usize, retry_budget: u32, retrieval_budget: usize) -> Vec<WorkerInfo> {
+        let mut workers = vec![
+            WorkerInfo::with_profile("architect", Self::profile(SquadRole::Architect, retry_budget, retrieval_budget)),
+            WorkerInfo::with_profile("coder", Self::profile(SquadRole::Coder, retry_budget, retrieval_budget)),
+            WorkerInfo::with_profile("tester", Self::profile(SquadRole::Tester, retry_budget, retrieval_budget)),
+            WorkerInfo::with_profile("executor", Self::profile(SquadRole::Executor, retry_budget, retrieval_budget)),
+            WorkerInfo::with_profile("reviewer", Self::profile(SquadRole::Reviewer, retry_budget, retrieval_budget)),
+        ];
+
+        if max_workers > workers.len() {
+            for idx in workers.len()..max_workers {
+                workers.push(WorkerInfo::with_profile(
+                    format!("executor-{}", idx - 3),
+                    Self::profile(SquadRole::Executor, retry_budget, retrieval_budget),
+                ));
+            }
+        } else {
+            workers.truncate(max_workers);
+        }
+
+        workers
+    }
+
+    fn profile(role: SquadRole, retry_budget: u32, retrieval_budget: usize) -> WorkerProfile {
+        match role {
+            SquadRole::Architect => WorkerProfile {
+                name: role.display_name().to_string(),
+                role,
+                tool_permissions: vec!["read_file".to_string(), "graph_context".to_string()],
+                planning_policy: PlanningActingPolicy::Strategic,
+                retry_budget,
+                retrieval_budget,
+                output_contract: OutputContract::Plan,
+            },
+            SquadRole::Coder => WorkerProfile {
+                name: role.display_name().to_string(),
+                role,
+                tool_permissions: vec![
+                    "read_file".to_string(),
+                    "generate_diff".to_string(),
+                    "apply_patch".to_string(),
+                    "ast_chunk".to_string(),
+                ],
+                planning_policy: PlanningActingPolicy::Driver,
+                retry_budget,
+                retrieval_budget,
+                output_contract: OutputContract::Patch,
+            },
+            SquadRole::Tester => WorkerProfile {
+                name: role.display_name().to_string(),
+                role,
+                tool_permissions: vec![
+                    "read_file".to_string(),
+                    "run_command".to_string(),
+                    "graph_context".to_string(),
+                ],
+                planning_policy: PlanningActingPolicy::Verification,
+                retry_budget,
+                retrieval_budget: retrieval_budget / 2,
+                output_contract: OutputContract::TestEvidence,
+            },
+            SquadRole::Executor => WorkerProfile {
+                name: role.display_name().to_string(),
+                role,
+                tool_permissions: vec![
+                    "read_file".to_string(),
+                    "run_command".to_string(),
+                    "apply_patch".to_string(),
+                    "generate_diff".to_string(),
+                ],
+                planning_policy: PlanningActingPolicy::SandboxedExecution,
+                retry_budget,
+                retrieval_budget: retrieval_budget / 2,
+                output_contract: OutputContract::ExecutionReceipt,
+            },
+            SquadRole::Reviewer => WorkerProfile {
+                name: role.display_name().to_string(),
+                role,
+                tool_permissions: vec!["read_file".to_string(), "generate_diff".to_string(), "graph_context".to_string()],
+                planning_policy: PlanningActingPolicy::Arbiter,
+                retry_budget,
+                retrieval_budget,
+                output_contract: OutputContract::ReviewVerdict,
+            },
+        }
+    }
+}
+
 /// Snapshot of runtime worker state tracked by the coordinator.
 #[derive(Debug, Clone)]
 pub struct WorkerInfo {
     /// Stable worker identifier.
     pub id: WorkerId,
+    /// Batteries-included worker profile.
+    pub profile: WorkerProfile,
     /// Current worker status.
     pub status: WorkerStatus,
     /// Current task, if any.
@@ -41,8 +224,17 @@ pub struct WorkerInfo {
 impl WorkerInfo {
     /// Creates a new idle worker record.
     pub fn new(id: impl Into<WorkerId>) -> Self {
+        Self::with_profile(
+            id,
+            BaseSquadBootstrapper::profile(SquadRole::Executor, 1, 1_000),
+        )
+    }
+
+    /// Creates a new idle worker record with an explicit profile.
+    pub fn with_profile(id: impl Into<WorkerId>, profile: WorkerProfile) -> Self {
         Self {
             id: id.into(),
+            profile,
             status: WorkerStatus::Idle,
             current_task: None,
             last_heartbeat: Instant::now(),
@@ -176,7 +368,10 @@ impl Coordinator {
 
 #[cfg(test)]
 mod tests {
-    use super::{Coordinator, CoordinatorCoreError, WorkerInfo, WorkerRegistry};
+    use super::{
+        BaseSquadBootstrapper, Coordinator, CoordinatorCoreError, SquadRole, WorkerInfo,
+        WorkerRegistry,
+    };
     use crate::task::Task;
     use crate::worker_pool::WorkerStatus;
 
@@ -206,6 +401,7 @@ mod tests {
         let registry = WorkerRegistry::new();
         registry.register_worker(WorkerInfo {
             id: "worker-1".to_string(),
+            profile: BaseSquadBootstrapper::profile(SquadRole::Executor, 1, 1000),
             status: WorkerStatus::Busy("task-1".to_string()),
             current_task: Some("task-1".to_string()),
             last_heartbeat: std::time::Instant::now(),
@@ -248,6 +444,7 @@ mod tests {
         let registry = WorkerRegistry::new();
         registry.register_worker(WorkerInfo {
             id: "worker-1".to_string(),
+            profile: BaseSquadBootstrapper::profile(SquadRole::Executor, 1, 1000),
             status: WorkerStatus::Failed {
                 error: "panic".to_string(),
             },
@@ -290,5 +487,15 @@ mod tests {
 
         let worker = coordinator.worker_registry.workers.get("worker-1").unwrap();
         assert_eq!(worker.status, WorkerStatus::Busy(task.id.clone()));
+    }
+
+    #[test]
+    fn base_squad_bootstrapper_returns_canonical_roles() {
+        let workers = BaseSquadBootstrapper::build(5, 1, 2_000);
+        let roles = workers
+            .iter()
+            .map(|worker| worker.profile.role.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(roles, vec!["architect", "coder", "tester", "executor", "reviewer"]);
     }
 }

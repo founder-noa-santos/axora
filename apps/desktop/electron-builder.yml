@@ -1,0 +1,19 @@
+appId: dev.axora.desktop
+productName: AXORA
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - dist-electron/**
+  - package.json
+asar: true
+mac:
+  category: public.app-category.developer-tools
+  icon: build/icons/icon.icns
+  hardenedRuntime: true
+  target:
+    - dmg
+    - zip
+extraMetadata:
+  main: dist-electron/main.cjs

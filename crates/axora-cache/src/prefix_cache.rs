@@ -44,6 +44,21 @@ pub struct PrefixCache {
     total_tokens_saved: usize,
 }
 
+/// Result of looking up a deterministic static prefix.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PrefixCacheLookup {
+    /// Cache key derived from the static prefix.
+    pub cache_key: String,
+    /// Entry identifier returned by the cache.
+    pub entry_id: String,
+    /// Whether the prefix was eligible for caching.
+    pub eligible: bool,
+    /// Whether the prefix already existed locally.
+    pub hit: bool,
+    /// Token count for the prefix.
+    pub token_count: usize,
+}
+
 impl PrefixCache {
     /// Create new prefix cache
     pub fn new(max_entries: usize) -> Self {
@@ -113,6 +128,37 @@ impl PrefixCache {
         self.cache.contains_key(&cache_key)
     }
 
+    /// Look up a prefix or insert it if this is the first time it is seen.
+    pub fn lookup_or_insert(
+        &mut self,
+        id: &str,
+        content: &str,
+        token_count: usize,
+    ) -> PrefixCacheLookup {
+        let cache_key = self.compute_cache_key(content);
+        let hit = self.cache.contains_key(&cache_key);
+        let entry_id = if hit {
+            self.get(&cache_key)
+                .map(|entry| entry.id.clone())
+                .unwrap_or_else(|| id.to_string())
+        } else {
+            self.add(id, content, token_count)
+        };
+
+        PrefixCacheLookup {
+            cache_key,
+            entry_id,
+            eligible: !content.trim().is_empty(),
+            hit,
+            token_count,
+        }
+    }
+
+    /// Return the deterministic key for a prefix without mutating the cache.
+    pub fn cache_key_for(&self, content: &str) -> String {
+        self.compute_cache_key(content)
+    }
+
     /// Get cache statistics
     pub fn stats(&self) -> CacheStats {
         let total_entries = self.cache.len();
@@ -168,9 +214,7 @@ impl PrefixCache {
 
     /// Compute cache key (simple hash)
     fn compute_cache_key(&self, content: &str) -> String {
-        // Simple hash for demonstration
-        // In production, use a proper hash function like BLAKE3
-        format!("prefix_{:x}", md5::compute(content.as_bytes()))
+        format!("prefix_{}", blake3::hash(content.as_bytes()).to_hex())
     }
 
     /// Calculate hit rate
@@ -192,7 +236,7 @@ impl PrefixCache {
 
 impl Default for PrefixCache {
     fn default() -> Self {
-        Self::default()
+        Self::new(100)
     }
 }
 

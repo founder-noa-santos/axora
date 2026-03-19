@@ -16,6 +16,10 @@ path = "src/main.rs"
 axora-proto.workspace = true
 axora-storage.workspace = true
 axora-core.workspace = true
+axora-docs.workspace = true
+axora-indexing.workspace = true
+axora-mcp-server.workspace = true
+axora-memory.workspace = true
 
 tokio.workspace = true
 tokio-util.workspace = true

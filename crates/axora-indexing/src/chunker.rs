@@ -2,10 +2,14 @@
 
 use crate::error::IndexingError;
 use crate::Result;
+use blake3::hash;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tree_sitter::{Node, Parser, Query, QueryCursor};
+use tree_sitter::{Parser, Query};
+
+/// Stable identifier for a semantic block.
+pub type BlockId = String;
 
 /// Type of code chunk
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,13 +43,19 @@ pub struct ChunkMetadata {
     pub callees: Vec<String>,
     /// Type references
     pub type_references: Vec<String>,
+    /// Stable symbol path when known
+    pub symbol_path: Option<String>,
+    /// Parent scope when known
+    pub parent_scope: Option<String>,
+    /// Hash of the chunk content
+    pub content_hash: String,
 }
 
 /// A chunk of code
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CodeChunk {
     /// Unique identifier
-    pub id: String,
+    pub id: BlockId,
     /// File path
     pub file_path: PathBuf,
     /// Line range (start, end)
@@ -171,7 +181,6 @@ impl Chunker {
 
         // Chunk by functions (simple heuristic: look for function keywords)
         let mut current_chunk_start = 0;
-        let mut in_function = false;
 
         for (i, line) in lines.iter().enumerate() {
             let is_function_start = self.is_function_start(line, language);
@@ -191,7 +200,6 @@ impl Chunker {
                     }
                 }
                 current_chunk_start = i;
-                in_function = true;
             }
         }
 
@@ -250,7 +258,13 @@ impl Chunker {
         let func_name = self.extract_function_name(first_line, language);
 
         CodeChunk {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: stable_block_id(
+                file_path,
+                language,
+                func_name.as_deref().unwrap_or("module"),
+                start_line,
+                end_line,
+            ),
             file_path: file_path.to_path_buf(),
             line_range: (start_line, end_line),
             content: code.to_string(),
@@ -261,13 +275,16 @@ impl Chunker {
                 ChunkType::Module
             },
             metadata: ChunkMetadata {
-                function_name: func_name,
+                function_name: func_name.clone(),
                 class_name: None,
                 signature: String::new(),
                 docstring: None,
                 imports: vec![],
                 callees: vec![],
                 type_references: vec![],
+                symbol_path: func_name.clone(),
+                parent_scope: None,
+                content_hash: content_hash(code),
             },
             token_count: code.len() / 4,
         }
@@ -306,7 +323,7 @@ impl Chunker {
         let line_count = code.lines().count();
 
         CodeChunk {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: stable_block_id(file_path, language, "module", 1, line_count),
             file_path: file_path.to_path_buf(),
             line_range: (1, line_count),
             content: code.to_string(),
@@ -320,6 +337,9 @@ impl Chunker {
                 imports: vec![],
                 callees: vec![],
                 type_references: vec![],
+                symbol_path: Some(module_symbol_path(file_path)),
+                parent_scope: None,
+                content_hash: content_hash(code),
             },
             token_count: code.len() / 4,
         }
@@ -330,6 +350,32 @@ impl Default for Chunker {
     fn default() -> Self {
         Self::new().unwrap()
     }
+}
+
+fn stable_block_id(
+    file_path: &Path,
+    language: &str,
+    symbol_path: &str,
+    start_line: usize,
+    end_line: usize,
+) -> BlockId {
+    let key = format!(
+        "{}:{language}:{symbol_path}:{start_line}:{end_line}",
+        file_path.to_string_lossy()
+    );
+    hash(key.as_bytes()).to_hex().to_string()
+}
+
+fn module_symbol_path(file_path: &Path) -> String {
+    file_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("module")
+        .to_string()
+}
+
+fn content_hash(content: &str) -> String {
+    hash(content.as_bytes()).to_hex().to_string()
 }
 
 #[cfg(test)]
@@ -388,6 +434,8 @@ fn add(a: i32, b: i32) -> i32 {
             .iter()
             .any(|c| matches!(c.chunk_type, ChunkType::Function));
         assert!(has_function);
+        assert!(chunks.iter().all(|c| !c.id.is_empty()));
+        assert!(chunks.iter().all(|c| !c.metadata.content_hash.is_empty()));
     }
 
     #[test]

@@ -5,7 +5,9 @@
 //! - Diff-based communication (Sprint 2)
 //! - Combined optimizations
 
-use axora_cache::{CodeMinifier, UnifiedDiff};
+use axora_cache::{CodeMinifier, Schema, ToonSerializer, UnifiedDiff};
+use axora_proto::prost::Message as ProstMessage;
+use axora_proto::{ContextPack, Message, MessageType};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 
 /// Sample Rust code for benchmarking
@@ -596,6 +598,63 @@ pub fn my_function_with_documentation(
     });
 }
 
+fn benchmark_model_boundary_compaction(c: &mut Criterion) {
+    let context_json = serde_json::json!({
+        "task_id": "task-1",
+        "target_files": ["src/auth.rs", "src/db.rs"],
+        "symbols": ["auth::login", "db::query"],
+        "diagnostics": ["budget_exhausted:false", "cached:true"],
+        "summary": "Return unified diff only"
+    })
+    .to_string();
+    let mut schema = Schema::new();
+    for field in ["task_id", "target_files", "symbols", "diagnostics", "summary"] {
+        schema.add_field(field);
+    }
+    let serializer = ToonSerializer::new(schema);
+
+    c.bench_function("json_vs_toon_payload", |b| {
+        b.iter(|| {
+            let toon = serializer.encode(black_box(&context_json)).unwrap();
+            black_box((context_json.len(), toon.len()));
+        })
+    });
+
+    let proto_message = Message {
+        id: "msg-1".to_string(),
+        sender_id: "coordinator".to_string(),
+        recipient_id: "worker".to_string(),
+        message_type: MessageType::ContextPack as i32,
+        content: context_json.clone(),
+        timestamp: None,
+        patch: None,
+        patch_receipt: None,
+        context_pack: Some(ContextPack {
+            id: "ctx-1".to_string(),
+            task_id: "task-1".to_string(),
+            target_files: vec!["src/auth.rs".to_string()],
+            symbols: vec!["auth::login".to_string()],
+            spans: vec![],
+            toon_payload: String::new(),
+            base_revision: "rev-1".to_string(),
+        }),
+        validation_result: None,
+        task_assignment: None,
+        progress_update: None,
+        result_submission: None,
+        blocker_alert: None,
+        workflow_transition: None,
+    };
+
+    c.bench_function("string_vs_protobuf_transport", |b| {
+        b.iter(|| {
+            let mut bytes = Vec::new();
+            proto_message.encode(&mut bytes).unwrap();
+            black_box((context_json.len(), bytes.len()));
+        })
+    });
+}
+
 criterion_group!(
     benches,
     benchmark_code_minification_savings,
@@ -604,5 +663,6 @@ criterion_group!(
     benchmark_minification_by_language,
     benchmark_identifier_compression,
     benchmark_comment_stripping,
+    benchmark_model_boundary_compaction,
 );
 criterion_main!(benches);

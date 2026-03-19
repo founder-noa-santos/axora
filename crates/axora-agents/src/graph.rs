@@ -37,6 +37,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::time::{timeout, Duration};
 use tracing::{debug, error, info, warn};
 
 /// Node identifier type
@@ -56,6 +57,18 @@ pub struct WorkflowGraph {
 
     /// Execution history (for debugging/tracing)
     pub execution_history: Vec<ExecutionRecord>,
+    /// Execution policy guardrails.
+    pub execution_policy: ExecutionPolicy,
+    /// Terminal failure state when execution aborts.
+    pub terminal_failure: Option<TerminalFailureReason>,
+    /// Number of transitions observed.
+    pub transition_count: usize,
+    /// Number of timeouts observed.
+    pub timeout_failures: usize,
+    /// Number of retry budget exhaustions observed.
+    pub retry_exhaustions: usize,
+    /// Number of protocol validation failures observed.
+    pub protocol_validation_failures: usize,
 }
 
 /// Execution record for tracing
@@ -162,11 +175,16 @@ pub struct ExecutionState {
 impl ExecutionState {
     /// Create new execution state
     pub fn new(task: Task) -> Self {
+        Self::new_with_attempts(task, 3)
+    }
+
+    /// Create new execution state with an explicit retry budget.
+    pub fn new_with_attempts(task: Task, max_attempts: u32) -> Self {
         Self {
             task,
             node_results: HashMap::new(),
             attempt_count: 0,
-            max_attempts: 3,
+            max_attempts,
             success: false,
         }
     }
@@ -214,6 +232,40 @@ impl ExecutionState {
     }
 }
 
+/// Explicit workflow execution policy.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionPolicy {
+    /// Maximum number of node transitions before execution aborts.
+    pub max_iterations: u32,
+    /// Retry budget used by resolver loops.
+    pub retry_budget: u32,
+    /// Per-node timeout in milliseconds.
+    pub node_timeout_ms: u64,
+}
+
+impl Default for ExecutionPolicy {
+    fn default() -> Self {
+        Self {
+            max_iterations: 32,
+            retry_budget: 3,
+            node_timeout_ms: 5_000,
+        }
+    }
+}
+
+/// Terminal failure reason recorded by the workflow engine.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum TerminalFailureReason {
+    /// The graph contains an invalid or unsupported cycle.
+    CycleDetected,
+    /// Retry budget has been exhausted.
+    RetryExhausted,
+    /// A node execution timed out.
+    Timeout,
+    /// A transition was rejected by validation.
+    InvalidTransition,
+}
+
 impl WorkflowGraph {
     /// Create new workflow graph
     pub fn new() -> Self {
@@ -222,6 +274,12 @@ impl WorkflowGraph {
             edges: Vec::new(),
             current_state: None,
             execution_history: Vec::new(),
+            execution_policy: ExecutionPolicy::default(),
+            terminal_failure: None,
+            transition_count: 0,
+            timeout_failures: 0,
+            retry_exhaustions: 0,
+            protocol_validation_failures: 0,
         }
     }
 
@@ -446,17 +504,19 @@ impl WorkflowGraph {
     pub async fn execute(&mut self, task: Task) -> Result<TaskResult> {
         info!("Executing workflow graph with {} nodes", self.nodes.len());
 
-        let mut state = ExecutionState::new(task);
+        self.validate_execution_policy()?;
+        self.terminal_failure = None;
+        let mut state = ExecutionState::new_with_attempts(task, self.execution_policy.retry_budget);
 
         // Start at initial node
         self.current_state = Some(self.get_initial_node());
 
         let mut iterations = 0;
-        let max_iterations = 100; // Prevent infinite loops
 
         while let Some(current_node_id) = self.current_state {
             iterations += 1;
-            if iterations > max_iterations {
+            if iterations as u32 > self.execution_policy.max_iterations {
+                self.terminal_failure = Some(TerminalFailureReason::CycleDetected);
                 error!("Workflow exceeded max iterations (possible infinite loop)");
                 return Err(AgentError::InvalidStateTransition(
                     "Workflow loop detected".to_string(),
@@ -477,7 +537,26 @@ impl WorkflowGraph {
             );
 
             // Execute current node
-            let result = self.execute_node(&current_node, &mut state).await?;
+            let result = match timeout(
+                Duration::from_millis(self.execution_policy.node_timeout_ms),
+                self.execute_node(&current_node, &mut state),
+            )
+            .await
+            {
+                Ok(result) => result?,
+                Err(_) => {
+                    self.timeout_failures += 1;
+                    self.terminal_failure = Some(TerminalFailureReason::Timeout);
+                    return Ok(TaskResult {
+                        success: false,
+                        output: String::new(),
+                        error: Some(format!(
+                            "Node {} timed out after {}ms",
+                            current_node.id, self.execution_policy.node_timeout_ms
+                        )),
+                    });
+                }
+            };
 
             // Record execution
             let record = ExecutionRecord {
@@ -499,6 +578,7 @@ impl WorkflowGraph {
                     // Validate transition (guard conditions)
                     if self.validate_transition(current_node.id, next_id, &state) {
                         debug!("Transitioning from {} to {}", current_node.id, next_id);
+                        self.transition_count += 1;
                         self.current_state = Some(next_id);
                     } else {
                         // Guard failed, escalate to resolver
@@ -506,6 +586,7 @@ impl WorkflowGraph {
                             "Guard failed for transition {} → {}, escalating to resolver",
                             current_node.id, next_id
                         );
+                        self.protocol_validation_failures += 1;
                         self.current_state = Some(self.get_resolver_node());
                     }
                 }
@@ -522,11 +603,13 @@ impl WorkflowGraph {
     }
 
     /// Execute a single node
-    async fn execute_node(&self, node: &Node, state: &mut ExecutionState) -> Result<TaskResult> {
+    async fn execute_node(&mut self, node: &Node, state: &mut ExecutionState) -> Result<TaskResult> {
         state.increment_attempts();
 
         // Check max attempts
         if state.max_attempts_exceeded() {
+            self.retry_exhaustions += 1;
+            self.terminal_failure = Some(TerminalFailureReason::RetryExhausted);
             return Ok(TaskResult {
                 success: false,
                 output: String::new(),
@@ -536,8 +619,14 @@ impl WorkflowGraph {
 
         // Execute with agent if available
         if let Some(agent) = &node.agent {
-            let mut agent_guard = agent.lock().await;
-            let result = agent_guard.execute(state.task.clone())?;
+            let agent = Arc::clone(agent);
+            let task = state.task.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                let mut agent_guard = agent.blocking_lock();
+                agent_guard.execute(task)
+            })
+            .await
+            .map_err(|err| AgentError::ExecutionFailed(err.to_string()))??;
             state.record_result(node.id, result.clone());
             return Ok(result);
         }
@@ -572,6 +661,35 @@ impl WorkflowGraph {
             .all(|e| node_ids.contains(&e.from) && node_ids.contains(&e.to))
     }
 
+    /// Configure explicit workflow guardrails.
+    pub fn with_execution_policy(mut self, execution_policy: ExecutionPolicy) -> Self {
+        self.execution_policy = execution_policy;
+        self
+    }
+
+    /// Validate graph structure and explicit retry/cycle policy.
+    pub fn validate_execution_policy(&self) -> Result<()> {
+        if !self.is_valid() {
+            return Err(AgentError::GraphValidation("graph contains edges that reference missing nodes".to_string()).into());
+        }
+
+        if self.detect_cycle() && !self.nodes.iter().any(|node| node.role == NodeRole::Resolver) {
+            return Err(AgentError::GraphValidation(
+                "cyclic workflow requires an explicit resolver node".to_string(),
+            )
+            .into());
+        }
+
+        if self.execution_policy.retry_budget == 0 && self.detect_cycle() {
+            return Err(AgentError::GraphValidation(
+                "cyclic workflow requires a positive retry budget".to_string(),
+            )
+            .into());
+        }
+
+        Ok(())
+    }
+
     /// Get execution statistics
     pub fn get_stats(&self) -> GraphStats {
         let success_count = self.execution_history.iter().filter(|r| r.success).count();
@@ -582,7 +700,25 @@ impl WorkflowGraph {
             executions: self.execution_history.len(),
             successful_executions: success_count,
             failed_executions: self.execution_history.len() - success_count,
+            transition_count: self.transition_count,
+            timeout_failures: self.timeout_failures,
+            retry_exhaustions: self.retry_exhaustions,
+            protocol_validation_failures: self.protocol_validation_failures,
         }
+    }
+
+    fn detect_cycle(&self) -> bool {
+        let detector = ParallelismDetector::new();
+        let dependencies = self
+            .edges
+            .iter()
+                .map(|edge| Dependency {
+                from: edge.from,
+                to: edge.to,
+                dep_type: DependencyType::Hard,
+            })
+            .collect::<Vec<_>>();
+        detector.detect_circular_dependencies(&dependencies)
     }
 }
 
@@ -600,6 +736,10 @@ pub struct GraphStats {
     pub executions: usize,
     pub successful_executions: usize,
     pub failed_executions: usize,
+    pub transition_count: usize,
+    pub timeout_failures: usize,
+    pub retry_exhaustions: usize,
+    pub protocol_validation_failures: usize,
 }
 
 impl GraphStats {
@@ -778,6 +918,8 @@ impl ParallelismDetector {
 mod tests {
     use super::*;
     use crate::agent::BaseAgent;
+    use std::thread;
+    use std::time::Duration as StdDuration;
 
     #[test]
     fn test_graph_creation() {
@@ -1066,5 +1208,78 @@ mod tests {
         assert_eq!(stats.successful_executions, 1);
         assert_eq!(stats.failed_executions, 1);
         assert!((stats.success_rate() - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_workflow_policy_rejects_cycle_without_resolver() {
+        let mut graph = WorkflowGraph::new();
+        graph.add_node(Node {
+            id: 0,
+            role: NodeRole::Planner,
+            description: "planner".to_string(),
+            agent: None,
+        });
+        graph.add_node(Node {
+            id: 1,
+            role: NodeRole::Executor,
+            description: "executor".to_string(),
+            agent: None,
+        });
+        graph.add_edge(Edge {
+            from: 0,
+            to: 1,
+            condition: TransitionCondition::Always,
+        });
+        graph.add_edge(Edge {
+            from: 1,
+            to: 0,
+            condition: TransitionCondition::Always,
+        });
+
+        let result = graph.validate_execution_policy();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_workflow_timeout_transitions_to_terminal_failure() {
+        struct SlowAgent;
+
+        impl Agent for SlowAgent {
+            fn id(&self) -> &str {
+                "slow"
+            }
+
+            fn name(&self) -> &str {
+                "Slow"
+            }
+
+            fn role(&self) -> &str {
+                "Executor"
+            }
+
+            fn execute(&mut self, _task: Task) -> Result<TaskResult> {
+                thread::sleep(StdDuration::from_millis(20));
+                Ok(TaskResult {
+                    success: true,
+                    output: "done".to_string(),
+                    error: None,
+                })
+            }
+        }
+
+        let mut graph = WorkflowGraph::standard().with_execution_policy(ExecutionPolicy {
+            max_iterations: 8,
+            retry_budget: 2,
+            node_timeout_ms: 1,
+        });
+        graph.set_agent_for_node(0, Arc::new(Mutex::new(SlowAgent)));
+
+        let result = tokio_test::block_on(graph.execute(Task::new("slow workflow")));
+        match result {
+            Ok(result) => assert!(!result.success),
+            Err(_) => {}
+        }
+        assert_eq!(graph.terminal_failure, Some(TerminalFailureReason::Timeout));
+        assert_eq!(graph.get_stats().timeout_failures, 1);
     }
 }

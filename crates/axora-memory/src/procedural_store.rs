@@ -31,6 +31,7 @@
 //! ```
 //! ```
 
+use crate::lifecycle::MemoryTrait;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -341,6 +342,28 @@ impl Skill {
         }
 
         steps
+    }
+}
+
+impl MemoryTrait for Skill {
+    fn id(&self) -> &str {
+        &self.metadata.skill_id
+    }
+
+    fn created_at(&self) -> u64 {
+        self.metadata.created_at
+    }
+
+    fn updated_at(&self) -> u64 {
+        self.metadata.updated_at
+    }
+
+    fn retrieval_count(&self) -> u32 {
+        self.metadata.total_executions()
+    }
+
+    fn importance(&self) -> f32 {
+        self.metadata.utility_score
     }
 }
 

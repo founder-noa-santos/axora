@@ -219,6 +219,12 @@ impl InfluenceGraph {
         // Build symbol to file mapping
         for occurrence in &scip_index.occurrences {
             if occurrence.is_definition {
+                self.dependencies
+                    .entry(occurrence.file_path.clone())
+                    .or_insert_with(HashSet::new);
+                self.reverse_dependencies
+                    .entry(occurrence.file_path.clone())
+                    .or_insert_with(HashSet::new);
                 self.symbol_to_file
                     .insert(occurrence.symbol.clone(), occurrence.file_path.clone());
 
@@ -269,6 +275,19 @@ impl InfluenceGraph {
         self.dependencies.get(file_id)
     }
 
+    /// Resolve a symbol to the file that defines it.
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<&str> {
+        self.symbol_to_file.get(symbol).map(String::as_str)
+    }
+
+    /// Return the symbols defined in a file.
+    pub fn symbols_for_file(&self, file_id: &str) -> Vec<String> {
+        self.file_to_symbols
+            .get(file_id)
+            .map(|symbols| symbols.iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
     /// Gets all files that depend on this file
     pub fn get_reverse_dependencies(&self, file_id: &str) -> Option<&HashSet<FileId>> {
         self.reverse_dependencies.get(file_id)
@@ -287,6 +306,43 @@ impl InfluenceGraph {
     /// Gets the number of files in the graph
     pub fn file_count(&self) -> usize {
         self.dependencies.len()
+    }
+
+    /// Traverse direct and transitive dependencies, returning direct dependencies first.
+    pub fn dependency_chain(&self, file_id: &str) -> Vec<FileId> {
+        let mut ordered = Vec::new();
+        let mut visited = HashSet::new();
+
+        if let Some(direct) = self.dependencies.get(file_id) {
+            let mut direct_sorted = direct.iter().cloned().collect::<Vec<_>>();
+            direct_sorted.sort();
+            for dependency in direct_sorted {
+                if visited.insert(dependency.clone()) {
+                    ordered.push(dependency.clone());
+                    self.collect_transitive(&dependency, &mut visited, &mut ordered);
+                }
+            }
+        }
+
+        ordered
+    }
+
+    fn collect_transitive(
+        &self,
+        file_id: &str,
+        visited: &mut HashSet<FileId>,
+        ordered: &mut Vec<FileId>,
+    ) {
+        if let Some(next) = self.dependencies.get(file_id) {
+            let mut children = next.iter().cloned().collect::<Vec<_>>();
+            children.sort();
+            for dependency in children {
+                if visited.insert(dependency.clone()) {
+                    ordered.push(dependency.clone());
+                    self.collect_transitive(&dependency, visited, ordered);
+                }
+            }
+        }
     }
 }
 

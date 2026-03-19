@@ -1,0 +1,140 @@
+@import "../styles/tokens.css";
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11" 1, "ss01" 1, "ss03" 1;
+    min-height: 100vh;
+    /* Theme-aware background gradient (neutral grays only) */
+    background-image:
+      radial-gradient(circle at top left, rgb(0 0 0 / 0.04), transparent 28%),
+      linear-gradient(180deg, rgb(248 248 248), rgb(242 242 242) 48%, rgb(238 238 238));
+  }
+
+  html.dark body {
+    background-image:
+      radial-gradient(circle at top left, rgb(255 255 255 / 0.06), transparent 28%),
+      linear-gradient(180deg, rgb(20 20 20), rgb(14 14 14) 48%, rgb(10 10 10));
+  }
+
+  button,
+  input,
+  textarea,
+  [data-no-drag="true"] {
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer components {
+  .app-drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .panel-surface {
+    @apply rounded-[20px] border border-border/60 bg-panel/80 shadow-[0_24px_60px_rgba(0,0,0,0.15)] backdrop-blur-xl;
+  }
+
+  html.dark .panel-surface {
+    @apply border-white/10 shadow-[0_24px_60px_rgba(0,0,0,0.35)];
+  }
+
+  .muted-copy {
+    @apply text-[13px] leading-5 text-muted-foreground;
+  }
+
+  .sidebar-item {
+    @apply flex items-center justify-between rounded-[14px] px-3 py-2 text-[13px] font-medium text-sidebar-foreground transition-colors duration-150;
+  }
+
+  /* Light mode sidebar item hover */
+  .sidebar-item:hover {
+    @apply bg-foreground/[0.06] text-foreground;
+  }
+
+  /* Dark mode sidebar item hover */
+  html.dark .sidebar-item:hover {
+    @apply bg-white/6 text-foreground;
+  }
+}
+
+/* ==========================================================================
+   SIDEBAR VARIABLES
+   Using values from tokens.css, just mapping additional sidebar-specific vars
+   ========================================================================== */
+:root {
+  /* Light mode sidebar vars - additional properties (neutral grays) */
+  --sidebar-primary: oklch(0.2 0 0);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: oklch(0.93 0 0);
+  --sidebar-accent-foreground: oklch(0.2 0 0);
+  --sidebar-border: oklch(0.85 0 0 / 0.5);
+  --sidebar-ring: oklch(0.6 0 0);
+}
+
+.dark {
+  /* Dark mode sidebar vars - additional properties (neutral grays) */
+  --sidebar-primary: oklch(0.95 0 0);
+  --sidebar-primary-foreground: oklch(0.1 0 0);
+  --sidebar-accent: oklch(0.28 0 0 / 0.6);
+  --sidebar-accent-foreground: oklch(0.95 0 0);
+  --sidebar-border: oklch(0.35 0 0 / 0.4);
+  --sidebar-ring: oklch(0.7 0 0);
+}
+
+@theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ==========================================================================
+   CUSTOM SCROLLBAR
+   Theme-aware scrollbar styling
+   ========================================================================== */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(0.75 0.01 260 / 0.4);
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.65 0.015 260 / 0.6);
+}
+
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: oklch(0.45 0.02 260 / 0.4);
+}
+
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.55 0.025 260 / 0.6);
+}

@@ -70,6 +70,15 @@ message Message {
   MessageType message_type = 4;
   string content = 5;
   google.protobuf.Timestamp timestamp = 6;
+  PatchEnvelope patch = 7;
+  PatchReceipt patch_receipt = 8;
+  ContextPack context_pack = 9;
+  ValidationResult validation_result = 10;
+  TaskAssignment task_assignment = 11;
+  ProgressUpdate progress_update = 12;
+  ResultSubmission result_submission = 13;
+  BlockerAlert blocker_alert = 14;
+  WorkflowTransitionEvent workflow_transition = 15;
 }
 
 enum MessageType {
@@ -78,6 +87,15 @@ enum MessageType {
   MESSAGE_TYPE_COMMAND = 2;
   MESSAGE_TYPE_RESULT = 3;
   MESSAGE_TYPE_STATUS = 4;
+  MESSAGE_TYPE_PATCH = 5;
+  MESSAGE_TYPE_PATCH_RESULT = 6;
+  MESSAGE_TYPE_CONTEXT_PACK = 7;
+  MESSAGE_TYPE_VALIDATION_RESULT = 8;
+  MESSAGE_TYPE_TASK_ASSIGNMENT = 9;
+  MESSAGE_TYPE_PROGRESS_UPDATE = 10;
+  MESSAGE_TYPE_RESULT_SUBMISSION = 11;
+  MESSAGE_TYPE_BLOCKER_ALERT = 12;
+  MESSAGE_TYPE_WORKFLOW_TRANSITION = 13;
 }
 
 // Request/Response messages
@@ -139,4 +157,189 @@ message SendMessageRequest {
   string recipient_id = 2;
   MessageType message_type = 3;
   string content = 4;
+  PatchEnvelope patch = 5;
+  PatchReceipt patch_receipt = 6;
+  ContextPack context_pack = 7;
+  ValidationResult validation_result = 8;
+  TaskAssignment task_assignment = 9;
+  ProgressUpdate progress_update = 10;
+  ResultSubmission result_submission = 11;
+  BlockerAlert blocker_alert = 12;
+  WorkflowTransitionEvent workflow_transition = 13;
+}
+
+enum TaskPayloadType {
+  TASK_PAYLOAD_TYPE_UNSPECIFIED = 0;
+  TASK_PAYLOAD_TYPE_GENERAL = 1;
+  TASK_PAYLOAD_TYPE_CODE_MODIFICATION = 2;
+  TASK_PAYLOAD_TYPE_REVIEW = 3;
+  TASK_PAYLOAD_TYPE_RETRIEVAL = 4;
+}
+
+enum CompressionMode {
+  COMPRESSION_MODE_UNSPECIFIED = 0;
+  COMPRESSION_MODE_PLAIN_TEXT = 1;
+  COMPRESSION_MODE_TOON = 2;
+  COMPRESSION_MODE_METAGLYPH_TOON = 3;
+  COMPRESSION_MODE_LATENT_EXPERIMENTAL = 4;
+}
+
+enum MetaGlyphOpcode {
+  META_GLYPH_OPCODE_UNSPECIFIED = 0;
+  META_GLYPH_OPCODE_READ = 1;
+  META_GLYPH_OPCODE_PATCH = 2;
+  META_GLYPH_OPCODE_TEST = 3;
+  META_GLYPH_OPCODE_DEBUG = 4;
+}
+
+enum BlockerSeverity {
+  BLOCKER_SEVERITY_UNSPECIFIED = 0;
+  BLOCKER_SEVERITY_INFO = 1;
+  BLOCKER_SEVERITY_WARN = 2;
+  BLOCKER_SEVERITY_CRITICAL = 3;
+}
+
+message ContextReference {
+  string file_path = 1;
+  string symbol_path = 2;
+  uint32 start_line = 3;
+  uint32 end_line = 4;
+  string block_id = 5;
+}
+
+message TokenUsage {
+  string provider = 1;
+  uint32 input_tokens = 2;
+  uint32 output_tokens = 3;
+  uint32 total_tokens = 4;
+  uint32 cache_write_tokens = 5;
+  uint32 cache_read_tokens = 6;
+  uint32 uncached_input_tokens = 7;
+  uint32 effective_tokens_saved = 8;
+}
+
+message TaskAssignment {
+  string task_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskPayloadType task_type = 4;
+  repeated string target_files = 5;
+  repeated string target_symbols = 6;
+  uint32 token_budget = 7;
+  ContextPack context_pack = 8;
+}
+
+message ProgressUpdate {
+  string task_id = 1;
+  string stage = 2;
+  string message = 3;
+  float completion_ratio = 4;
+}
+
+message ResultSubmission {
+  string task_id = 1;
+  bool success = 2;
+  PatchEnvelope patch = 3;
+  TokenUsage token_usage = 4;
+  repeated ContextReference context_references = 5;
+  string summary = 6;
+  string error_message = 7;
+  PatchReceipt patch_receipt = 8;
+}
+
+message BlockerAlert {
+  string task_id = 1;
+  BlockerSeverity severity = 2;
+  string message = 3;
+  bool retryable = 4;
+}
+
+message WorkflowTransitionEvent {
+  string task_id = 1;
+  string from_state = 2;
+  string to_state = 3;
+  string reason = 4;
+  uint32 retry_count = 5;
+  bool terminal = 6;
+}
+
+enum PatchFormat {
+  PATCH_FORMAT_UNSPECIFIED = 0;
+  PATCH_FORMAT_UNIFIED_DIFF_ZERO = 1;
+  PATCH_FORMAT_AST_SEARCH_REPLACE = 2;
+}
+
+enum PatchApplyStatus {
+  PATCH_APPLY_STATUS_UNSPECIFIED = 0;
+  PATCH_APPLY_STATUS_APPLIED = 1;
+  PATCH_APPLY_STATUS_CONFLICT = 2;
+  PATCH_APPLY_STATUS_INVALID = 3;
+  PATCH_APPLY_STATUS_STALE_BASE = 4;
+}
+
+message ValidationFact {
+  string key = 1;
+  string value = 2;
+}
+
+message SearchReplaceBlock {
+  string file_path = 1;
+  string symbol_path = 2;
+  uint32 start_line = 3;
+  uint32 end_line = 4;
+  string search = 5;
+  string replace = 6;
+}
+
+message ContextSpan {
+  string file_path = 1;
+  uint32 start_line = 2;
+  uint32 end_line = 3;
+  string symbol_path = 4;
+}
+
+message MetaGlyphCommand {
+  MetaGlyphOpcode opcode = 1;
+  string operand = 2;
+}
+
+message ContextPack {
+  string id = 1;
+  string task_id = 2;
+  repeated string target_files = 3;
+  repeated string symbols = 4;
+  repeated ContextSpan spans = 5;
+  string toon_payload = 6;
+  string base_revision = 7;
+  repeated MetaGlyphCommand meta_glyph_commands = 8;
+  CompressionMode compression_mode = 9;
+  bytes latent_context = 10;
+  string latent_context_handle = 11;
+  bytes cryptographic_signature = 12;
+  string audit_correlation_id = 13;
+}
+
+message PatchEnvelope {
+  string task_id = 1;
+  repeated string target_files = 2;
+  PatchFormat format = 3;
+  string patch_text = 4;
+  repeated SearchReplaceBlock search_replace_blocks = 5;
+  string base_revision = 6;
+  repeated ValidationFact validation = 7;
+}
+
+message PatchReceipt {
+  string task_id = 1;
+  PatchApplyStatus status = 2;
+  string applied_revision = 3;
+  string message = 4;
+  repeated string affected_files = 5;
+}
+
+message ValidationResult {
+  string task_id = 1;
+  bool accepted = 2;
+  string message = 3;
+  repeated ValidationFact facts = 4;
 }

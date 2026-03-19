@@ -29,11 +29,22 @@
 
 #![warn(missing_docs)]
 
+pub mod consolidation;
+pub mod episodic_store;
 pub mod lifecycle;
 pub mod procedural_store;
 pub mod semantic_store;
+pub mod skill_seeder;
 
 // Re-export main types
+pub use consolidation::{
+    ConsolidationError, ConsolidationPipeline, ConsolidationTrigger, ConsolidationWorker,
+    LightweightLLM, ObservationActionPair, TeacherVerifier, ValidationMode, ValidationReport,
+};
+pub use episodic_store::{
+    EpisodicError, EpisodicMemory, EpisodicStore, EpisodicStoreConfig, MemoryType as EpisodicMemoryType,
+    SessionStats,
+};
 pub use lifecycle::{
     ConflictDetail, ConflictResolutionReport, ConflictType, EbbinghausDecay, LifecycleConfig,
     MemoryConflict, MemoryInfo, MemoryLifecycle, MemoryTrait, PruningReport, PruningWorker,
@@ -44,6 +55,7 @@ pub use procedural_store::{
     SkillStep,
 };
 pub use semantic_store::{
-    CollectionStats, DocType, InMemorySemanticStore, SearchResult, SemanticError, SemanticMemory,
-    SemanticMetadata,
+    CollectionStats, DocType, InMemorySemanticStore, PersistentSemanticStore, SearchResult,
+    SemanticError, SemanticMemory, SemanticMetadata,
 };
+pub use skill_seeder::{SkillSeedReport, SkillSeeder};

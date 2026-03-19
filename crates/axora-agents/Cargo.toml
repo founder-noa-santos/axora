@@ -12,9 +12,12 @@ description = "Agent framework for AXORA"
 # Internal
 axora-proto.workspace = true
 axora-indexing.workspace = true
+axora-cache.workspace = true
+axora-memory.workspace = true
 
 # Async
 tokio.workspace = true
+async-nats.workspace = true
 
 # Serialization
 serde.workspace = true
@@ -23,14 +26,20 @@ serde_json.workspace = true
 # Error handling
 thiserror.workspace = true
 anyhow.workspace = true
+reqwest.workspace = true
+secrecy.workspace = true
 
 # Utilities
 tracing.workspace = true
 uuid.workspace = true
 dashmap.workspace = true
 parking_lot.workspace = true
+blake3.workspace = true
+prost-types.workspace = true
+tonic.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true
 axora-cache.workspace = true
 axora-docs.workspace = true
+tempfile = "3.10"

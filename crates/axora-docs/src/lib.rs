@@ -47,6 +47,7 @@
 pub mod adr;
 pub mod index;
 pub mod living;
+pub mod reconciler;
 pub mod schema;
 
 // Re-export main types
@@ -57,5 +58,6 @@ pub use schema::{
 pub use index::{DocIndex, DocQuery, IndexError, SearchResult};
 
 pub use living::{DiffStats, DocUpdate, LivingDocs, LivingDocsError, UpdateType};
+pub use reconciler::{DocPatch, DocReconciler, DocReconcilerConfig, ReconcileDecision};
 
 pub use adr::{Adr, AdrError, AdrLog, AdrStatus};

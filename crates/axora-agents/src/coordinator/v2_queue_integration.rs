@@ -217,7 +217,7 @@ fn priority_rank(priority: &Priority) -> u8 {
 mod tests {
     use super::{QueueIntegrationError, TaskQueueIntegration};
     use crate::decomposer::{DecomposedMission, Dependency, DependencyType, TaskDAG};
-    use crate::task::{Priority, Task, TaskStatus};
+    use crate::task::{Priority, Task, TaskStatus, TaskType};
 
     fn task_with_id(id: &str, description: &str, priority: Priority) -> Task {
         Task {
@@ -227,6 +227,7 @@ mod tests {
             status: TaskStatus::Pending,
             assigned_to: None,
             parent_task: None,
+            task_type: TaskType::General,
         }
     }
 

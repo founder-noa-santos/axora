@@ -304,6 +304,18 @@ fn capabilities_for_description(description: &str) -> Vec<String> {
 fn infer_target_files(description: &str) -> Vec<String> {
     let lower = description.to_lowercase();
     let mut files = Vec::new();
+    for token in description.split_whitespace() {
+        let cleaned = token
+            .trim_matches(|ch: char| matches!(ch, ',' | '.' | ';' | ':' | '(' | ')' | '"' | '\''))
+            .to_string();
+        if cleaned.contains('/')
+            || [".rs", ".ts", ".tsx", ".js", ".jsx", ".py", ".sql"]
+                .iter()
+                .any(|ext| cleaned.ends_with(ext))
+        {
+            files.push(cleaned);
+        }
+    }
     if lower.contains("frontend") {
         files.push("ui/frontend.rs".to_string());
     }
@@ -313,6 +325,8 @@ fn infer_target_files(description: &str) -> Vec<String> {
     if lower.contains("database") || lower.contains("schema") {
         files.push("db/schema.sql".to_string());
     }
+    files.sort();
+    files.dedup();
     files
 }
 

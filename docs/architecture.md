@@ -2,82 +2,74 @@
 
 ## Overview
 
-AXORA is a multi-agent coding system built with a modular architecture that separates concerns across multiple layers.
+AXORA is split into two clear layers:
 
-## System Architecture
+1. A Rust workspace that owns domain logic, storage, indexing, orchestration, and daemon behavior.
+2. A desktop application that owns local shell behavior, windowing, renderer composition, and future native capability brokering.
 
+## Current desktop topology
+
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                           Electron Main                              │
+│  BrowserWindow lifecycle · IPC handlers · native integration layer   │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │
+                      contextBridge + IPC only
+                               │
+┌──────────────────────────────▼───────────────────────────────────────┐
+│                           Electron Preload                           │
+│         Minimal typed bridge exposed as window.axoraDesktop          │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼───────────────────────────────────────┐
+│                     Next.js Renderer (App Router)                    │
+│ React components · Tailwind v4 tokens · shadcn/ui · Lucide icons     │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │
+                future daemon / crate integration owned by main
+                               │
+┌──────────────────────────────▼───────────────────────────────────────┐
+│                          Rust Workspace                               │
+│ axora-core · axora-daemon · axora-storage · axora-* domain crates    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Desktop Application                       │
-│                    (Tauri v2 + React + TypeScript)              │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ IPC (gRPC/WebSocket)
-┌───────────────────────────────▼─────────────────────────────────┐
-│                         AXORA Daemon                             │
-│                    (Tokio + Tonic gRPC Server)                  │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
-│  │   Config    │  │    Frame    │  │   Collective Server     │  │
-│  │   Module    │  │   Executor  │  │   (gRPC Service)        │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              Protocol Buffer Definitions                 │    │
-│  │           (Agent, Task, Message schemas)                │    │
-│  └─────────────────────────────────────────────────────────┘    │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              SQLite Storage Layer                        │    │
-│  │         (Agents, Tasks, Messages, Sessions)             │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-```
 
-## Crate Structure
+## Boundary rules
 
-### axora-proto
-- Protocol Buffer definitions
-- Generated Rust code for gRPC
-- Shared types between client and server
+- React components do not import Node.js or Electron APIs.
+- The preload script exposes a small typed contract for desktop state and preferences.
+- IPC payloads are validated in the main process using shared Zod schemas.
+- Future Rust capabilities must be implemented behind Electron main, not inside the renderer.
 
-### axora-storage
-- SQLite database management
-- Migration system
-- Data access layer (AgentStore, TaskStore, MessageStore)
+## Repository layout
 
-### axora-core
-- Frame-based execution model
-- Configuration management
-- gRPC server implementation
-- Business logic
+### Desktop app
 
-### axora-daemon
-- Main executable
-- CLI argument parsing
-- Service orchestration
+- [apps/desktop/app](/Users/noasantos/Fluri/axora/apps/desktop/app): Next.js App Router entrypoints
+- [apps/desktop/components](/Users/noasantos/Fluri/axora/apps/desktop/components): shell layout and UI primitives
+- [apps/desktop/electron/main](/Users/noasantos/Fluri/axora/apps/desktop/electron/main): window bootstrap, IPC registration, local persistence
+- [apps/desktop/electron/preload](/Users/noasantos/Fluri/axora/apps/desktop/electron/preload): typed desktop bridge
+- [apps/desktop/shared/contracts](/Users/noasantos/Fluri/axora/apps/desktop/shared/contracts): shared schemas and API contracts
 
-## Data Flow
+### Rust workspace
 
-1. **Agent Registration**: Desktop → Daemon → Storage
-2. **Task Submission**: Desktop → Daemon → Frame Executor → Storage
-3. **Message Streaming**: Daemon → Desktop (bidirectional)
-4. **State Updates**: Storage → Daemon → Desktop
+- [crates/axora-core](/Users/noasantos/Fluri/axora/crates/axora-core): core orchestration logic
+- [crates/axora-daemon](/Users/noasantos/Fluri/axora/crates/axora-daemon): daemon executable
+- [crates/axora-storage](/Users/noasantos/Fluri/axora/crates/axora-storage): persistence
+- [crates/axora-proto](/Users/noasantos/Fluri/axora/crates/axora-proto): shared protocol types
 
-## Frame System
+## Renderer strategy
 
-The frame system provides deterministic execution:
+The renderer is intentionally static-first:
 
-- Target: 60 FPS (16ms frames)
-- Each frame processes pending operations
-- State updates are batched per frame
-- Enables reproducible behavior
+- Next.js uses App Router for composition and file-system structure.
+- The initial shell exports to static assets for Electron production loading.
+- Server components are used only where they simplify structure; privileged work stays outside the renderer.
 
-## Storage Schema
+## UI system
 
-See `crates/axora-storage/migrations/0001_init.sql` for the complete schema.
-
-Key tables:
-- `agents`: Registered agents
-- `tasks`: Task definitions and status
-- `messages`: Inter-agent communication
-- `sessions`: Active agent sessions
+- Tailwind CSS v4 tokens are centralized in [apps/desktop/styles/tokens.css](/Users/noasantos/Fluri/axora/apps/desktop/styles/tokens.css).
+- shadcn/ui components are kept local and edited in-repo.
+- Lucide React is the single icon family and should remain the only default icon set.
+- The shell is macOS-first: hidden inset title bar, restrained dark surfaces, dense but calm information layout.

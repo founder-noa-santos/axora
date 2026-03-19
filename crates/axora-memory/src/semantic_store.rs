@@ -12,7 +12,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, RwLock};
 use thiserror::Error;
+use rusqlite::{params, Connection, OptionalExtension};
 
 /// Semantic memory errors
 #[derive(Error, Debug)]
@@ -335,6 +338,190 @@ impl InMemorySemanticStore {
     }
 }
 
+/// Persistent semantic store backed by SQLite with local cosine similarity search.
+pub struct PersistentSemanticStore {
+    db: Arc<RwLock<Connection>>,
+    embedding_dim: usize,
+}
+
+impl PersistentSemanticStore {
+    /// Create a persistent semantic store at a SQLite path.
+    pub fn new(path: impl AsRef<Path>, embedding_dim: usize) -> Result<Self> {
+        if let Some(parent) = path.as_ref().parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| SemanticError::Storage(e.to_string()))?;
+            }
+        }
+
+        let conn = Connection::open(path).map_err(|e| SemanticError::Storage(e.to_string()))?;
+        let store = Self {
+            db: Arc::new(RwLock::new(conn)),
+            embedding_dim,
+        };
+        store.run_migrations()?;
+        Ok(store)
+    }
+
+    fn run_migrations(&self) -> Result<()> {
+        let db = self.db.write().unwrap();
+        db.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS semantic_memories (
+                id TEXT PRIMARY KEY,
+                content TEXT NOT NULL,
+                embedding TEXT NOT NULL,
+                metadata TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_semantic_updated_at ON semantic_memories(updated_at);
+            "#,
+        )
+        .map_err(|e| SemanticError::Storage(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Insert or replace a semantic memory.
+    pub fn insert(&self, memory: SemanticMemory) -> Result<()> {
+        if memory.dimension() != self.embedding_dim {
+            return Err(SemanticError::InvalidDimension {
+                expected: self.embedding_dim,
+                actual: memory.dimension(),
+            });
+        }
+
+        let embedding =
+            serde_json::to_string(&memory.embedding).map_err(SemanticError::Serialization)?;
+        let metadata =
+            serde_json::to_string(&memory.metadata).map_err(SemanticError::Serialization)?;
+
+        let db = self.db.write().unwrap();
+        db.execute(
+            r#"
+            INSERT INTO semantic_memories (id, content, embedding, metadata, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                content = excluded.content,
+                embedding = excluded.embedding,
+                metadata = excluded.metadata,
+                updated_at = excluded.updated_at
+            "#,
+            params![
+                memory.id,
+                memory.content,
+                embedding,
+                metadata,
+                memory.metadata.created_at as i64,
+                memory.metadata.updated_at as i64,
+            ],
+        )
+        .map_err(|e| SemanticError::Storage(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Fetch a semantic memory by identifier.
+    pub fn get(&self, id: &str) -> Result<Option<SemanticMemory>> {
+        let db = self.db.read().unwrap();
+        let memory = db
+            .query_row(
+                "SELECT id, content, embedding, metadata FROM semantic_memories WHERE id = ?",
+                params![id],
+                |row| {
+                    let embedding: String = row.get(2)?;
+                    let metadata: String = row.get(3)?;
+                    Ok(SemanticMemory {
+                        id: row.get(0)?,
+                        content: row.get(1)?,
+                        embedding: serde_json::from_str(&embedding).unwrap_or_default(),
+                        metadata: serde_json::from_str(&metadata)
+                            .unwrap_or_else(|_| SemanticMetadata::new("persistent_store", DocType::Other)),
+                    })
+                },
+            )
+            .optional()
+            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+        Ok(memory)
+    }
+
+    /// Retrieve top-K similar memories.
+    pub fn retrieve(&self, query_embedding: &[f32], k: usize) -> Result<Vec<SearchResult>> {
+        if query_embedding.len() != self.embedding_dim {
+            return Err(SemanticError::InvalidDimension {
+                expected: self.embedding_dim,
+                actual: query_embedding.len(),
+            });
+        }
+
+        let db = self.db.read().unwrap();
+        let mut stmt = db
+            .prepare("SELECT id, content, embedding, metadata FROM semantic_memories")
+            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                let embedding: String = row.get(2)?;
+                let metadata: String = row.get(3)?;
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    serde_json::from_str::<Vec<f32>>(&embedding).unwrap_or_default(),
+                    serde_json::from_str::<SemanticMetadata>(&metadata)
+                        .unwrap_or_else(|_| SemanticMetadata::new("persistent_store", DocType::Other)),
+                ))
+            })
+            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+
+        let mut results = Vec::new();
+        for row in rows {
+            let (id, content, embedding, metadata) =
+                row.map_err(|e| SemanticError::Storage(e.to_string()))?;
+            if embedding.len() != self.embedding_dim {
+                continue;
+            }
+
+            results.push(SearchResult {
+                id,
+                score: cosine_similarity(query_embedding, &embedding),
+                content,
+                metadata,
+            });
+        }
+
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        results.truncate(k);
+        Ok(results)
+    }
+
+    /// Delete a semantic memory.
+    pub fn delete(&self, id: &str) -> Result<bool> {
+        let db = self.db.write().unwrap();
+        let count = db
+            .execute("DELETE FROM semantic_memories WHERE id = ?", params![id])
+            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+        Ok(count > 0)
+    }
+
+    /// Count stored semantic memories.
+    pub fn stats(&self) -> Result<CollectionStats> {
+        let db = self.db.read().unwrap();
+        let count: i64 = db
+            .query_row("SELECT COUNT(*) FROM semantic_memories", [], |row| row.get(0))
+            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+        let count = count.max(0) as u64;
+        Ok(CollectionStats {
+            point_count: count,
+            vectors_count: count,
+            indexed_vectors_count: count,
+        })
+    }
+}
+
 /// Calculate cosine similarity between two vectors
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
@@ -516,6 +703,28 @@ mod tests {
         store.insert_batch(memories).unwrap();
 
         assert_eq!(store.stats().point_count, 2);
+    }
+
+    #[test]
+    fn test_persistent_store_round_trip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("semantic.db");
+        let store = PersistentSemanticStore::new(&path, 3).unwrap();
+
+        store
+            .insert(SemanticMemory::new(
+                "mem-1",
+                "persistent content",
+                vec![1.0, 0.0, 0.0],
+                SemanticMetadata::new("test", DocType::ArchitecturalDoc),
+            ))
+            .unwrap();
+
+        let memory = store.get("mem-1").unwrap().unwrap();
+        assert_eq!(memory.content, "persistent content");
+
+        let results = store.retrieve(&[1.0, 0.0, 0.0], 1).unwrap();
+        assert_eq!(results[0].id, "mem-1");
     }
 
     #[test]
