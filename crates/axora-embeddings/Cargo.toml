@@ -16,6 +16,7 @@ candle-nn.workspace = true
 
 # Async
 tokio.workspace = true
+async-trait = "0.1"
 
 # Serialization
 serde.workspace = true
@@ -27,6 +28,8 @@ anyhow.workspace = true
 
 # Utilities
 tracing.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true

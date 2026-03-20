@@ -5,6 +5,7 @@ use axora_agents::{
     ProviderRuntimeConfig,
 };
 use axora_mcp_server::{McpService, McpServiceConfig};
+use axora_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalServiceServer;
 use axora_proto::mcp::v1::tool_service_server::ToolServiceServer;
 use axora_storage::{Database, DatabaseConfig};
 use std::net::{Ipv4Addr, SocketAddr};
@@ -131,9 +132,29 @@ async fn start_embedded_mcp_server(
         workspace_root: config.workspace_root.clone(),
         allowed_commands: config.mcp_allowed_commands.clone(),
         default_max_execution_seconds: config.mcp_command_timeout_secs as u32,
+        dense_backend: config.retrieval.backend,
+        dense_qdrant_url: config.retrieval.qdrant_url.clone(),
+        dense_store_path: config.retrieval.sqlite_path.clone(),
+        code_collection: config.retrieval.code.collection_spec(),
+        code_embedding: config.retrieval.code.embedding_config(),
+        code_retrieval_budget_tokens: config.retrieval.code.token_budget,
+        skill_config: axora_memory::SkillRetrievalConfig {
+            corpus_root: config.retrieval.skills.corpus_root.clone(),
+            catalog_db_path: config.retrieval.skills.catalog_db_path.clone(),
+            dense_backend: config.retrieval.backend,
+            dense_store_path: config.retrieval.sqlite_path.clone(),
+            qdrant_url: config.retrieval.qdrant_url.clone(),
+            dense_collection: config.retrieval.skills.collection_spec(),
+            embedding: config.retrieval.skills.embedding_config(),
+            bm25_dir: config.retrieval.skills.bm25_dir.clone(),
+            skill_token_budget: config.retrieval.skills.token_budget,
+            dense_limit: 64,
+            bm25_limit: 64,
+        },
     });
     let task = tokio::spawn(async move {
         tonic::transport::Server::builder()
+            .add_service(GraphRetrievalServiceServer::new(service.clone()))
             .add_service(ToolServiceServer::new(service))
             .serve_with_incoming(incoming)
             .await

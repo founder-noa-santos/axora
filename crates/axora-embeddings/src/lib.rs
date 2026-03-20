@@ -1,16 +1,24 @@
 //! AXORA Embeddings
 //!
-//! Embedding inference for code using Candle and Jina Code Embeddings v2.
+//! Domain-specific embedding inference for AXORA retrieval.
 
 #![warn(missing_docs)]
 
 pub mod config;
 pub mod embedder;
 pub mod error;
+pub mod runtime_registry;
 
-pub use config::EmbeddingConfig;
-pub use embedder::EmbeddingEngine;
+pub use config::{
+    CodeEmbeddingConfig, DualEmbeddingConfig, EmbeddingDomain, EmbeddingProfile,
+    FallbackEmbeddingConfig, FallbackPolicy, SkillEmbeddingConfig,
+};
+pub use embedder::{
+    BgeSkillEmbedder, CodeEmbedder, EmbeddingModel, JinaCodeEmbedder, RemoteEmbeddingProvider,
+    RemoteFallbackEmbedder, SkillEmbedder,
+};
 pub use error::EmbeddingError;
+pub use runtime_registry::{cache_size, get_or_load_runtime, CachedEmbeddingRuntime, ModelCacheKey};
 
 use thiserror::Error;
 

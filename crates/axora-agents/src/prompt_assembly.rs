@@ -52,15 +52,51 @@ impl PromptAssembly {
             system_instructions.push("Return a concise execution summary.".to_string());
         }
 
-        let tool_schemas = if task.task_type == TaskType::CodeModification {
-            vec![json!({
+        let mut tool_schemas = vec![
+            json!({
+                "name": "graph_retrieve_skills",
+                "description": "Pull statistically relevant SKILL.md guidance on demand.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "task_id": {"type": "string"},
+                        "focal_files": {"type": "array", "items": {"type": "string"}},
+                        "focal_symbols": {"type": "array", "items": {"type": "string"}},
+                        "skill_token_budget": {"type": "integer"},
+                        "dense_limit": {"type": "integer"},
+                        "bm25_limit": {"type": "integer"},
+                        "include_diagnostics": {"type": "boolean"}
+                    },
+                    "required": ["query"]
+                }
+            }),
+            json!({
+                "name": "graph_retrieve_code",
+                "description": "Pull dense code chunks that match the active task.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "task_id": {"type": "string"},
+                        "focal_files": {"type": "array", "items": {"type": "string"}},
+                        "focal_symbols": {"type": "array", "items": {"type": "string"}},
+                        "token_budget": {"type": "integer"},
+                        "dense_limit": {"type": "integer"},
+                        "include_diagnostics": {"type": "boolean"}
+                    },
+                    "required": ["query"]
+                }
+            }),
+        ];
+
+        if task.task_type == TaskType::CodeModification {
+            tool_schemas.push(json!({
                 "name": "patch_contract",
                 "description": "emit patch-only output",
                 "input_schema": {"type": "object"}
-            })]
-        } else {
-            Vec::new()
-        };
+            }));
+        }
 
         let invariant_mission_context = vec![json!({
             "task_id": assignment.task_id.clone(),
@@ -163,5 +199,30 @@ mod tests {
 
         assert!(combined.contains("⟦READ⟧ src/auth.rs"));
         assert!(combined.contains("⟦PATCH⟧ src/auth.rs"));
+        assert!(assembly
+            .tool_schemas
+            .iter()
+            .any(|tool| tool.get("name") == Some(&json!("graph_retrieve_skills"))));
+    }
+
+    #[test]
+    fn prompt_assembly_keeps_initial_payload_skill_free() {
+        let task = Task::new("Inspect retrieval");
+        let assignment = InternalTaskAssignment {
+            task_id: "task-2".to_string(),
+            title: "Inspect retrieval".to_string(),
+            description: "Inspect retrieval".to_string(),
+            task_type: TaskType::General,
+            target_files: vec!["crates/axora-memory/src/procedural_store.rs".to_string()],
+            target_symbols: vec![],
+            token_budget: 800,
+            context_pack: None,
+        };
+
+        let assembly = PromptAssembly::for_task(&task, &assignment);
+
+        assert!(assembly.payload.context_pack.is_none());
+        let serialized = serde_json::to_string(&assembly.invariant_mission_context).unwrap();
+        assert!(!serialized.contains("SKILL.md"));
     }
 }

@@ -1,3 +1,5 @@
 packages:
   - 'apps/*'
   - 'crates/*'
+  - 'sdks/typescript'
+  - 'integrations/typescript/*'

@@ -146,7 +146,11 @@ impl BaseSquadBootstrapper {
             SquadRole::Architect => WorkerProfile {
                 name: role.display_name().to_string(),
                 role,
-                tool_permissions: vec!["read_file".to_string(), "graph_context".to_string()],
+                tool_permissions: vec![
+                    "read_file".to_string(),
+                    "graph_retrieve_skills".to_string(),
+                    "graph_retrieve_code".to_string(),
+                ],
                 planning_policy: PlanningActingPolicy::Strategic,
                 retry_budget,
                 retrieval_budget,
@@ -160,6 +164,7 @@ impl BaseSquadBootstrapper {
                     "generate_diff".to_string(),
                     "apply_patch".to_string(),
                     "ast_chunk".to_string(),
+                    "graph_retrieve_code".to_string(),
                 ],
                 planning_policy: PlanningActingPolicy::Driver,
                 retry_budget,
@@ -172,7 +177,8 @@ impl BaseSquadBootstrapper {
                 tool_permissions: vec![
                     "read_file".to_string(),
                     "run_command".to_string(),
-                    "graph_context".to_string(),
+                    "graph_retrieve_skills".to_string(),
+                    "graph_retrieve_code".to_string(),
                 ],
                 planning_policy: PlanningActingPolicy::Verification,
                 retry_budget,
@@ -196,7 +202,12 @@ impl BaseSquadBootstrapper {
             SquadRole::Reviewer => WorkerProfile {
                 name: role.display_name().to_string(),
                 role,
-                tool_permissions: vec!["read_file".to_string(), "generate_diff".to_string(), "graph_context".to_string()],
+                tool_permissions: vec![
+                    "read_file".to_string(),
+                    "generate_diff".to_string(),
+                    "graph_retrieve_skills".to_string(),
+                    "graph_retrieve_code".to_string(),
+                ],
                 planning_policy: PlanningActingPolicy::Arbiter,
                 retry_budget,
                 retrieval_budget,

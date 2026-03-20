@@ -1,39 +1,41 @@
-//! Context builder with reordering
+//! Prompt-context helper for ranked retrieval payloads.
 
-use crate::retriever::RetrievalResult;
 use crate::Result;
 
-/// Context builder
+/// Minimal chunk used for context assembly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContextChunk {
+    /// Stable identifier.
+    pub chunk_id: String,
+    /// Rendered content.
+    pub content: String,
+}
+
+/// Context builder.
 pub struct ContextBuilder {
     max_tokens: usize,
 }
 
 impl ContextBuilder {
-    /// Create new context builder
+    /// Create new context builder.
     pub fn new(max_tokens: usize) -> Self {
         Self { max_tokens }
     }
 
-    /// Build context from retrieval results
-    pub fn build(&self, results: Vec<RetrievalResult>, query: &str) -> Result<String> {
-        // TODO: Implement "Lost in the Middle" reordering
-        // For now, just concatenate
-
+    /// Build context from ordered chunks.
+    pub fn build(&self, results: Vec<ContextChunk>, _query: &str) -> Result<String> {
         let mut context = String::new();
-        let mut token_count = 0;
+        let mut token_count = 0usize;
 
         for result in results {
-            let chunk_tokens = result.content.len() / 4; // Rough estimate
-
+            let chunk_tokens = result.content.len() / 4;
             if token_count + chunk_tokens > self.max_tokens {
                 break;
             }
-
             context.push_str(&format!(
                 "\n\n=== Chunk {} ===\n{}\n",
                 result.chunk_id, result.content
             ));
-
             token_count += chunk_tokens;
         }
 

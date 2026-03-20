@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "Axora.Logger/0.1.0": {
+        "runtime": {
+          "Axora.Logger.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Axora.Logger/0.1.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

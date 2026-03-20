@@ -1,0 +1,16 @@
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/bin/Debug/net8.0/Axora.Logger.Datadog.deps.json
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/bin/Debug/net8.0/Axora.Logger.Datadog.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/bin/Debug/net8.0/Axora.Logger.Datadog.pdb
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/bin/Debug/net8.0/Axora.Logger.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/bin/Debug/net8.0/Axora.Logger.pdb
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.csproj.AssemblyReference.cache
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.GeneratedMSBuildEditorConfig.editorconfig
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.AssemblyInfoInputs.cache
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.AssemblyInfo.cs
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.csproj.CoreCompileInputs.cache
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.sourcelink.json
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Lo.CD64161A.Up2Date
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/refint/Axora.Logger.Datadog.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/Axora.Logger.Datadog.pdb
+/Users/noasantos/Fluri/axora/integrations/csharp/datadog/obj/Debug/net8.0/ref/Axora.Logger.Datadog.dll

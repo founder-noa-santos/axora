@@ -5,13 +5,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm -r dev",
-    "build": "pnpm -r build",
-    "test": "pnpm -r test",
-    "lint": "pnpm -r lint",
-    "format": "pnpm -r format",
-    "typecheck": "pnpm -r typecheck",
-    "clean": "pnpm -r clean && rm -rf node_modules",
+    "dev": "turbo run dev --filter=!@axora/mvp",
+    "build": "turbo run build --filter=!@axora/mvp",
+    "test": "turbo run test --filter=!@axora/mvp",
+    "lint": "turbo run lint --filter=!@axora/mvp",
+    "format": "turbo run format --filter=!@axora/mvp",
+    "typecheck": "turbo run typecheck --filter=!@axora/mvp",
+    "clean": "turbo run clean --filter=!@axora/mvp && rm -rf node_modules",
     "proto:gen": "cd proto && buf generate",
     "dev:daemon": "cargo run -p axora-daemon",
     "dev:desktop": "pnpm --filter @axora/desktop dev"
@@ -21,6 +21,7 @@
     "eslint": "^8.56.0",
     "prettier": "^3.1.0",
     "typescript": "^5.3.0",
+    "turbo": "^2.0.0",
     "vitest": "^1.1.0"
   },
   "engines": {

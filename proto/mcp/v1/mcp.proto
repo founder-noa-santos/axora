@@ -12,6 +12,11 @@ service ToolService {
   rpc StreamAudit(StreamAuditRequest) returns (stream AuditEvent);
 }
 
+service GraphRetrievalService {
+  rpc RetrieveSkills(RetrieveSkillsRequest) returns (RetrieveSkillsResponse);
+  rpc RetrieveCodeContext(RetrieveCodeContextRequest) returns (RetrieveCodeContextResponse);
+}
+
 message ListToolsRequest {
   string agent_id = 1;
   string role = 2;
@@ -73,4 +78,94 @@ message AuditEvent {
   bool allowed = 8;
   string detail = 9;
   google.protobuf.Timestamp created_at = 10;
+}
+
+message RetrieveSkillsRequest {
+  string request_id = 1;
+  string agent_id = 2;
+  string role = 3;
+  string task_id = 4;
+  string workspace_root = 5;
+  string query = 6;
+  repeated string focal_files = 7;
+  repeated string focal_symbols = 8;
+  uint32 skill_token_budget = 9;
+  uint32 dense_limit = 10;
+  uint32 bm25_limit = 11;
+  bool include_diagnostics = 12;
+}
+
+message RetrievedSkill {
+  string skill_id = 1;
+  string title = 2;
+  string source_path = 3;
+  string content = 4;
+  uint32 token_cost = 5;
+  float rrf_score = 6;
+  float accept_posterior = 7;
+  float cross_score = 8;
+}
+
+message RetrieveCodeContextRequest {
+  string request_id = 1;
+  string agent_id = 2;
+  string role = 3;
+  string task_id = 4;
+  string workspace_root = 5;
+  string query = 6;
+  repeated string focal_files = 7;
+  repeated string focal_symbols = 8;
+  uint32 token_budget = 9;
+  uint32 dense_limit = 10;
+  bool include_diagnostics = 11;
+}
+
+message RetrievedCodeContext {
+  string chunk_id = 1;
+  string file_path = 2;
+  string symbol_path = 3;
+  string content = 4;
+  uint32 token_cost = 5;
+  float dense_score = 6;
+  float accept_posterior = 7;
+  float cross_score = 8;
+}
+
+message CandidateScore {
+  string skill_id = 1;
+  uint32 dense_rank = 2;
+  float dense_score = 3;
+  uint32 bm25_rank = 4;
+  float bm25_score = 5;
+  float rrf_score = 6;
+  float accept_posterior = 7;
+  float cross_score = 8;
+  uint32 token_cost = 9;
+  bool selected = 10;
+}
+
+message RetrievalDiagnostics {
+  uint32 dense_hits = 1;
+  uint32 bm25_hits = 2;
+  uint32 fused_candidates = 3;
+  uint32 accept_count = 4;
+  uint32 reject_count = 5;
+  uint32 selected_count = 6;
+  uint32 used_tokens = 7;
+  bool memgas_converged = 8;
+  bool memgas_degenerate = 9;
+  repeated CandidateScore scores = 10;
+  google.protobuf.Timestamp generated_at = 11;
+}
+
+message RetrieveSkillsResponse {
+  string request_id = 1;
+  repeated RetrievedSkill skills = 2;
+  RetrievalDiagnostics diagnostics = 3;
+}
+
+message RetrieveCodeContextResponse {
+  string request_id = 1;
+  repeated RetrievedCodeContext documents = 2;
+  RetrievalDiagnostics diagnostics = 3;
 }

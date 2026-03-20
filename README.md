@@ -37,6 +37,8 @@ axora/
 ├── apps/
 │   └── desktop/          # Electron + Next.js desktop app
 ├── crates/              # Rust workspace crates
+├── sdks/                # Language SDKs
+├── integrations/        # Vendor adapters for SDKs
 ├── docs/                # Architecture docs and ADRs
 ├── planning/            # Historical planning material
 └── proto/               # Protocol buffer schemas
@@ -58,6 +60,23 @@ pnpm --filter @axora/desktop test
 pnpm --filter @axora/desktop build
 pnpm --filter @axora/desktop package
 cargo test --workspace
+```
+
+## SDKs
+
+The AXORA diagnostics SDKs live under `sdks/` and `integrations/`.
+
+- Canonical schema: [docs/wide-event-schema.md](/Users/noasantos/Fluri/axora/docs/wide-event-schema.md)
+- Usage examples: [docs/examples/](/Users/noasantos/Fluri/axora/docs/examples/)
+- Integration guides: [docs/integrations/](/Users/noasantos/Fluri/axora/docs/integrations/)
+
+TypeScript packages are part of the pnpm workspace, so they can be built with:
+
+```bash
+pnpm build
+pnpm test
+pnpm lint
+pnpm typecheck
 ```
 
 ## Documentation

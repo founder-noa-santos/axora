@@ -41,6 +41,7 @@ notify.workspace = true
 
 # Async
 tokio.workspace = true
+async-trait = "0.1"
 
 # Database
 rusqlite = { version = "0.31", features = ["bundled"] }

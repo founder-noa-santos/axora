@@ -1,0 +1,100 @@
+name: SDK Matrix
+
+on:
+  pull_request:
+    paths:
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - 'docs/**'
+      - 'sdks/**'
+      - 'integrations/**'
+      - '.github/workflows/sdk-matrix.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'turbo.json'
+      - 'docs/**'
+      - 'sdks/**'
+      - 'integrations/**'
+      - '.github/workflows/sdk-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typescript:
+    name: TypeScript SDKs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: |
+          for pkg in @axora/logger-core @axora/logger-otel @axora/logger-sentry @axora/logger-datadog @axora/logger-posthog; do
+            pnpm --filter "$pkg" test
+            pnpm --filter "$pkg" build
+          done
+
+  python:
+    name: Python SDKs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip pytest
+      - run: PYTHONPATH=sdks/python/src pytest sdks/python/tests
+      - run: |
+          for pkg in otel sentry datadog posthog; do
+            PYTHONPATH="sdks/python/src:integrations/python/$pkg/src" pytest "integrations/python/$pkg/tests"
+          done
+
+  java:
+    name: Java SDKs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - run: mvn --no-transfer-progress -q install -DskipTests
+        working-directory: sdks/java
+      - run: |
+          for module in otel sentry datadog posthog; do
+            mvn --no-transfer-progress -q test -f "integrations/java/$module/pom.xml"
+          done
+
+  csharp:
+    name: C# SDKs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+      - run: dotnet test sdks/csharp/Axora.Logger.Tests/Axora.Logger.Tests.csproj --configuration Debug
+      - run: |
+          for project in \
+            integrations/csharp/otel/Axora.Logger.Otel.csproj \
+            integrations/csharp/sentry/Axora.Logger.Sentry.csproj \
+            integrations/csharp/datadog/Axora.Logger.Datadog.csproj \
+            integrations/csharp/posthog/Axora.Logger.Posthog.csproj
+          do
+            dotnet build "$project" --configuration Debug
+          done

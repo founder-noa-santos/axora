@@ -11,6 +11,7 @@ pub mod influence;
 pub mod merkle;
 pub mod repository_map;
 pub mod scip;
+pub mod skill_index;
 pub mod task_queue;
 pub mod traceability;
 pub mod vector_store;
@@ -28,12 +29,18 @@ pub use scip::{
     CodeParser, ExternalSymbol, Language, Occurrence, PackageInfo, ParserRegistry,
     RelationshipKind, SCIPError, SCIPIndex, Symbol, SymbolKind, SymbolRelationship,
 };
+pub use skill_index::{
+    DenseSkillHit, SkillDenseIndex, SkillIndexDocument, SparseSkillHit, TantivySkillIndex,
+};
 pub use task_queue::{Task, TaskQueue, TaskQueueError, TaskQueueStats, TaskResult, TaskStatus};
 pub use traceability::{
     BusinessRule, LinkType, TraceabilityError, TraceabilityLink, TraceabilityMatrix,
     TraceabilityStats,
 };
-pub use vector_store::VectorStore;
+pub use vector_store::{
+    CollectionSpec, DenseVectorCollection, DistanceMetric, DualVectorStore, QdrantVectorCollection,
+    RetrievalDomain, SearchResult as DenseSearchResult, SqliteVecCollection, VectorBackendKind,
+};
 
 use thiserror::Error;
 

@@ -1,0 +1,16 @@
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/bin/Debug/net6.0/Axora.Logger.Sentry.deps.json
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/bin/Debug/net6.0/Axora.Logger.Sentry.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/bin/Debug/net6.0/Axora.Logger.Sentry.pdb
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/bin/Debug/net6.0/Axora.Logger.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/bin/Debug/net6.0/Axora.Logger.pdb
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.csproj.AssemblyReference.cache
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.GeneratedMSBuildEditorConfig.editorconfig
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.AssemblyInfoInputs.cache
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.AssemblyInfo.cs
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.csproj.CoreCompileInputs.cache
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.sourcelink.json
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Lo.8BC09768.Up2Date
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/refint/Axora.Logger.Sentry.dll
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/Axora.Logger.Sentry.pdb
+/Users/noasantos/Fluri/axora/integrations/csharp/sentry/obj/Debug/net6.0/ref/Axora.Logger.Sentry.dll

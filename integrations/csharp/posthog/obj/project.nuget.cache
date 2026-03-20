@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "1hjjLIh2N24=",
+  "success": true,
+  "projectFilePath": "/Users/noasantos/Fluri/axora/integrations/csharp/posthog/Axora.Logger.Posthog.csproj",
+  "expectedPackageFiles": [
+    "/Users/noasantos/.nuget/packages/microsoft.netcore.app.ref/6.0.36/microsoft.netcore.app.ref.6.0.36.nupkg.sha512",
+    "/Users/noasantos/.nuget/packages/microsoft.aspnetcore.app.ref/6.0.36/microsoft.aspnetcore.app.ref.6.0.36.nupkg.sha512"
+  ],
+  "logs": []
+}

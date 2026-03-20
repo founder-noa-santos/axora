@@ -13,6 +13,11 @@ description = "RAG pipeline for AXORA with hybrid retrieval"
 axora-indexing = { path = "../axora-indexing" }
 axora-embeddings = { path = "../axora-embeddings" }
 
+# Local inference
+candle-core.workspace = true
+candle-transformers.workspace = true
+candle-nn.workspace = true
+
 # Full-text search
 tantivy = "0.22"
 
@@ -29,6 +34,10 @@ anyhow.workspace = true
 
 # Utilities
 tracing.workspace = true
+async-trait = "0.1"
+once_cell.workspace = true
+parking_lot.workspace = true
+tokenizers = "0.19"
 
 [dev-dependencies]
 tokio-test.workspace = true

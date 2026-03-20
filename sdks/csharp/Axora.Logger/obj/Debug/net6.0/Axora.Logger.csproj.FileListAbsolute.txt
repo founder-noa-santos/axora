@@ -1,0 +1,12 @@
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.GeneratedMSBuildEditorConfig.editorconfig
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.AssemblyInfoInputs.cache
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.AssemblyInfo.cs
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.csproj.CoreCompileInputs.cache
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.sourcelink.json
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/bin/Debug/net6.0/Axora.Logger.deps.json
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/bin/Debug/net6.0/Axora.Logger.dll
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/bin/Debug/net6.0/Axora.Logger.pdb
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.dll
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/refint/Axora.Logger.dll
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/Axora.Logger.pdb
+/Users/noasantos/Fluri/axora/sdks/csharp/Axora.Logger/obj/Debug/net6.0/ref/Axora.Logger.dll

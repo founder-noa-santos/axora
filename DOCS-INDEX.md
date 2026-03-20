@@ -12,6 +12,9 @@
 | Document | Purpose | Location |
 |----------|---------|----------|
 | **Active Architecture** | Single Source of Truth | [`docs/active_architecture/`](./docs/active_architecture/) |
+| **Wide Event Schema** | Canonical diagnostics payload | [`docs/wide-event-schema.md`](./docs/wide-event-schema.md) |
+| **SDK Examples** | Consumer usage snippets | [`docs/examples/`](./docs/examples/) |
+| **Integration Guides** | Adapter behavior and setup | [`docs/integrations/`](./docs/integrations/) |
 | **Agent Tasks** | Current sprint assignments | [`planning/agent-*/current_task.md`](./planning/) |
 | **Status Dashboard** | Visual project status | [`planning/STATUS-DASHBOARD.md`](./planning/STATUS-DASHBOARD.md) |
 | **Research Findings** | Active research | [`research/findings/`](./research/findings/) |
@@ -28,6 +31,12 @@ axora/
 │   ├── 03_CONTEXT_AND_TOKEN_OPTIMIZATION.md
 │   └── README.md
 │
+├── docs/
+│   ├── wide-event-schema.md      ← Canonical diagnostics contract
+│   ├── wide-event-schema.json    ← Machine-readable schema
+│   ├── examples/                 ← Usage snippets
+│   └── integrations/             ← Adapter guides
+│
 ├── planning/
 │   ├── MASTER-TASK-LIST.md       ← 📋 ALL tasks (12 sprints)
 │   ├── agent-a/current_task.md   ← Agent A: IDLE Weeks 1-3, START Week 4
@@ -35,6 +44,8 @@ axora/
 │   ├── agent-c/current_task.md   ← Agent C: STARTING C7 (API Client)
 │   └── STATUS-DASHBOARD.md       ← Visual status
 │
+├── sdks/                         ← Language SDKs
+├── integrations/                 ← Vendor adapters
 ├── research/
 │   ├── findings/                 ← Active research
 │   │   ├── local-first-rag/

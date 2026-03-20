@@ -1,7 +1,172 @@
 //! Core configuration
 
+use axora_embeddings::{CodeEmbeddingConfig, FallbackEmbeddingConfig, SkillEmbeddingConfig};
+use axora_indexing::{CollectionSpec, VectorBackendKind};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+/// Shared retrieval configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetrievalConfig {
+    /// Dense backend kind.
+    pub backend: VectorBackendKind,
+    /// Shared Qdrant endpoint for dense collections.
+    pub qdrant_url: String,
+    /// SQLite dense-store path.
+    pub sqlite_path: PathBuf,
+    /// Code retrieval settings.
+    pub code: RetrievalDomainConfig,
+    /// Skill retrieval settings.
+    pub skills: SkillRetrievalDomainConfig,
+    /// Optional remote fallback.
+    pub fallback: FallbackEmbeddingConfig,
+}
+
+impl Default for RetrievalConfig {
+    fn default() -> Self {
+        let runtime_root = PathBuf::from(".axora");
+        Self {
+            backend: VectorBackendKind::Qdrant,
+            qdrant_url: "http://127.0.0.1:6334".to_string(),
+            sqlite_path: runtime_root.join("vectors.db"),
+            code: RetrievalDomainConfig::default(),
+            skills: SkillRetrievalDomainConfig::default(),
+            fallback: FallbackEmbeddingConfig::default(),
+        }
+    }
+}
+
+/// Shared per-domain retrieval settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetrievalDomainConfig {
+    /// Collection name.
+    pub collection: String,
+    /// Model root.
+    pub model_root: PathBuf,
+    /// Tokenizer path.
+    pub tokenizer_path: PathBuf,
+    /// Device selection.
+    pub device: String,
+    /// Embedding dimensions.
+    pub dimensions: usize,
+    /// Maximum input length.
+    pub max_length: usize,
+    /// Batch size.
+    pub batch_size: usize,
+    /// Default token budget.
+    pub token_budget: usize,
+}
+
+impl Default for RetrievalDomainConfig {
+    fn default() -> Self {
+        let embedding = CodeEmbeddingConfig::default();
+        Self {
+            collection: CollectionSpec::code_default().name,
+            model_root: embedding.model_root,
+            tokenizer_path: embedding.tokenizer_path,
+            device: embedding.device,
+            dimensions: embedding.dimensions,
+            max_length: embedding.max_length,
+            batch_size: embedding.batch_size,
+            token_budget: 2_000,
+        }
+    }
+}
+
+impl RetrievalDomainConfig {
+    /// Convert to a code embedding config.
+    pub fn embedding_config(&self) -> CodeEmbeddingConfig {
+        CodeEmbeddingConfig {
+            model_name: "jina-code-embeddings-v2".to_string(),
+            model_root: self.model_root.clone(),
+            tokenizer_path: self.tokenizer_path.clone(),
+            dimensions: self.dimensions,
+            max_length: self.max_length,
+            batch_size: self.batch_size,
+            device: self.device.clone(),
+        }
+    }
+
+    /// Convert to a collection spec.
+    pub fn collection_spec(&self) -> CollectionSpec {
+        CollectionSpec {
+            name: self.collection.clone(),
+            dimensions: self.dimensions,
+            ..CollectionSpec::code_default()
+        }
+    }
+}
+
+/// Skill-specific retrieval settings.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillRetrievalDomainConfig {
+    /// Collection name.
+    pub collection: String,
+    /// Model root.
+    pub model_root: PathBuf,
+    /// Tokenizer path.
+    pub tokenizer_path: PathBuf,
+    /// Device selection.
+    pub device: String,
+    /// Embedding dimensions.
+    pub dimensions: usize,
+    /// Maximum input length.
+    pub max_length: usize,
+    /// Batch size.
+    pub batch_size: usize,
+    /// Default token budget.
+    pub token_budget: usize,
+    /// Root directory containing authored skills.
+    pub corpus_root: PathBuf,
+    /// SQLite skill catalog path.
+    pub catalog_db_path: PathBuf,
+    /// BM25 index directory.
+    pub bm25_dir: PathBuf,
+}
+
+impl Default for SkillRetrievalDomainConfig {
+    fn default() -> Self {
+        let runtime_root = PathBuf::from(".axora");
+        let embedding = SkillEmbeddingConfig::default();
+        Self {
+            collection: CollectionSpec::skill_default().name,
+            model_root: embedding.model_root,
+            tokenizer_path: embedding.tokenizer_path,
+            device: embedding.device,
+            dimensions: embedding.dimensions,
+            max_length: embedding.max_length,
+            batch_size: embedding.batch_size,
+            token_budget: 1500,
+            corpus_root: PathBuf::from("./skills"),
+            catalog_db_path: runtime_root.join("skill-index").join("skill-catalog.db"),
+            bm25_dir: runtime_root.join("skill-bm25"),
+        }
+    }
+}
+
+impl SkillRetrievalDomainConfig {
+    /// Convert to a skill embedding config.
+    pub fn embedding_config(&self) -> SkillEmbeddingConfig {
+        SkillEmbeddingConfig {
+            model_name: "bge-small-en-v1.5".to_string(),
+            model_root: self.model_root.clone(),
+            tokenizer_path: self.tokenizer_path.clone(),
+            dimensions: self.dimensions,
+            max_length: self.max_length,
+            batch_size: self.batch_size,
+            device: self.device.clone(),
+        }
+    }
+
+    /// Convert to a collection spec.
+    pub fn collection_spec(&self) -> CollectionSpec {
+        CollectionSpec {
+            name: self.collection.clone(),
+            dimensions: self.dimensions,
+            ..CollectionSpec::skill_default()
+        }
+    }
+}
 
 /// Core system configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,8 +183,18 @@ pub struct CoreConfig {
     pub database_path: PathBuf,
     /// Workspace root exposed to MCP and doc sync services.
     pub workspace_root: PathBuf,
-    /// Root directory for procedural skills.
-    pub skills_root: PathBuf,
+    /// Nested retrieval configuration.
+    pub retrieval: RetrievalConfig,
+    /// Root directory for authored `SKILL.md` files.
+    pub skill_corpus_root: PathBuf,
+    /// Root directory for retrieval index artifacts.
+    pub skill_index_root: PathBuf,
+    /// Dense-index endpoint for skill retrieval.
+    pub skill_qdrant_url: String,
+    /// Sparse BM25 directory.
+    pub skill_bm25_dir: PathBuf,
+    /// Default skill-retrieval budget.
+    pub skill_retrieval_budget_tokens: usize,
     /// Root directory for repository documentation.
     pub docs_root: PathBuf,
     /// Local semantic store database path.
@@ -49,7 +224,12 @@ impl Default for CoreConfig {
             mcp_port: 50061,
             database_path: PathBuf::from("axora.db"),
             workspace_root: PathBuf::from("."),
-            skills_root: PathBuf::from("./skills"),
+            retrieval: RetrievalConfig::default(),
+            skill_corpus_root: PathBuf::from("./skills"),
+            skill_index_root: PathBuf::from("./.axora/skill-index"),
+            skill_qdrant_url: "http://127.0.0.1:6334".to_string(),
+            skill_bm25_dir: PathBuf::from("./.axora/skill-bm25"),
+            skill_retrieval_budget_tokens: 1500,
             docs_root: PathBuf::from("./docs"),
             semantic_store_path: PathBuf::from("./semantic-memory.db"),
             max_concurrent_agents: 10,
@@ -73,11 +253,25 @@ impl CoreConfig {
     pub fn for_workspace(workspace_root: impl Into<PathBuf>) -> Self {
         let workspace_root = workspace_root.into();
         let runtime_root = workspace_root.join(".axora");
+        let mut retrieval = RetrievalConfig::default();
+        retrieval.sqlite_path = runtime_root.join("vectors.db");
+        retrieval.qdrant_url = "http://127.0.0.1:6334".to_string();
+        retrieval.code.collection = CollectionSpec::code_default().name;
+        retrieval.code.token_budget = 2_000;
+        retrieval.skills.collection = CollectionSpec::skill_default().name;
+        retrieval.skills.corpus_root = workspace_root.join("skills");
+        retrieval.skills.catalog_db_path = runtime_root.join("skill-index").join("skill-catalog.db");
+        retrieval.skills.bm25_dir = runtime_root.join("skill-bm25");
 
         Self {
             workspace_root: workspace_root.clone(),
             database_path: runtime_root.join("axora.db"),
-            skills_root: runtime_root.clone(),
+            retrieval,
+            skill_corpus_root: workspace_root.join("skills"),
+            skill_index_root: runtime_root.join("skill-index"),
+            skill_qdrant_url: "http://127.0.0.1:6334".to_string(),
+            skill_bm25_dir: runtime_root.join("skill-bm25"),
+            skill_retrieval_budget_tokens: 1500,
             docs_root: workspace_root.join("docs"),
             semantic_store_path: runtime_root.join("semantic-memory.db"),
             ..Default::default()
@@ -116,7 +310,17 @@ impl CoreConfig {
         if let Some(parent) = self.semantic_store_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::create_dir_all(&self.skills_root)?;
+        if let Some(parent) = self.retrieval.sqlite_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::create_dir_all(&self.skill_corpus_root)?;
+        std::fs::create_dir_all(&self.skill_index_root)?;
+        std::fs::create_dir_all(&self.skill_bm25_dir)?;
+        std::fs::create_dir_all(&self.retrieval.skills.corpus_root)?;
+        if let Some(parent) = self.retrieval.skills.catalog_db_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::create_dir_all(&self.retrieval.skills.bm25_dir)?;
         if self.docs_root.starts_with(&self.workspace_root) {
             std::fs::create_dir_all(&self.docs_root)?;
         }

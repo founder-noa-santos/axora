@@ -21,7 +21,19 @@ pub enum IndexingError {
     #[error("vector store error: {0}")]
     VectorStore(String),
 
+    /// Embedding dimension mismatch.
+    #[error("dimension mismatch: expected {expected}, got {actual}")]
+    DimensionMismatch { expected: usize, actual: usize },
+
     /// Merkle tree error
     #[error("merkle tree error: {0}")]
     MerkleTree(String),
+
+    /// IO error.
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
+    /// Tantivy error.
+    #[error("tantivy error: {0}")]
+    Tantivy(#[from] tantivy::TantivyError),
 }

@@ -12,7 +12,10 @@ description = "MCP gRPC tool sandbox server for AXORA"
 axora-proto.workspace = true
 axora-cache.workspace = true
 axora-docs.workspace = true
+axora-embeddings.workspace = true
 axora-indexing.workspace = true
+axora-memory.workspace = true
+axora-rag = { path = "../axora-rag" }
 tokio.workspace = true
 tonic.workspace = true
 prost-types.workspace = true

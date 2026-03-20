@@ -1,0 +1,36 @@
+{
+  "name": "@axora/logger-core",
+  "version": "0.1.0",
+  "description": "AXORA Wide Event SDK - Core",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "test": "vitest run",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "format": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.7"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

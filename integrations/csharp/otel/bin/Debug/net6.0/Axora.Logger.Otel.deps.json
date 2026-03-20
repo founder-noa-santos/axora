@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {
+      "Axora.Logger.Otel/0.1.0": {
+        "dependencies": {
+          "Axora.Logger": "0.1.0"
+        },
+        "runtime": {
+          "Axora.Logger.Otel.dll": {}
+        }
+      },
+      "Axora.Logger/0.1.0": {
+        "runtime": {
+          "Axora.Logger.dll": {
+            "assemblyVersion": "0.1.0",
+            "fileVersion": "0.1.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Axora.Logger.Otel/0.1.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Axora.Logger/0.1.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

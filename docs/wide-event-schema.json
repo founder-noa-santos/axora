@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://axora.dev/schemas/wide-event.schema.json",
+  "title": "AXORA Wide Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "service",
+    "environment",
+    "timestamp_start",
+    "timestamp_end",
+    "duration_ms",
+    "level",
+    "operation",
+    "status",
+    "context",
+    "error",
+    "meta"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "service": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "type": "string",
+      "enum": ["production", "staging", "development"]
+    },
+    "timestamp_start": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "timestamp_end": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "number",
+      "minimum": 0
+    },
+    "level": {
+      "type": "string",
+      "enum": ["info", "warn", "error", "fatal"]
+    },
+    "operation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "error", "timeout", "cancelled"]
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "message", "stack"],
+      "properties": {
+        "type": { "type": ["string", "null"] },
+        "message": { "type": ["string", "null"] },
+        "stack": { "type": ["string", "null"] }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sdk_version", "sdk_language"],
+      "properties": {
+        "sdk_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sdk_language": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

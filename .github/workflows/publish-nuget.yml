@@ -1,0 +1,25 @@
+name: Publish NuGet SDKs
+
+on:
+  push:
+    tags:
+      - 'sdks/csharp@*'
+      - 'integrations/csharp/**@*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+      - name: Build and publish package
+        shell: bash
+        env:
+          NUGET_TOKEN: ${{ secrets.NUGET_TOKEN }}
+        run: |
+          PACKAGE_DIR="${GITHUB_REF_NAME%@*}"
+          cd "${PACKAGE_DIR}"
+          dotnet pack --configuration Release -o ./nupkg
+          dotnet nuget push ./nupkg/*.nupkg --api-key "${NUGET_TOKEN}" --source https://api.nuget.org/v3/index.json

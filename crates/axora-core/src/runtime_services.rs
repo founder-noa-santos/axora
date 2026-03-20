@@ -1,12 +1,15 @@
 //! Shared runtime-managed services for daemon and CLI entrypoints.
 
 use axora_docs::{DocReconciler, DocReconcilerConfig, ReconcileDecision};
-use axora_indexing::MerkleTree;
+use axora_embeddings::{BgeSkillEmbedder, JinaCodeEmbedder};
+use axora_indexing::{DualVectorStore, MerkleTree, TantivySkillIndex};
 use axora_memory::{
-    ConsolidationPipeline, ConsolidationWorker, DocType, EpisodicStore, EpisodicStoreConfig,
-    LightweightLLM, MemoryLifecycle, PersistentSemanticStore, ProceduralStore, SemanticMemory,
-    SemanticMetadata, SkillSeeder,
+    builtin_skill_root, ConsolidationPipeline, ConsolidationWorker, DocType, EpisodicStore,
+    EpisodicStoreConfig, HybridSkillIndex, LightweightLLM, MemoryLifecycle, PersistentSemanticStore,
+    SemanticMemory, SemanticMetadata, SkillCatalog, SkillCorpusIngestor, SkillRetrievalConfig,
+    SkillRetrievalPipeline,
 };
+use axora_rag::{CandleCrossEncoder, CodeRetrievalPipeline};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,30 +21,97 @@ use crate::CoreConfig;
 pub struct MemoryServices {
     /// Episodic store used by agents and lifecycle workers.
     pub episodic_store: Arc<EpisodicStore>,
-    /// Procedural skill store.
-    pub procedural_store: Arc<ProceduralStore>,
+    /// SQLite catalog for canonical skill documents.
+    pub skill_catalog: Arc<SkillCatalog>,
+    /// End-to-end pull-based retrieval pipeline.
+    pub skill_retrieval: Arc<SkillRetrievalPipeline>,
+    /// Dense code retrieval pipeline.
+    pub code_retrieval: Arc<CodeRetrievalPipeline>,
     /// Persistent semantic store for synced docs and retrieved knowledge.
     pub semantic_store: Arc<PersistentSemanticStore>,
 }
 
 impl MemoryServices {
-    /// Create runtime-managed memory services and seed default skills on first run.
+    /// Create runtime-managed memory services and sync the built-in skill corpus.
     pub async fn new(config: &CoreConfig) -> anyhow::Result<Self> {
         let episodic_path = config.database_path.with_extension("episodic.db");
         let episodic_store =
             EpisodicStore::new(EpisodicStoreConfig::persistent(&episodic_path.display().to_string()))
                 .await?;
-        let procedural_store = ProceduralStore::new(&config.skills_root).await?;
-        let semantic_store = PersistentSemanticStore::new(&config.semantic_store_path, 384)
-            .map_err(anyhow::Error::msg)?;
-
-        SkillSeeder::seed_defaults(&procedural_store, &config.database_path)
+        let skill_catalog = SkillCatalog::new(config.skill_index_root.join("skill-catalog.db"))?;
+        SkillCorpusIngestor::sync_builtin_skills(&skill_catalog, builtin_skill_root())
             .await
+            .map_err(anyhow::Error::msg)?;
+        let dual_store = match config.retrieval.backend {
+            axora_indexing::VectorBackendKind::Qdrant => DualVectorStore::new_qdrant(
+                &config.retrieval.qdrant_url,
+                config.retrieval.code.collection_spec(),
+                config.retrieval.skills.collection_spec(),
+            )
+            .await
+            .map_err(anyhow::Error::msg)?,
+            axora_indexing::VectorBackendKind::SqliteVec => DualVectorStore::new_sqlite(
+                &config.retrieval.sqlite_path,
+                config.retrieval.code.collection_spec(),
+                config.retrieval.skills.collection_spec(),
+            )
+            .map_err(anyhow::Error::msg)?,
+        };
+        let skill_embedder = Arc::new(
+            BgeSkillEmbedder::new(config.retrieval.skills.embedding_config())
+                .map_err(anyhow::Error::msg)?,
+        );
+        let code_embedder = Arc::new(
+            JinaCodeEmbedder::new(config.retrieval.code.embedding_config())
+                .map_err(anyhow::Error::msg)?,
+        );
+        let skill_config = SkillRetrievalConfig {
+            corpus_root: config.retrieval.skills.corpus_root.clone(),
+            catalog_db_path: config.retrieval.skills.catalog_db_path.clone(),
+            dense_backend: config.retrieval.backend,
+            dense_store_path: config.retrieval.sqlite_path.clone(),
+            qdrant_url: config.retrieval.qdrant_url.clone(),
+            dense_collection: config.retrieval.skills.collection_spec(),
+            embedding: config.retrieval.skills.embedding_config(),
+            bm25_dir: config.retrieval.skills.bm25_dir.clone(),
+            skill_token_budget: config.retrieval.skills.token_budget,
+            dense_limit: 64,
+            bm25_limit: 64,
+        };
+        let skill_index = Arc::new(
+            HybridSkillIndex::with_components(
+                dual_store.skill_collection(),
+                skill_embedder,
+                TantivySkillIndex::new(&skill_config.bm25_dir).map_err(anyhow::Error::msg)?,
+            )
+            .map_err(anyhow::Error::msg)?,
+        );
+        let skill_retrieval: SkillRetrievalPipeline<HybridSkillIndex, CandleCrossEncoder> =
+            SkillRetrievalPipeline::with_components(
+            skill_config.clone(),
+            skill_catalog.clone(),
+            SkillCorpusIngestor::new(&skill_config.corpus_root),
+            skill_index,
+            CandleCrossEncoder::new().map_err(anyhow::Error::msg)?,
+        )
+        .map_err(anyhow::Error::msg)?;
+        let code_retrieval = Arc::new(CodeRetrievalPipeline::new(
+            dual_store.code_collection(),
+            code_embedder,
+            CandleCrossEncoder::new().map_err(anyhow::Error::msg)?,
+        ));
+        skill_retrieval
+            .sync_if_needed()
+            .await
+            .map_err(anyhow::Error::msg)?;
+        let semantic_store = PersistentSemanticStore::new(&config.semantic_store_path, 384)
             .map_err(anyhow::Error::msg)?;
 
         Ok(Self {
             episodic_store: Arc::new(episodic_store),
-            procedural_store: Arc::new(procedural_store),
+            skill_catalog: Arc::new(skill_catalog),
+            skill_retrieval: Arc::new(skill_retrieval),
+            code_retrieval,
             semantic_store: Arc::new(semantic_store),
         })
     }
@@ -90,7 +160,7 @@ impl MemoryServices {
         });
 
         let episodic_path = config.database_path.with_extension("episodic.db");
-        let procedural_root = config.skills_root.clone();
+        let skill_catalog_path = config.skill_index_root.join("skill-catalog.db");
         let interval = Duration::from_secs(config.pruning_interval_secs.max(60));
         let consolidation_handle = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_current_thread()
@@ -109,17 +179,17 @@ impl MemoryServices {
                         return;
                     }
                 };
-                let procedural_store = match ProceduralStore::new(&procedural_root).await {
-                    Ok(store) => store,
+                let skill_catalog = match SkillCatalog::new(skill_catalog_path) {
+                    Ok(catalog) => catalog,
                     Err(err) => {
-                        error!("Failed to start consolidation procedural store: {}", err);
+                        error!("Failed to open skill catalog: {}", err);
                         return;
                     }
                 };
 
                 let pipeline = ConsolidationPipeline::new(
                     episodic_store,
-                    procedural_store,
+                    skill_catalog,
                     LightweightLLM::new("claude-haiku"),
                 );
                 let worker = ConsolidationWorker::new(pipeline, interval);
@@ -219,35 +289,33 @@ impl DocSyncService {
     /// Start the periodic doc sync task.
     pub fn start(config: CoreConfig) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("doc-sync runtime");
-            runtime.block_on(async move {
-                let mut service = match DocSyncService::new(&config) {
-                    Ok(service) => service,
-                    Err(err) => {
-                        error!("Failed to initialize doc sync service: {}", err);
-                        return;
-                    }
-                };
-                let interval = Duration::from_secs(config.doc_sync_interval_secs);
-                loop {
-                    if let Err(err) = service.sync_once() {
-                        error!("Doc sync iteration failed: {}", err);
-                    }
-                    tokio::time::sleep(interval).await;
+            let mut service = match Self::new(&config) {
+                Ok(service) => service,
+                Err(err) => {
+                    error!("Failed to initialize doc sync service: {}", err);
+                    return;
                 }
-            });
+            };
+            loop {
+                if let Err(err) = service.sync_once() {
+                    error!("Doc sync iteration failed: {}", err);
+                }
+                std::thread::sleep(Duration::from_secs(config.doc_sync_interval_secs));
+            }
         })
     }
 }
 
-fn embed_text(text: &str, dim: usize) -> Vec<f32> {
-    let mut vector = vec![0.0; dim];
-    for (idx, byte) in text.bytes().enumerate() {
-        let bucket = idx % dim;
-        vector[bucket] += (byte as f32) / 255.0;
+fn embed_text(content: &str, dim: usize) -> Vec<f32> {
+    let mut embedding = vec![0.0f32; dim];
+    for (index, byte) in content.bytes().enumerate() {
+        embedding[index % dim] += byte as f32 / 255.0;
     }
-    vector
+    let norm = embedding.iter().map(|value| value * value).sum::<f32>().sqrt();
+    if norm > 0.0 {
+        for value in &mut embedding {
+            *value /= norm;
+        }
+    }
+    embedding
 }

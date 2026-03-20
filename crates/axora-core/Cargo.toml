@@ -13,9 +13,11 @@ axora-proto.workspace = true
 axora-storage.workspace = true
 axora-agents.workspace = true
 axora-docs.workspace = true
+axora-embeddings.workspace = true
 axora-indexing.workspace = true
 axora-mcp-server.workspace = true
 axora-memory.workspace = true
+axora-rag = { path = "../axora-rag" }
 prost-types.workspace = true
 
 tokio.workspace = true
