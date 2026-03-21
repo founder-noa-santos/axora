@@ -1,0 +1,48 @@
+[package]
+name = "openakta-rag"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "RAG pipeline for OPENAKTA with hybrid retrieval"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Internal
+openakta-indexing = { path = "../openakta-indexing" }
+openakta-embeddings = { path = "../openakta-embeddings" }
+
+# Local inference
+candle-core.workspace = true
+candle-transformers.workspace = true
+candle-nn.workspace = true
+
+# Full-text search
+tantivy = "0.22"
+
+# Async
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Utilities
+tracing.workspace = true
+async-trait = "0.1"
+once_cell.workspace = true
+parking_lot.workspace = true
+tokenizers = "0.19"
+
+[dev-dependencies]
+tokio-test.workspace = true
+criterion.workspace = true
+tempfile = "3.10"

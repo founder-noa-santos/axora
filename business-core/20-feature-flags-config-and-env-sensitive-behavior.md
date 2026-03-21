@@ -6,7 +6,7 @@ Explain how configuration and environment currently shape backend behavior.
 
 ## Executive Summary
 
-AXORA’s behavior today is materially shaped by runtime config rather than by a large formal feature-flag system. CoreConfig controls the daemon/server process, while coordinator config controls workspace root, provider kind, model, retry budget, timeout, retrieval token budget, and graph retrieval toggles. Environment sensitivity exists through bind settings, debug logging, filesystem paths, and provider/runtime selection.
+OPENAKTA’s behavior today is materially shaped by runtime config rather than by a large formal feature-flag system. CoreConfig controls the daemon/server process, while coordinator config controls workspace root, provider kind, model, retry budget, timeout, retrieval token budget, and graph retrieval toggles. Environment sensitivity exists through bind settings, debug logging, filesystem paths, and provider/runtime selection.
 
 ## Confirmed Current State
 
@@ -47,10 +47,10 @@ AXORA’s behavior today is materially shaped by runtime config rather than by a
 
 ## Implementation Evidence
 
-- `crates/axora-core/src/config.rs`
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `axora.example.toml`
+- `crates/openakta-core/src/config.rs`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `openakta.example.toml`
 
 ## Business Meaning
 

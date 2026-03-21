@@ -1,17 +1,17 @@
-# axora-logger
+# openakta-logger
 
-Canonical AXORA Wide Event SDK for Python.
+Canonical OPENAKTA Wide Event SDK for Python.
 
 ## Install
 
 ```bash
-pip install axora-logger
+pip install openakta-logger
 ```
 
 ## Usage
 
 ```python
-from axora_logger import Logger, ConsoleSink
+from openakta_logger import Logger, ConsoleSink
 
 logger = Logger(
     service="my-api",

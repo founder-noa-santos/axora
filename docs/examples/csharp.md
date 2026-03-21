@@ -1,8 +1,8 @@
 # C# Example
 
 ```csharp
-using Axora.Logger;
-using Axora.Logger.Sinks;
+using Openakta.Logger;
+using Openakta.Logger.Sinks;
 
 var logger = new LoggerBuilder()
     .Service("billing-api")

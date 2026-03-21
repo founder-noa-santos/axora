@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 27 (Memory Architecture)  
-**File:** `crates/axora-memory/src/episodic_store.rs`  
+**File:** `crates/openakta-memory/src/episodic_store.rs`  
 **Priority:** HIGH (chronological experience logging)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ R-14 research provides CRITICAL implementation details:
 
 ### 1. Create episodic_store.rs
 
-**File:** `crates/axora-memory/src/episodic_store.rs`
+**File:** `crates/openakta-memory/src/episodic_store.rs`
 
 **Core Structure:**
 ```rust
@@ -165,7 +165,7 @@ impl EpisodicStore {
 
 ### 2. Create Database Migration
 
-**File:** `crates/axora-memory/migrations/episodic/0001_episodic_memories.sql`
+**File:** `crates/openakta-memory/migrations/episodic/0001_episodic_memories.sql`
 
 ```sql
 -- Episodic memories table
@@ -192,7 +192,7 @@ ON episodic_memories(session_id, turn_number);
 
 ### 3. Integrate with ReAct Loops
 
-**File:** `crates/axora-agents/src/react.rs` (UPDATE)
+**File:** `crates/openakta-agents/src/react.rs` (UPDATE)
 
 ```rust
 // Add to existing DualThreadReactAgent
@@ -259,16 +259,16 @@ impl DualThreadReactAgent {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-memory/src/episodic_store.rs` (NEW)
-- `crates/axora-memory/migrations/episodic/0001_episodic_memories.sql` (NEW)
+- `crates/openakta-memory/src/episodic_store.rs` (NEW)
+- `crates/openakta-memory/migrations/episodic/0001_episodic_memories.sql` (NEW)
 
 **Update:**
-- `crates/axora-agents/src/react.rs` (integrate episodic logging)
+- `crates/openakta-agents/src/react.rs` (integrate episodic logging)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-indexing/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's other work)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's other work)
 
 ---
 

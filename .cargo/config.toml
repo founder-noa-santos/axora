@@ -1,0 +1,14 @@
+# Project-local Cargo settings and aliases (official toolchain only).
+
+[alias]
+# Match CI quality gates (see `.github/workflows/rust-ci.yml`).
+fmt-check = "fmt --all -- --check"
+lint = "clippy --workspace --all-targets --all-features --locked -- -D warnings"
+check-all = "check --workspace --all-targets --all-features --locked"
+test-all = "test --workspace --all-features --locked"
+# Run ignored/slow tests (worker pool + heavy executor scenarios).
+test-slow = "test --workspace --all-features --locked -- --ignored"
+
+[build]
+# Incremental is default for dev; explicit for clarity in team docs.
+incremental = true

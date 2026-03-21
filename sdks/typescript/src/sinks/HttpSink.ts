@@ -9,12 +9,12 @@ export class HttpSink implements Sink {
   private readonly timeoutMs: number;
 
   constructor(options: HttpSinkOptions = {}) {
-    const resolvedUrl = options.url ?? process.env.AXORA_SINK_URL;
+    const resolvedUrl = options.url ?? process.env.OPENAKTA_SINK_URL;
     if (!resolvedUrl) {
-      throw new Error('HttpSink requires a url option or AXORA_SINK_URL');
+      throw new Error('HttpSink requires a url option or OPENAKTA_SINK_URL');
     }
 
-    const token = options.token ?? process.env.AXORA_SINK_TOKEN;
+    const token = options.token ?? process.env.OPENAKTA_SINK_TOKEN;
     this.url = resolvedUrl;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.headers = {

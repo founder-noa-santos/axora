@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 24 (Implementation)  
-**File:** `crates/axora-indexing/src/repository_map.rs`  
+**File:** `crates/openakta-indexing/src/repository_map.rs`  
 **Priority:** CRITICAL (achieves 90% token reduction)  
 **Estimated Tokens:** ~120K output  
 
@@ -27,7 +27,7 @@ Competitive analysis provides CRITICAL implementation details:
 
 ### 1. Create repository_map.rs
 
-**File:** `crates/axora-indexing/src/repository_map.rs`
+**File:** `crates/openakta-indexing/src/repository_map.rs`
 
 **Core Structure:**
 ```rust
@@ -170,7 +170,7 @@ impl RepositoryMapper {
 
 ### 2. Integrate with ContextManager
 
-**File:** `crates/axora-cache/src/context.rs` (UPDATE)
+**File:** `crates/openakta-cache/src/context.rs` (UPDATE)
 
 ```rust
 // Add to existing ContextManager
@@ -216,7 +216,7 @@ impl ContextManager {
 
 ### 3. Add tree-sitter Dependencies
 
-**File:** `crates/axora-indexing/Cargo.toml` (UPDATE)
+**File:** `crates/openakta-indexing/Cargo.toml` (UPDATE)
 
 ```toml
 [dependencies]
@@ -233,16 +233,16 @@ walkdir = "2.4"
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-indexing/src/repository_map.rs` (NEW)
+- `crates/openakta-indexing/src/repository_map.rs` (NEW)
 
 **Update:**
-- `crates/axora-indexing/src/lib.rs` (add module export)
-- `crates/axora-indexing/Cargo.toml` (add tree-sitter deps)
-- `crates/axora-cache/src/context.rs` (integrate repo map)
+- `crates/openakta-indexing/src/lib.rs` (add module export)
+- `crates/openakta-indexing/Cargo.toml` (add tree-sitter deps)
+- `crates/openakta-cache/src/context.rs` (integrate repo map)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 
@@ -298,7 +298,7 @@ fn test_context_manager_integration() { }
 
 **⚠️ CRITICAL SPRINT: This achieves the 90% token reduction target.**
 
-**Priority: CRITICAL — core differentiator for AXORA.**
+**Priority: CRITICAL — core differentiator for OPENAKTA.**
 
 **Dependencies:**
 - None (can start independently)

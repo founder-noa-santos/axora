@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Inter-Agent Communication for Multi-Agent AI Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system where multiple LLM agents collaborate on software development tasks. Agents need to communicate efficiently, share context, and coordinate work. We need SCIENTIFIC-LEVEL understanding of communication protocols. This research must be production-grade.
+I'm building OPENAKTA, a multi-agent AI coding system where multiple LLM agents collaborate on software development tasks. Agents need to communicate efficiently, share context, and coordinate work. We need SCIENTIFIC-LEVEL understanding of communication protocols. This research must be production-grade.
 
 ## Core Research Questions
 
@@ -377,7 +377,7 @@ Save research findings in `research/findings/inter-agent-communication/`:
 **Description:** ...
 **Source:** [Link]
 **Confidence:** High/Medium/Low
-**Implication for AXORA:** ...
+**Implication for OPENAKTA:** ...
 
 ## Recommended Protocol Stack
 

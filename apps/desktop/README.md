@@ -1,12 +1,12 @@
-# AXORA Desktop
+# OPENAKTA Desktop
 
-Electron owns the desktop shell. Next.js owns the renderer. React components talk only to the typed preload bridge exposed as `window.axoraDesktop`.
+Electron owns the desktop shell. Next.js owns the renderer. React components talk only to the typed preload bridge exposed as `window.openaktaDesktop`.
 
 ## Local development
 
 ```bash
 pnpm install
-pnpm --filter @axora/desktop dev
+pnpm --filter @openakta/desktop dev
 ```
 
 This starts:
@@ -18,11 +18,11 @@ This starts:
 ## Quality checks
 
 ```bash
-pnpm --filter @axora/desktop lint
-pnpm --filter @axora/desktop typecheck
-pnpm --filter @axora/desktop test
-pnpm --filter @axora/desktop build
-pnpm --filter @axora/desktop package
+pnpm --filter @openakta/desktop lint
+pnpm --filter @openakta/desktop typecheck
+pnpm --filter @openakta/desktop test
+pnpm --filter @openakta/desktop build
+pnpm --filter @openakta/desktop package
 ```
 
 ## Structure

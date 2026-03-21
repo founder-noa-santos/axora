@@ -1,0 +1,57 @@
+[package]
+name = "openakta-agents"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Agent framework for OPENAKTA"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Internal
+openakta-proto.workspace = true
+prost.workspace = true
+openakta-indexing.workspace = true
+openakta-cache.workspace = true
+openakta-memory.workspace = true
+openakta-rag = { path = "../openakta-rag" }
+
+# Async
+tokio.workspace = true
+async-nats.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true
+secrecy.workspace = true
+
+# Utilities
+tracing.workspace = true
+uuid.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+blake3.workspace = true
+prost-types.workspace = true
+tonic.workspace = true
+chrono.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true
+openakta-cache.workspace = true
+openakta-docs.workspace = true
+openakta-mcp-server = { path = "../openakta-mcp-server" }
+tempfile = "3.10"
+tracing-subscriber.workspace = true
+tokio-stream = { workspace = true, features = ["net"] }

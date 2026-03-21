@@ -6,7 +6,7 @@ Show where the most reliable business and operational truth lives in the codebas
 
 ## Executive Summary
 
-The fastest way to understand AXORA is to start with the daemon entry point, the protobuf contract, the V2 coordinator, patch protocol, provider layer, cache/context infrastructure, and indexing subsystem. Older docs and business-rule files are useful mainly as historical context and should not be treated as authoritative without code support.
+The fastest way to understand OPENAKTA is to start with the daemon entry point, the protobuf contract, the V2 coordinator, patch protocol, provider layer, cache/context infrastructure, and indexing subsystem. Older docs and business-rule files are useful mainly as historical context and should not be treated as authoritative without code support.
 
 ## Confirmed Current State
 
@@ -14,15 +14,18 @@ The fastest way to understand AXORA is to start with the daemon entry point, the
 
 | Area | Primary paths |
 | --- | --- |
-| Daemon and bootstrap | `crates/axora-daemon/src/main.rs`, `crates/axora-core/src/config.rs` |
-| gRPC/API contract | `proto/collective/v1/core.proto`, `crates/axora-core/src/server.rs` |
-| Runtime orchestration | `crates/axora-agents/src/coordinator/v2.rs`, `crates/axora-agents/src/decomposer.rs`, `crates/axora-agents/src/communication.rs` |
-| Diff/patch safety | `crates/axora-agents/src/patch_protocol.rs`, `crates/axora-agents/src/result_contract.rs` |
-| Provider/model boundary | `crates/axora-agents/src/provider.rs` |
-| Context and blackboard | `crates/axora-cache/src/blackboard/v2.rs`, `crates/axora-cache/src/toon.rs`, `crates/axora-cache/src/prefix_cache.rs` |
-| Indexing and retrieval | `crates/axora-indexing/src/scip.rs`, `crates/axora-indexing/src/influence.rs`, `crates/axora-indexing/src/merkle.rs`, `crates/axora-indexing/src/task_queue.rs`, `crates/axora-agents/src/retrieval.rs` |
-| Persistence schema | `crates/axora-storage/migrations/0001_init.sql`, `crates/axora-indexing/migrations/0002_task_queue.sql` |
-| Runtime tests | `crates/axora-agents/tests/coordinator_v2.rs`, `crates/axora-core/tests/integration.rs` |
+| Daemon and bootstrap | `crates/openakta-daemon/src/main.rs`, `crates/openakta-core/src/config.rs` |
+| gRPC/API contract | `proto/collective/v1/core.proto`, `crates/openakta-core/src/server.rs` |
+| Runtime orchestration | `crates/openakta-agents/src/coordinator/v2.rs`, `crates/openakta-agents/src/decomposer.rs`, `crates/openakta-agents/src/communication.rs` |
+| Diff/patch safety | `crates/openakta-agents/src/patch_protocol.rs`, `crates/openakta-agents/src/result_contract.rs` |
+| Provider configuration | `crates/openakta-core/src/config_resolve.rs`, `crates/openakta-agents/src/provider_transport.rs` |
+| Model registry | `crates/openakta-agents/src/model_registry/mod.rs`, `crates/openakta-agents/src/provider_registry.rs` |
+| Routing logic | `crates/openakta-agents/src/routing/mod.rs`, `crates/openakta-agents/src/token_budget.rs` |
+| Secret resolution | `crates/openakta-core/src/config_resolve.rs::resolve_secret_ref` |
+| Context and blackboard | `crates/openakta-cache/src/blackboard/v2.rs`, `crates/openakta-cache/src/toon.rs`, `crates/openakta-cache/src/prefix_cache.rs` |
+| Indexing and retrieval | `crates/openakta-indexing/src/scip.rs`, `crates/openakta-indexing/src/influence.rs`, `crates/openakta-indexing/src/merkle.rs`, `crates/openakta-indexing/src/task_queue.rs`, `crates/openakta-agents/src/retrieval.rs` |
+| Persistence schema | `crates/openakta-storage/migrations/0001_init.sql`, `crates/openakta-indexing/migrations/0002_task_queue.sql` |
+| Runtime tests | `crates/openakta-agents/tests/coordinator_v2.rs`, `crates/openakta-core/tests/integration.rs` |
 
 ## Detailed Breakdown
 
@@ -31,17 +34,17 @@ The fastest way to understand AXORA is to start with the daemon entry point, the
 Start with:
 
 1. `proto/collective/v1/core.proto`
-2. `crates/axora-agents/src/coordinator/v2.rs`
-3. `crates/axora-agents/src/patch_protocol.rs`
-4. `crates/axora-agents/src/provider.rs`
+2. `crates/openakta-agents/src/coordinator/v2.rs`
+3. `crates/openakta-agents/src/patch_protocol.rs`
+4. `crates/openakta-agents/src/provider.rs`
 
 ### Where to learn the state model
 
 Look at:
 
-- `crates/axora-storage/migrations/0001_init.sql`
-- `crates/axora-indexing/src/task_queue.rs`
-- `crates/axora-cache/src/blackboard/v2.rs`
+- `crates/openakta-storage/migrations/0001_init.sql`
+- `crates/openakta-indexing/src/task_queue.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
 
 ### Where not to start
 
@@ -57,7 +60,7 @@ Avoid starting with:
 
 ## Business Meaning
 
-This map reduces onboarding time for senior contributors and protects the team from building on stale assumptions. AXORA’s current truth is distributed across runtime crates, not concentrated in business docs.
+This map reduces onboarding time for senior contributors and protects the team from building on stale assumptions. OPENAKTA’s current truth is distributed across runtime crates, not concentrated in business docs.
 
 ## Open Ambiguities
 

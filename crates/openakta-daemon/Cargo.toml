@@ -1,0 +1,41 @@
+[package]
+name = "openakta-daemon"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "OPENAKTA daemon executable"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "openakta-daemon"
+path = "src/main.rs"
+
+[dependencies]
+openakta-proto.workspace = true
+openakta-storage.workspace = true
+openakta-core.workspace = true
+openakta-docs.workspace = true
+openakta-indexing.workspace = true
+openakta-mcp-server.workspace = true
+openakta-memory.workspace = true
+openakta-agents = { path = "../openakta-agents" }
+
+tokio.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+clap = { version = "4.4", features = ["derive", "env"] }

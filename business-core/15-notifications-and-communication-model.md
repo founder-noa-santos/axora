@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Describe how AXORA currently communicates state, progress, and results across the backend.
+Describe how OPENAKTA currently communicates state, progress, and results across the backend.
 
 ## Executive Summary
 
-AXORA’s communication model is based on typed protobuf messages, in-process communication helpers, gRPC message streaming, and blackboard-style publication/subscription. Notifications are primarily machine-to-machine signals about task assignments, progress, blockers, workflow transitions, and results. There is no meaningful end-user notification system such as email or SMS in the backend.
+OPENAKTA’s communication model is based on typed protobuf messages, in-process communication helpers, gRPC message streaming, and blackboard-style publication/subscription. Notifications are primarily machine-to-machine signals about task assignments, progress, blockers, workflow transitions, and results. There is no meaningful end-user notification system such as email or SMS in the backend.
 
 ## Confirmed Current State
 
@@ -48,14 +48,14 @@ Blackboard V2 turns state publication into diff-aware subscriber updates. This i
 ## Implementation Evidence
 
 - `proto/collective/v1/core.proto`
-- `crates/axora-core/src/server.rs`
-- `crates/axora-agents/src/communication.rs`
-- `crates/axora-cache/src/blackboard/v2.rs`
-- `crates/axora-cache/src/blackboard/v2_pubsub.rs`
+- `crates/openakta-core/src/server.rs`
+- `crates/openakta-agents/src/communication.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
+- `crates/openakta-cache/src/blackboard/v2_pubsub.rs`
 
 ## Business Meaning
 
-Communication in AXORA is about coordination fidelity, not user messaging. That reinforces the view that today’s backend is an execution platform whose “notifications” are internal orchestration signals.
+Communication in OPENAKTA is about coordination fidelity, not user messaging. That reinforces the view that today’s backend is an execution platform whose “notifications” are internal orchestration signals.
 
 ## Open Ambiguities
 

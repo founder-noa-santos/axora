@@ -40,12 +40,12 @@ There is no real tenant or account lifecycle in the backend today. The repositor
 
 ## Implementation Evidence
 
-- `crates/axora-storage/migrations/0001_init.sql`
+- `crates/openakta-storage/migrations/0001_init.sql`
 - `proto/collective/v1/core.proto`
-- `crates/axora-core/src/server.rs`
-- `crates/axora-agents/src/task.rs`
-- `crates/axora-indexing/src/task_queue.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
+- `crates/openakta-core/src/server.rs`
+- `crates/openakta-agents/src/task.rs`
+- `crates/openakta-indexing/src/task_queue.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
 
 ## Business Meaning
 

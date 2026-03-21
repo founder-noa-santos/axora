@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This folder documents the current business core of AXORA as it exists in the repository today. It is intended to give founders, operators, product leads, and senior engineers a durable view of what the company is actually building and enforcing in code.
+This folder documents the current business core of OPENAKTA as it exists in the repository today. It is intended to give founders, operators, product leads, and senior engineers a durable view of what the company is actually building and enforcing in code.
 
 ## Executive Summary
 
-AXORA's implemented business core is a backend platform for orchestrating multi-agent coding work with strict transport contracts, diff-only code modification, local-first context management, and token-cost optimization. The repository contains meaningful infrastructure for agents, orchestration, typed messaging, retrieval, blackboard state, indexing, and provider-bound model execution. It does not yet contain a real customer account system, billing system, or production-grade SaaS tenancy model. Those themes appear in older docs, benchmarks, and synthetic fixtures, but not as current backend truth.
+OPENAKTA's implemented business core is a backend platform for orchestrating multi-agent coding work with strict transport contracts, diff-only code modification, local-first context management, and token-cost optimization. The repository contains meaningful infrastructure for agents, orchestration, typed messaging, retrieval, blackboard state, indexing, and provider-bound model execution. It does not yet contain a real customer account system, billing system, or production-grade SaaS tenancy model. Those themes appear in older docs, benchmarks, and synthetic fixtures, but not as current backend truth.
 
 The documents in this folder were derived primarily from Rust crates, protobuf contracts, daemon/server entry points, storage code, indexing code, validation logic, and tests. Existing Markdown docs, architecture notes, and prompts were used only as secondary evidence and are called out explicitly when they diverge from the implementation.
 
@@ -25,11 +25,11 @@ The repository review prioritized repeated signals over isolated examples. Examp
 
 Confirmed source-of-truth order:
 
-1. Runtime code paths in `crates/axora-agents`, `crates/axora-core`, `crates/axora-cache`, `crates/axora-indexing`, `crates/axora-storage`
+1. Runtime code paths in `crates/openakta-agents`, `crates/openakta-core`, `crates/openakta-cache`, `crates/openakta-indexing`, `crates/openakta-storage`
 2. Protobuf contracts in `proto/collective/v1/core.proto`
-3. Daemon/bootstrap code in `crates/axora-daemon`
+3. Daemon/bootstrap code in `crates/openakta-daemon`
 4. Tests covering runtime behavior
-5. Config structures such as `crates/axora-core/src/config.rs`
+5. Config structures such as `crates/openakta-core/src/config.rs`
 6. Existing docs only where consistent with implementation
 
 ## Confidence Model

@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "axora-logger-otel"
+name = "openakta-logger-otel"
 version = "0.1.0"
-description = "AXORA Wide Event OpenTelemetry adapter for Python"
+description = "OPENAKTA Wide Event OpenTelemetry adapter for Python"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = ["axora-logger==0.1.0", "opentelemetry-api>=1.24.0", "opentelemetry-sdk>=1.24.0"]
+dependencies = ["openakta-logger==0.1.0", "opentelemetry-api>=1.24.0", "opentelemetry-sdk>=1.24.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/axora_logger_otel"]
+packages = ["src/openakta_logger_otel"]

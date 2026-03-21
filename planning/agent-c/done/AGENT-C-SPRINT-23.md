@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 23 (Implementation)  
-**File:** `crates/axora-agents/src/aci_formatter.rs`  
+**File:** `crates/openakta-agents/src/aci_formatter.rs`  
 **Priority:** MEDIUM (defends context window)  
 **Estimated Tokens:** ~80K output  
 
@@ -27,7 +27,7 @@ Competitive analysis provides CRITICAL implementation details:
 
 ### 1. Create aci_formatter.rs
 
-**File:** `crates/axora-agents/src/aci_formatter.rs`
+**File:** `crates/openakta-agents/src/aci_formatter.rs`
 
 **Core Structure:**
 ```rust
@@ -127,7 +127,7 @@ impl Default for ACIFormatter {
 
 ### 2. Integrate with ReAct Loops
 
-**File:** `crates/axora-agents/src/react.rs` (UPDATE)
+**File:** `crates/openakta-agents/src/react.rs` (UPDATE)
 
 ```rust
 // Add to existing DualThreadReactAgent
@@ -161,7 +161,7 @@ impl DualThreadReactAgent {
 
 ### 3. Add Configuration
 
-**File:** `crates/axora-agents/src/aci_formatter.rs` (add to existing)
+**File:** `crates/openakta-agents/src/aci_formatter.rs` (add to existing)
 
 ```rust
 /// ACI configuration
@@ -193,16 +193,16 @@ impl Default for ACIConfig {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-agents/src/aci_formatter.rs` (NEW)
+- `crates/openakta-agents/src/aci_formatter.rs` (NEW)
 
 **Update:**
-- `crates/axora-agents/src/lib.rs` (add module export)
-- `crates/axora-agents/src/react.rs` (integrate formatting)
+- `crates/openakta-agents/src/lib.rs` (add module export)
+- `crates/openakta-agents/src/react.rs` (integrate formatting)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-indexing/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

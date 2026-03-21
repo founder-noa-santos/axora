@@ -1,18 +1,18 @@
-# @axora/logger-posthog
+# @openakta/logger-posthog
 
-PostHog adapter for AXORA Wide Events.
+PostHog adapter for OPENAKTA Wide Events.
 
 ## Install
 
 ```bash
-pnpm add @axora/logger-posthog posthog-node
+pnpm add @openakta/logger-posthog posthog-node
 ```
 
 ## Usage
 
 ```typescript
-import { Logger } from '@axora/logger-core';
-import { PosthogSink } from '@axora/logger-posthog';
+import { Logger } from '@openakta/logger-core';
+import { PosthogSink } from '@openakta/logger-posthog';
 
 const logger = new Logger({
   service: 'my-api',

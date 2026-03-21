@@ -127,7 +127,7 @@ We chose SQLite for local-first storage.
 # Curated sitemap for reasoning engines
 
 # Project Summary
-AXORA - Multi-Agent AI Coding System
+OPENAKTA - Multi-Agent AI Coding System
 
 ## Core Documentation
 - [Architecture](docs/architecture.md)
@@ -241,7 +241,7 @@ pub struct DocHealth {
 }
 ```
 
-**Action:** Update `crates/axora-docs/src/living.rs` with full metrics
+**Action:** Update `crates/openakta-docs/src/living.rs` with full metrics
 
 **Effort:** ~4 hours (expand existing implementation)
 

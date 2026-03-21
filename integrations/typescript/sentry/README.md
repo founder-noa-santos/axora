@@ -1,18 +1,18 @@
-# @axora/logger-sentry
+# @openakta/logger-sentry
 
-Sentry adapter for AXORA Wide Events.
+Sentry adapter for OPENAKTA Wide Events.
 
 ## Install
 
 ```bash
-pnpm add @axora/logger-sentry @sentry/node
+pnpm add @openakta/logger-sentry @sentry/node
 ```
 
 ## Usage
 
 ```typescript
-import { Logger } from '@axora/logger-core';
-import { SentrySink } from '@axora/logger-sentry';
+import { Logger } from '@openakta/logger-core';
+import { SentrySink } from '@openakta/logger-sentry';
 
 const logger = new Logger({
   service: 'my-api',

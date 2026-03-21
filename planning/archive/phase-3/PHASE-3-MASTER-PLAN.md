@@ -18,7 +18,7 @@
 - **Before:** User opens 3 terminals, manages everything manually
 - **After:** User says "implement authentication", Coordinator handles everything
 
-**This is AXORA's KEY DIFFERENTIATOR** — no other framework has true self-orchestration.
+**This is OPENAKTA's KEY DIFFERENTIATOR** — no other framework has true self-orchestration.
 
 ---
 
@@ -84,7 +84,7 @@
 **Insight:** AutoGen (conversational chaos), CrewAI (sequential), LangGraph (deterministic but manual). None have self-orchestration.
 
 **Applied to Phase 3:**
-- AXORA is FIRST with true self-orchestration
+- OPENAKTA is FIRST with true self-orchestration
 - Deterministic routing (not conversational)
 - Automatic decomposition (not manual graph definition)
 
@@ -163,7 +163,7 @@
 - Token budget enforcement
 
 **Deliverables:**
-- `crates/axora-cache/src/compactor.rs`
+- `crates/openakta-cache/src/compactor.rs`
 - `compact(context)` → `CompactContext`
 - 60-80% token reduction
 - 10+ tests
@@ -184,7 +184,7 @@
 - Diff-based push (not full re-send)
 
 **Deliverables:**
-- `crates/axora-cache/src/blackboard/v2.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
 - `subscribe()`, `publish()`, `notify()`
 - Version tracking
 - 10+ tests
@@ -205,7 +205,7 @@
 - User-facing status reports
 
 **Deliverables:**
-- `crates/axora-agents/src/monitor.rs`
+- `crates/openakta-agents/src/monitor.rs`
 - `get_status()` → `StatusReport`
 - Blocker alerts
 - 10+ tests
@@ -232,7 +232,7 @@
 - Auto-restart on failure
 
 **Deliverables:**
-- `crates/axora-agents/src/worker_pool.rs`
+- `crates/openakta-agents/src/worker_pool.rs`
 - `spawn_worker()`, `terminate_worker()`
 - Health check system
 - 10+ tests
@@ -253,7 +253,7 @@
 - Load balancing
 
 **Deliverables:**
-- `crates/axora-agents/src/task_queue.rs`
+- `crates/openakta-agents/src/task_queue.rs`
 - `add_task()`, `get_next()`, `mark_complete()`
 - Dependency graph
 - 10+ tests
@@ -280,7 +280,7 @@
 - Basic dispatch mechanism
 
 **Deliverables:**
-- `crates/axora-agents/src/coordinator/v2.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
 - `Coordinator` struct with worker management
 - `dispatch_task()`, `monitor_progress()`
 - 10+ tests
@@ -303,7 +303,7 @@
 - Critical path calculation
 
 **Deliverables:**
-- `crates/axora-agents/src/decomposer/v2.rs`
+- `crates/openakta-agents/src/decomposer/v2.rs`
 - `decompose(mission)` → `DecomposedMission`
 - Parallel groups, critical path
 - 10+ tests
@@ -324,7 +324,7 @@
 - Flag complex conflicts for user
 
 **Deliverables:**
-- `crates/axora-agents/src/merger.rs`
+- `crates/openakta-agents/src/merger.rs`
 - `merge_results()` → `MergedResult`
 - Conflict detection + resolution
 - 10+ tests
@@ -534,7 +534,7 @@ Priority: CRITICAL
 
 ```
 crates/
-├── axora-agents/
+├── openakta-agents/
 │   ├── src/
 │   │   ├── coordinator/
 │   │   │   └── v2.rs              # C1: Coordinator Core
@@ -545,7 +545,7 @@ crates/
 │   │   ├── task_queue.rs          # B2: Task Queue
 │   │   └── monitor.rs             # A3: Progress Monitoring
 │   │
-├── axora-cache/
+├── openakta-cache/
 │   ├── src/
 │   │   ├── compactor.rs           # A1: Context Compacting
 │   │   └── blackboard/

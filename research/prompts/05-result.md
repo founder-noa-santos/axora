@@ -10,11 +10,11 @@
 
 ## 1. Executive Summary & Primary Recommendation
 
-The landscape for locally-deployable large language models has matured dramatically between 2024 and 2026, with code-specialized models now achieving performance levels that approach or exceed earlier cloud-based alternatives for specific tasks. For AXORA's multi-agent AI coding system, the research establishes that **Tier 2 quality is achievable on consumer hardware**, enabling production-grade local inference with appropriate model selection and optimization.
+The landscape for locally-deployable large language models has matured dramatically between 2024 and 2026, with code-specialized models now achieving performance levels that approach or exceed earlier cloud-based alternatives for specific tasks. For OPENAKTA's multi-agent AI coding system, the research establishes that **Tier 2 quality is achievable on consumer hardware**, enabling production-grade local inference with appropriate model selection and optimization.
 
 ### 1.1 Top-Tier Local Code Models (2025-2026)
 
-Three models emerge as clear leaders for AXORA's deployment, each occupying a distinct position in the quality-speed-hardware trade-off space.
+Three models emerge as clear leaders for OPENAKTA's deployment, each occupying a distinct position in the quality-speed-hardware trade-off space.
 
 #### 1.1.1 Qwen 2.5 Coder 32B — Flagship Choice for Quality-Critical Tasks
 
@@ -32,9 +32,9 @@ The **Qwen 2.5 Coder 32B** represents the current state-of-the-art for open-sour
 | **Context window** | 128K tokens  |
 | **License** | Apache 2.0  |
 
-The model's **128K token context window** enables repository-level understanding, critical for AXORA's multi-file operations. However, the **20GB+ memory requirement** restricts deployment to high-end workstations: M3 Max with 36-48GB unified memory, or RTX 4090 with 24GB VRAM and system RAM fallback. The **6-10 tok/s generation speed on Apple Silicon** is acceptable for non-interactive quality-critical tasks but marginal for real-time workflows.
+The model's **128K token context window** enables repository-level understanding, critical for OPENAKTA's multi-file operations. However, the **20GB+ memory requirement** restricts deployment to high-end workstations: M3 Max with 36-48GB unified memory, or RTX 4090 with 24GB VRAM and system RAM fallback. The **6-10 tok/s generation speed on Apple Silicon** is acceptable for non-interactive quality-critical tasks but marginal for real-time workflows.
 
-The **Apache 2.0 license** permits unrestricted commercial use, eliminating legal barriers for AXORA's distribution. This model serves as AXORA's **quality tier** for complex architectural tasks, debugging, and multi-file refactoring where reasoning depth justifies latency.
+The **Apache 2.0 license** permits unrestricted commercial use, eliminating legal barriers for OPENAKTA's distribution. This model serves as OPENAKTA's **quality tier** for complex architectural tasks, debugging, and multi-file refactoring where reasoning depth justifies latency.
 
 #### 1.1.2 Qwen 2.5 Coder 7B — Balanced Performance Default
 
@@ -54,7 +54,7 @@ The **Qwen 2.5 Coder 7B** achieves the remarkable feat of **matching its 32B sib
 
 Real-world validation by Deepgram demonstrated this model's practical reliability: it successfully implemented functional versions of classic games (Snake, Minesweeper) where larger competitors (Codestral 22B, DeepSeek Coder V2 Lite 16B) produced buggy or non-functional code . This suggests that **benchmark scores do not fully capture coding reliability**—the 7B model's focused architecture may generalize better to iterative development tasks.
 
-The **~4.7GB Q4_K_M footprint** enables deployment on **16GB RAM systems**, covering the majority of developer machines. The **10-15 tok/s on M2** and **~38 tok/s on desktop GPUs** supports responsive interactive workflows. This model serves as AXORA's **default tier** for routine code generation, autocomplete, and rapid iteration.
+The **~4.7GB Q4_K_M footprint** enables deployment on **16GB RAM systems**, covering the majority of developer machines. The **10-15 tok/s on M2** and **~38 tok/s on desktop GPUs** supports responsive interactive workflows. This model serves as OPENAKTA's **default tier** for routine code generation, autocomplete, and rapid iteration.
 
 #### 1.1.3 Llama 3.3 8B — Speed-Optimized Alternative
 
@@ -70,21 +70,21 @@ The **~4.7GB Q4_K_M footprint** enables deployment on **16GB RAM systems**, cove
 
 The **~40 tok/s on M2** and **100-140 tok/s on RTX 4090**—approximately **2.5-3.5× faster than Qwen 7B**—makes this ideal for **latency-critical autocomplete and rapid prototyping**. The 15% quality gap versus Qwen 7B is acceptable where speed dominates. The extensive Llama ecosystem (thousands of fine-tunes, mature tooling) provides operational advantages, though the **Llama License** requires review for commercial restrictions.
 
-This model serves as AXORA's **fast tier** for autocomplete, inline suggestions, and scenarios where sub-100ms response is critical.
+This model serves as OPENAKTA's **fast tier** for autocomplete, inline suggestions, and scenarios where sub-100ms response is critical.
 
-### 1.2 Quality Tier Assessment for AXORA
+### 1.2 Quality Tier Assessment for OPENAKTA
 
 #### 1.2.1 Tier Classification Framework
 
-| Tier | Definition | Representative Models | HumanEval Range | AXORA Suitability |
+| Tier | Definition | Representative Models | HumanEval Range | OPENAKTA Suitability |
 |------|-----------|----------------------|-----------------|-------------------|
 | **Tier 1 (SOTA)** | Cloud frontier | GPT-4o (90.2%), Claude 4 (86%)  | 85-92% | Cloud fallback only |
 | **Tier 2 (Good)** | Production local | Qwen 2.5 Coder 7B/32B, Llama 3.3 8B, Phi-4 14B | 70-88% | **Primary deployment target** |
 | **Tier 3 (Basic)** | Functional limited | Mistral Small 3, Gemma 2, quantized legacy | 60-70% | Edge fallback, autocomplete only |
 
-#### 1.2.2 Acceptability Threshold for AXORA
+#### 1.2.2 Acceptability Threshold for OPENAKTA
 
-AXORA's multi-agent architecture demands **Tier 2 minimum for production deployment**. Analysis of agent functional requirements reveals heterogeneous quality needs:
+OPENAKTA's multi-agent architecture demands **Tier 2 minimum for production deployment**. Analysis of agent functional requirements reveals heterogeneous quality needs:
 
 | Agent Function | Minimum Tier | Preferred Model | Rationale |
 |---------------|-------------|-----------------|-----------|
@@ -112,13 +112,13 @@ DeepSeek's Coder V2 series introduces **Mixture-of-Experts (MoE) architecture** 
 | V2 236B | 236B (21B active) | 72%  | ~120GB (Q4) | 2-4 | Workstation only (48GB+ VRAM) |
 | V2 Lite 16B | 16B | 43%  | ~10GB (Q4_K_M) | 10-15 | Consumer viable |
 
-The **V2 Lite 16B** achieves a "best balance" designation in some evaluations , but its **43% HumanEval lags substantially behind Qwen 2.5 Coder 7B's ~76%**. Real-world testing revealed reliability issues: failure to produce functional game implementations where Qwen 7B succeeded . The **MoE routing complexity** introduces latency variability and tooling constraints that reduce attractiveness for AXORA's default deployment.
+The **V2 Lite 16B** achieves a "best balance" designation in some evaluations , but its **43% HumanEval lags substantially behind Qwen 2.5 Coder 7B's ~76%**. Real-world testing revealed reliability issues: failure to produce functional game implementations where Qwen 7B succeeded . The **MoE routing complexity** introduces latency variability and tooling constraints that reduce attractiveness for OPENAKTA's default deployment.
 
 The **Multi-head Latent Attention (MLA)** mechanism compresses KV cache by 93.3% , offering memory efficiency for long-context scenarios. However, this advantage is offset by ecosystem maturity gaps versus GGUF-based alternatives.
 
 #### 2.1.2 Legacy and Specialized Models
 
-| Model | HumanEval | Status | AXORA Relevance |
+| Model | HumanEval | Status | OPENAKTA Relevance |
 |-------|-----------|--------|-----------------|
 | CodeLlama 34B | ~42%  | Superseded | Legacy compatibility only |
 | StarCoder 2 15B | ~46% | Limited 2025-6 activity | Training transparency, provenance requirements |
@@ -189,7 +189,7 @@ Code generation exhibits **greater quantization sensitivity than conversational 
 
 The **structured nature of programming languages amplifies weight perturbation effects**: bracket mismatches, type errors, and API hallucinations become prevalent below Q4 precision. However, **Q4_K_M maintains ~92% semantic accuracy** for typical coding workflows, with degradation manifesting primarily in complex multi-step reasoning rather than routine pattern completion .
 
-### 3.3 Recommended Configuration for AXORA
+### 3.3 Recommended Configuration for OPENAKTA
 
 | Deployment Scenario | Model | Quantization | Size | Expected Quality |
 |---------------------|-------|--------------|------|------------------|
@@ -218,7 +218,7 @@ Assessment from , , , ,
 
 ### 4.2 Ollama: Recommended Default
 
-Ollama has established itself as the **"Docker for LLMs"**—an abstraction layer that transforms model deployment complexity into simple, reproducible operations . For AXORA, this operational simplicity is decisive.
+Ollama has established itself as the **"Docker for LLMs"**—an abstraction layer that transforms model deployment complexity into simple, reproducible operations . For OPENAKTA, this operational simplicity is decisive.
 
 **Key capabilities:**
 - **Zero-configuration deployment**: `ollama pull qwen2.5-coder:7b` delivers optimized, verified model
@@ -228,7 +228,7 @@ Ollama has established itself as the **"Docker for LLMs"**—an abstraction laye
 
 **Performance characteristics:** Approximately **5-10% overhead versus raw llama.cpp** —acceptable given operational benefits. The overhead derives from API layer and process isolation, not inference inefficiency; token generation uses identical optimized kernels.
 
-**Rust integration** proceeds via `ollama-rs` crate with async/await support, streaming responses, and connection pooling. The service-oriented architecture—AXORA agents communicating with Ollama via local HTTP—mirrors cloud API patterns, facilitating future hybrid deployments.
+**Rust integration** proceeds via `ollama-rs` crate with async/await support, streaming responses, and connection pooling. The service-oriented architecture—OPENAKTA agents communicating with Ollama via local HTTP—mirrors cloud API patterns, facilitating future hybrid deployments.
 
 ### 4.3 Direct llama.cpp Integration
 
@@ -239,13 +239,13 @@ For scenarios requiring **maximum control or <50ms latency**, direct `llama-cpp-
 - Custom scheduling and speculative decoding
 - Embedded deployment without service boundaries
 
-The **~5-10% performance advantage** over Ollama is offset by **substantial operational complexity**: manual model management, cross-platform compilation, and crash isolation become AXORA's responsibility. Recommended for latency-critical paths or environments where external processes are prohibited.
+The **~5-10% performance advantage** over Ollama is offset by **substantial operational complexity**: manual model management, cross-platform compilation, and crash isolation become OPENAKTA's responsibility. Recommended for latency-critical paths or environments where external processes are prohibited.
 
 ### 4.4 Alternative Engines
 
 **MLX** (Apple Machine Learning) achieves **~150% of llama.cpp performance on Apple Silicon** through Metal Performance Shaders and unified memory optimization . However, **platform exclusivity and limited Rust bindings** constrain universal deployment. Evaluate for Apple-dominant deployments willing to maintain parallel code paths.
 
-**vLLM** delivers **3-5× throughput for batched requests** via PagedAttention , but its **GPU-only focus and serving-oriented design** mismatch AXORA's interactive, single-user deployment model. Relevant only for cloud fallback infrastructure or team server scenarios.
+**vLLM** delivers **3-5× throughput for batched requests** via PagedAttention , but its **GPU-only focus and serving-oriented design** mismatch OPENAKTA's interactive, single-user deployment model. Relevant only for cloud fallback infrastructure or team server scenarios.
 
 **Candle** offers **pure Rust implementation** eliminating C++ dependencies, but **~30% performance gap** and limited model support  relegate it to specialized embedded scenarios.
 
@@ -263,7 +263,7 @@ The **~5-10% performance advantage** over Ollama is offset by **substantial oper
 | 32B | 64GB | 32GB | 22GB | **20GB** | 32GB | 64GB |
 | 70B | 140GB | 70GB | 48GB | **40GB** | 64GB | 128GB |
 
-The **"comfortable RAM"** column includes operating system overhead (4-8GB), development tooling (2-4GB), and inference working memory beyond model weights. For AXORA's multi-agent architecture, additional headroom accommodates concurrent model loading and context accumulation.
+The **"comfortable RAM"** column includes operating system overhead (4-8GB), development tooling (2-4GB), and inference working memory beyond model weights. For OPENAKTA's multi-agent architecture, additional headroom accommodates concurrent model loading and context accumulation.
 
 ### 5.2 Token Throughput by Hardware Platform
 
@@ -294,9 +294,9 @@ The **RTX 4090's 24GB VRAM** enables **full 32B model residence without system m
 
 #### 5.2.3 Intel/AMD CPUs
 
-Modern desktop CPUs with **AVX-512 or AMX** achieve **5-15 tok/s for 7B models**—viable for autocomplete and background tasks but marginal for interactive generation. Laptop CPUs typically deliver **2-8 tok/s**, suitable only for lightweight assistance with clear quality-speed trade-offs. CPU-only deployment is **not recommended for AXORA's primary use cases**.
+Modern desktop CPUs with **AVX-512 or AMX** achieve **5-15 tok/s for 7B models**—viable for autocomplete and background tasks but marginal for interactive generation. Laptop CPUs typically deliver **2-8 tok/s**, suitable only for lightweight assistance with clear quality-speed trade-offs. CPU-only deployment is **not recommended for OPENAKTA's primary use cases**.
 
-### 5.3 Minimum Viable Configuration for AXORA
+### 5.3 Minimum Viable Configuration for OPENAKTA
 
 | Tier | Hardware | Model | Quantization | Performance | Experience |
 |------|----------|-------|--------------|-------------|------------|
@@ -313,7 +313,7 @@ The **>10 tok/s threshold** emerges from cognitive research on interactive syste
 
 ### 6.1 Task-Based Model Routing
 
-AXORA's heterogeneous agent workload benefits from **intelligent model selection** matching computational resources to task requirements.
+OPENAKTA's heterogeneous agent workload benefits from **intelligent model selection** matching computational resources to task requirements.
 
 #### 6.1.1 Fast Path: 7B Models for Latency-Critical Tasks
 
@@ -485,12 +485,12 @@ impl EmbeddedEngine {
 | SWE-Bench Verified | Real-world bug fixing | N/A | >40% | Quarterly |
 | Aider | Multi-file editing | >50% | >65% | Quarterly |
 | LiveCodeBench | Competitive programming | >50% | >70% | Quarterly |
-| **Custom AXORA suite** | Agent-specific tasks | Establish baseline | >90% of 7B | Per feature release |
+| **Custom OPENAKTA suite** | Agent-specific tasks | Establish baseline | >90% of 7B | Per feature release |
 
 ### 8.2 Real-World Validation
 
 **Evaluation dataset construction:**
-- **100+ representative agent tasks** covering AXORA's operational domain
+- **100+ representative agent tasks** covering OPENAKTA's operational domain
 - **Multi-language coverage:** Python, JavaScript/TypeScript, Rust, Go, Java
 - **Framework diversity:** Web (React, Django), systems (Axum, Tokio), data processing
 - **Difficulty grading:** Simple (single function), medium (class/module), complex (multi-file architecture)
@@ -548,7 +548,7 @@ impl EmbeddedEngine {
 ### Phase 3: Intelligence (Weeks 9-12)
 - Task-based model router (heuristic → learned)
 - Speculative decoding with 1.5B draft model
-- Custom AXORA benchmark suite establishment
+- Custom OPENAKTA benchmark suite establishment
 - A/B testing infrastructure
 
 **Success criteria:** 90% optimal model selection, 2× speedup on repetitive patterns, validated quality targets

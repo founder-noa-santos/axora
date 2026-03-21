@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Memory & State Management for Multi-Agent AI Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system. Agents need memory - both short-term (conversation context) and long-term (learned knowledge, past experiences). We need SCIENTIFIC-LEVEL understanding of memory architectures for LLM agents. This research must be production-grade.
+I'm building OPENAKTA, a multi-agent AI coding system. Agents need memory - both short-term (conversation context) and long-term (learned knowledge, past experiences). We need SCIENTIFIC-LEVEL understanding of memory architectures for LLM agents. This research must be production-grade.
 
 ## Core Research Questions
 

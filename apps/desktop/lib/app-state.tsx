@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  ReactNode,
+} from "react";
 
 // ============ TYPES ============
 
@@ -38,15 +44,30 @@ export interface AppState {
 // ============ MOCK DATA ============
 
 const MOCK_PROJECTS: Project[] = [
-  { id: "proj-1", name: "axora", path: "~/Projects/axora", icon: "github" },
-  { id: "proj-2", name: "nexus-social", path: "~/Projects/nexus-social", icon: "github" },
-  { id: "proj-3", name: "fluri-v0", path: "~/Projects/fluri-v0", icon: "folder" },
+  {
+    id: "proj-1",
+    name: "openakta",
+    path: "~/Projects/openakta",
+    icon: "github",
+  },
+  {
+    id: "proj-2",
+    name: "nexus-social",
+    path: "~/Projects/nexus-social",
+    icon: "github",
+  },
+  {
+    id: "proj-3",
+    name: "fluri-v0",
+    path: "~/Projects/fluri-v0",
+    icon: "folder",
+  },
 ];
 
 const INITIAL_THREADS: Thread[] = [
   {
     id: "thread-1",
-    title: "axora",
+    title: "openakta",
     projectId: "proj-1",
     messages: [],
     createdAt: Date.now(),
@@ -83,7 +104,7 @@ const MOCK_RESPONSES = [
 function generateMockResponse(userMessage: string): string {
   // Simple keyword-based mock responses
   const lowerMessage = userMessage.toLowerCase();
-  
+
   if (lowerMessage.includes("error") || lowerMessage.includes("bug")) {
     return [
       "I've identified the issue. Let me walk you through the fix:",
@@ -95,8 +116,12 @@ function generateMockResponse(userMessage: string): string {
       "Would you like me to show you the specific code changes?",
     ].join("\n");
   }
-  
-  if (lowerMessage.includes("implement") || lowerMessage.includes("create") || lowerMessage.includes("add")) {
+
+  if (
+    lowerMessage.includes("implement") ||
+    lowerMessage.includes("create") ||
+    lowerMessage.includes("add")
+  ) {
     return [
       "I'll help you implement this feature. Here's my approach:",
       "",
@@ -111,8 +136,12 @@ function generateMockResponse(userMessage: string): string {
       "Shall I proceed with the full implementation?",
     ].join("\n");
   }
-  
-  if (lowerMessage.includes("explain") || lowerMessage.includes("what") || lowerMessage.includes("how")) {
+
+  if (
+    lowerMessage.includes("explain") ||
+    lowerMessage.includes("what") ||
+    lowerMessage.includes("how")
+  ) {
     return [
       "Let me explain this in detail:",
       "",
@@ -127,7 +156,7 @@ function generateMockResponse(userMessage: string): string {
       "Would you like more details on any specific aspect?",
     ].join("\n");
   }
-  
+
   // Default response
   return MOCK_RESPONSES[Math.floor(Math.random() * MOCK_RESPONSES.length)];
 }
@@ -139,13 +168,14 @@ interface AppContextType extends AppState {
   createThread: (projectId?: string) => void;
   selectThread: (threadId: string) => void;
   closeChat: () => void;
-  
+
   // Message actions
   sendMessage: (content: string) => Promise<void>;
-  
+
   // Project actions
+  addProject: (project: Omit<Project, "id">) => string;
   selectProject: (projectId: string) => void;
-  
+
   // Helper actions
   getProjectName: (projectId: string) => string;
 }
@@ -164,90 +194,145 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
 
   // Create new thread
-  const createThread = useCallback((projectId?: string) => {
-    const newProjectId = projectId || state.currentProjectId || MOCK_PROJECTS[0].id;
-    const project = state.projects.find(p => p.id === newProjectId);
-    
-    const newThread: Thread = {
-      id: `thread-${Date.now()}`,
-      title: project?.name || "New thread",
-      projectId: newProjectId,
-      messages: [],
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
+  const createThread = useCallback(
+    (projectId?: string) => {
+      const newProjectId =
+        projectId || state.currentProjectId || MOCK_PROJECTS[0].id;
+      const project = state.projects.find((p) => p.id === newProjectId);
 
-    setState(prev => ({
-      ...prev,
-      threads: [newThread, ...prev.threads],
-      currentThreadId: newThread.id,
-      currentProjectId: newProjectId,
-      isChatOpen: true,
-    }));
-  }, [state.currentProjectId, state.projects]);
+      const newThread: Thread = {
+        id: `thread-${Date.now()}`,
+        title: project?.name || "New thread",
+        projectId: newProjectId,
+        messages: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      setState((prev) => ({
+        ...prev,
+        threads: [newThread, ...prev.threads],
+        currentThreadId: newThread.id,
+        currentProjectId: newProjectId,
+        isChatOpen: true,
+      }));
+    },
+    [state.currentProjectId, state.projects],
+  );
 
   // Select thread
-  const selectThread = useCallback((threadId: string) => {
-    setState(prev => ({
-      ...prev,
-      currentThreadId: threadId,
-      isChatOpen: true,
-    }));
+  const selectThread = useCallback(
+    (threadId: string) => {
+      const thread = state.threads.find((t) => t.id === threadId);
+      setState((prev) => ({
+        ...prev,
+        currentThreadId: threadId,
+        currentProjectId: thread?.projectId ?? prev.currentProjectId,
+        isChatOpen: true,
+      }));
+    },
+    [state.threads],
+  );
+
+  // Add project
+  const addProject = useCallback((project: Omit<Project, "id">) => {
+    const nextId = `proj-${Date.now()}`;
+    let resolvedId = nextId;
+
+    setState((prev) => {
+      const existing = prev.projects.find(
+        (p) => p.path === project.path || p.name === project.name,
+      );
+      if (existing) {
+        resolvedId = existing.id;
+        return {
+          ...prev,
+          currentProjectId: existing.id,
+        };
+      }
+
+      const newProject: Project = {
+        id: nextId,
+        ...project,
+      };
+      resolvedId = newProject.id;
+
+      return {
+        ...prev,
+        projects: [newProject, ...prev.projects],
+        currentProjectId: newProject.id,
+      };
+    });
+
+    return resolvedId;
   }, []);
 
   // Close chat
   const closeChat = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       isChatOpen: false,
     }));
   }, []);
 
   // Send message
-  const sendMessage = useCallback(async (content: string) => {
-    if (!state.currentThreadId) return;
+  const sendMessage = useCallback(
+    async (content: string) => {
+      if (!state.currentThreadId) return;
 
-    // Add user message
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: "user",
-      content,
-      timestamp: Date.now(),
-    };
+      // Add user message
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: "user",
+        content,
+        timestamp: Date.now(),
+      };
 
-    setState(prev => ({
-      ...prev,
-      threads: prev.threads.map(t =>
-        t.id === prev.currentThreadId
-          ? { ...t, messages: [...t.messages, userMessage], updatedAt: Date.now() }
-          : t
-      ),
-    }));
+      setState((prev) => ({
+        ...prev,
+        threads: prev.threads.map((t) =>
+          t.id === prev.currentThreadId
+            ? {
+                ...t,
+                messages: [...t.messages, userMessage],
+                updatedAt: Date.now(),
+              }
+            : t,
+        ),
+      }));
 
-    // Simulate LLM response delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
+      // Simulate LLM response delay
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1000 + Math.random() * 1000),
+      );
 
-    // Generate and add assistant response
-    const assistantMessage: Message = {
-      id: `msg-${Date.now() + 1}`,
-      role: "assistant",
-      content: generateMockResponse(content),
-      timestamp: Date.now(),
-    };
+      // Generate and add assistant response
+      const assistantMessage: Message = {
+        id: `msg-${Date.now() + 1}`,
+        role: "assistant",
+        content: generateMockResponse(content),
+        timestamp: Date.now(),
+      };
 
-    setState(prev => ({
-      ...prev,
-      threads: prev.threads.map(t =>
-        t.id === prev.currentThreadId
-          ? { ...t, messages: [...t.messages, assistantMessage], updatedAt: Date.now() }
-          : t
-      ),
-    }));
-  }, [state.currentThreadId]);
+      setState((prev) => ({
+        ...prev,
+        threads: prev.threads.map((t) =>
+          t.id === prev.currentThreadId
+            ? {
+                ...t,
+                messages: [...t.messages, assistantMessage],
+                updatedAt: Date.now(),
+              }
+            : t,
+        ),
+      }));
+    },
+    [state.currentThreadId],
+  );
 
   // Select project
   const selectProject = useCallback((projectId: string) => {
-    setState(prev => {
+    setState((prev) => {
       // If chat is not open, just change project
       if (!prev.isChatOpen) {
         return {
@@ -255,10 +340,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
           currentProjectId: projectId,
         };
       }
-      
+
       // If chat is open, find or create thread for this project
-      const existingThread = prev.threads.find(t => t.projectId === projectId);
-      
+      const existingThread = prev.threads.find(
+        (t) => t.projectId === projectId,
+      );
+
       if (existingThread) {
         return {
           ...prev,
@@ -268,7 +355,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       } else {
         // Create new thread for this project
-        const project = prev.projects.find(p => p.id === projectId);
+        const project = prev.projects.find((p) => p.id === projectId);
         const newThread: Thread = {
           id: `thread-${Date.now()}`,
           title: project?.name || "New thread",
@@ -277,7 +364,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        
+
         return {
           ...prev,
           threads: [newThread, ...prev.threads],
@@ -290,9 +377,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Get project name helper
-  const getProjectName = useCallback((projectId: string) => {
-    return state.projects.find(p => p.id === projectId)?.name || "Unknown";
-  }, [state.projects]);
+  const getProjectName = useCallback(
+    (projectId: string) => {
+      return state.projects.find((p) => p.id === projectId)?.name || "Unknown";
+    },
+    [state.projects],
+  );
 
   const contextValue: AppContextType = {
     ...state,
@@ -300,14 +390,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectThread,
     closeChat,
     sendMessage,
+    addProject,
     selectProject,
     getProjectName,
   };
 
   return (
-    <AppContext.Provider value={contextValue}>
-      {children}
-    </AppContext.Provider>
+    <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>
   );
 }
 

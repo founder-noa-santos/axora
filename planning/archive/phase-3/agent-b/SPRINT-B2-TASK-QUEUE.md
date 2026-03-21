@@ -24,7 +24,7 @@ Implement task queue with priority-based scheduling, dependency tracking (DAG), 
 
 ### Subagent 1: Priority Scheduler
 **Task:** Implement priority-based task scheduling
-**File:** `crates/axora-agents/src/task_queue/priority_scheduler.rs`
+**File:** `crates/openakta-agents/src/task_queue/priority_scheduler.rs`
 **Deliverables:**
 - `PriorityScheduler` struct
 - `add_task(task, priority)` with priority 0-100
@@ -34,7 +34,7 @@ Implement task queue with priority-based scheduling, dependency tracking (DAG), 
 
 ### Subagent 2: Dependency Tracker (DAG)
 **Task:** Implement dependency tracking with DAG
-**File:** `crates/axora-agents/src/task_queue/dependency_tracker.rs`
+**File:** `crates/openakta-agents/src/task_queue/dependency_tracker.rs`
 **Deliverables:**
 - `DependencyTracker` struct
 - `add_dependency(task_id, depends_on)` creates edge
@@ -44,7 +44,7 @@ Implement task queue with priority-based scheduling, dependency tracking (DAG), 
 
 ### Subagent 3: Load Balancer + Critical Path
 **Task:** Implement load balancing and critical path calculation
-**File:** `crates/axora-agents/src/task_queue/load_balancer.rs`
+**File:** `crates/openakta-agents/src/task_queue/load_balancer.rs`
 **Deliverables:**
 - `LoadBalancer` struct
 - `calculate_critical_path()` returns longest dependency chain
@@ -64,7 +64,7 @@ Implement task queue with priority-based scheduling, dependency tracking (DAG), 
    - Resolve conflicts (priority vs dependency ordering)
 
 2. **Integrate Components:**
-   - Create `crates/axora-agents/src/task_queue.rs` (main module)
+   - Create `crates/openakta-agents/src/task_queue.rs` (main module)
    - Combine scheduler + dependency tracker + load balancer
    - Export unified `TaskQueue` struct
 
@@ -80,7 +80,7 @@ Implement task queue with priority-based scheduling, dependency tracking (DAG), 
    - Test load balancing (even distribution)
 
 5. **Update Documentation:**
-   - Add module to `crates/axora-agents/src/lib.rs`
+   - Add module to `crates/openakta-agents/src/lib.rs`
    - Add task queue examples
 
 ---

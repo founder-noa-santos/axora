@@ -1,3 +1,3 @@
-# com.axora:logger-datadog
+# com.openakta:logger-datadog
 
-Datadog adapter for AXORA Wide Events.
+Datadog adapter for OPENAKTA Wide Events.

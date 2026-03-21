@@ -32,21 +32,21 @@ Successfully implemented Result Merging system for combining outputs from multip
 ## 📦 Deliverables
 
 ### 1. ResultMerger
-**File:** `crates/axora-agents/src/merger.rs`
+**File:** `crates/openakta-agents/src/merger.rs`
 
 - Unified interface for merging multi-worker outputs
 - Three-way merge algorithm for code files
 - Configuration via `MergerConfig`
 
 ### 2. ResultCombiner
-**File:** `crates/axora-agents/src/merger/result_combiner.rs`
+**File:** `crates/openakta-agents/src/merger/result_combiner.rs`
 
 - Combines file changes from multiple workers
 - Merges documentation with deduplication
 - Three-way merge for code with conflict marking
 
 ### 3. ConflictDetector
-**File:** `crates/axora-agents/src/merger/conflict_resolver.rs`
+**File:** `crates/openakta-agents/src/merger/conflict_resolver.rs`
 
 - Detects file overwrite conflicts
 - Detects incompatible changes (overlapping regions)
@@ -54,14 +54,14 @@ Successfully implemented Result Merging system for combining outputs from multip
 - Detects resource conflicts
 
 ### 4. ConflictResolver
-**File:** `crates/axora-agents/src/merger/conflict_resolver.rs`
+**File:** `crates/openakta-agents/src/merger/conflict_resolver.rs`
 
 - Auto-resolves simple conflicts (documentation, non-overlapping)
 - Worker score-based resolution heuristic
 - Escalates complex conflicts to user
 
 ### 5. Tests
-**Location:** `crates/axora-agents/src/merger/`
+**Location:** `crates/openakta-agents/src/merger/`
 
 - 5 tests in `merger.rs`
 - 5 tests in `result_combiner.rs`
@@ -149,7 +149,7 @@ pub fn auto_resolve(conflict: Conflict) -> Option<ResolvedConflict> {
 ## 📚 References
 
 - [Sprint C3 Plan](../../archive/phase-3/agent-c/SPRINT-C3-MERGING.md)
-- [Merger Implementation](../../crates/axora-agents/src/merger.rs)
+- [Merger Implementation](../../crates/openakta-agents/src/merger.rs)
 - [Phase 3 Status](../../archive/phase-3/CURRENT-STATUS.md)
 
 ---

@@ -106,37 +106,37 @@ Priority: CRITICAL (foundation for tripartite memory)
 ## 📋 NEW Memory Architecture Sprints (Agent A)
 
 ### Sprint 26: Semantic Memory Store
-- **File:** `crates/axora-memory/src/semantic_store.rs`
+- **File:** `crates/openakta-memory/src/semantic_store.rs`
 - **Storage:** Vector DB (Qdrant)
 - **Integration:** Living Docs → Semantic Vector Store
 - **Priority:** CRITICAL
 
 ### Sprint 27: Episodic Memory Store
-- **File:** `crates/axora-memory/src/episodic_store.rs`
+- **File:** `crates/openakta-memory/src/episodic_store.rs`
 - **Storage:** SQLite (time-series)
 - **Integration:** ReAct loops → Episodic logging
 - **Priority:** HIGH
 
 ### Sprint 28: Procedural Memory Store
-- **File:** `crates/axora-memory/src/procedural_store.rs`
+- **File:** `crates/openakta-memory/src/procedural_store.rs`
 - **Storage:** File-system (SKILL.md)
 - **Integration:** Task Decomposition → Procedural retrieval
 - **Priority:** CRITICAL
 
 ### Sprint 29: Consolidation Pipeline
-- **File:** `crates/axora-memory/src/consolidation.rs`
+- **File:** `crates/openakta-memory/src/consolidation.rs`
 - **Function:** Episodic → Procedural (learning)
 - **Integration:** Background worker (async)
 - **Priority:** CRITICAL
 
 ### Sprint 30: MemGAS Retrieval
-- **File:** `crates/axora-memory/src/memgas_retriever.rs`
+- **File:** `crates/openakta-memory/src/memgas_retriever.rs`
 - **Function:** GMM clustering + entropy routing
 - **Integration:** Context Manager → MemGAS
 - **Priority:** HIGH
 
 ### Sprint 31: Memory Lifecycle
-- **File:** `crates/axora-memory/src/lifecycle.rs`
+- **File:** `crates/openakta-memory/src/lifecycle.rs`
 - **Function:** Ebbinghaus decay + utility pruning
 - **Integration:** Background pruning worker
 - **Priority:** HIGH

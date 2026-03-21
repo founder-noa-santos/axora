@@ -1,5 +1,5 @@
-appId: dev.axora.desktop
-productName: AXORA
+appId: dev.openakta.desktop
+productName: OPENAKTA
 directories:
   output: release
   buildResources: build

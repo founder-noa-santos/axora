@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "axora-logger-posthog"
+name = "openakta-logger-posthog"
 version = "0.1.0"
-description = "AXORA Wide Event PostHog adapter for Python"
+description = "OPENAKTA Wide Event PostHog adapter for Python"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-dependencies = ["axora-logger==0.1.0", "posthog>=3.0.0"]
+dependencies = ["openakta-logger==0.1.0", "posthog>=3.0.0"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/axora_logger_posthog"]
+packages = ["src/openakta_logger_posthog"]

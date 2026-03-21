@@ -274,7 +274,7 @@ pub struct Coordinator {
 **Updated (Explicit Topology):**
 ```rust
 pub enum CoordinationTopology {
-    /// Centralized (our choice for AXORA)
+    /// Centralized (our choice for OPENAKTA)
     Centralized {
         coordinator: CoordinatorAgent,
         workers: Vec<WorkerAgent>,
@@ -288,14 +288,14 @@ pub enum CoordinationTopology {
         workers: Vec<WorkerAgent>,
     },
     
-    /// Decentralized (NOT recommended for AXORA)
+    /// Decentralized (NOT recommended for OPENAKTA)
     Decentralized {
         agents: Vec<PeerAgent>,
         event_bus: EventBus,
     },
 }
 
-impl AXORA {
+impl OPENAKTA {
     /// We use Centralized + Blackboard (research validates this)
     pub fn new() -> Self {
         Self {

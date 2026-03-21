@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 21 (Implementation)  
-**File:** `crates/axora-cache/src/concurrency.rs`  
+**File:** `crates/openakta-cache/src/concurrency.rs`  
 **Priority:** HIGH (prevents resource starvation)  
 **Estimated Tokens:** ~100K output  
 
@@ -27,7 +27,7 @@ Competitive analysis validates our approach and provides CRITICAL implementation
 
 ### 1. Create concurrency.rs
 
-**File:** `crates/axora-cache/src/concurrency.rs`
+**File:** `crates/openakta-cache/src/concurrency.rs`
 
 **Core Structure:**
 ```rust
@@ -133,7 +133,7 @@ impl ConcurrentExecutor {
 
 ### 2. Integrate with ContextManager
 
-**File:** `crates/axora-cache/src/context.rs` (UPDATE)
+**File:** `crates/openakta-cache/src/context.rs` (UPDATE)
 
 ```rust
 // Add to existing ContextManager
@@ -164,7 +164,7 @@ impl ContextManager {
 
 ### 3. Add Configuration
 
-**File:** `crates/axora-cache/src/concurrency.rs` (add to existing)
+**File:** `crates/openakta-cache/src/concurrency.rs` (add to existing)
 
 ```rust
 /// Concurrency configuration
@@ -196,15 +196,15 @@ impl Default for ConcurrencyConfig {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-cache/src/concurrency.rs` (NEW)
+- `crates/openakta-cache/src/concurrency.rs` (NEW)
 
 **Update:**
-- `crates/axora-cache/src/lib.rs` (add module export)
-- `crates/axora-cache/src/context.rs` (add budget check)
+- `crates/openakta-cache/src/lib.rs` (add module export)
+- `crates/openakta-cache/src/context.rs` (add budget check)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

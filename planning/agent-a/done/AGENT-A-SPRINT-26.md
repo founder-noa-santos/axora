@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 26 (Memory Architecture)  
-**File:** `crates/axora-memory/src/semantic_store.rs`  
+**File:** `crates/openakta-memory/src/semantic_store.rs`  
 **Priority:** CRITICAL (foundation for tripartite memory)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ R-14 research provides CRITICAL implementation details:
 
 ### 1. Create semantic_store.rs
 
-**File:** `crates/axora-memory/src/semantic_store.rs`
+**File:** `crates/openakta-memory/src/semantic_store.rs`
 
 **Core Structure:**
 ```rust
@@ -153,7 +153,7 @@ impl SemanticStore {
 
 ### 2. Integrate with Living Docs
 
-**File:** `crates/axora-docs/src/living.rs` (UPDATE)
+**File:** `crates/openakta-docs/src/living.rs` (UPDATE)
 
 ```rust
 // Add to existing LivingDocs
@@ -199,7 +199,7 @@ impl LivingDocs {
 
 ### 3. Add Embedding Model Integration
 
-**File:** `crates/axora-memory/src/semantic_store.rs` (add to existing)
+**File:** `crates/openakta-memory/src/semantic_store.rs` (add to existing)
 
 ```rust
 /// Embedding model for semantic memory
@@ -234,15 +234,15 @@ pub fn embed(text: &str) -> Vec<f32> {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-memory/src/semantic_store.rs` (NEW)
-- `crates/axora-memory/src/lib.rs` (NEW crate)
+- `crates/openakta-memory/src/semantic_store.rs` (NEW)
+- `crates/openakta-memory/src/lib.rs` (NEW crate)
 
 **Update:**
-- `crates/axora-docs/src/living.rs` (integrate with semantic store)
+- `crates/openakta-docs/src/living.rs` (integrate with semantic store)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-indexing/` (Agent B's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
 
 ---
 

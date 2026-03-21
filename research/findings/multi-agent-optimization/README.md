@@ -35,14 +35,14 @@ multi-agent-optimization/
 1. **Read Research:** [`R-17-MULTI-AGENT-OPTIMIZATION.md`](./R-17-MULTI-AGENT-OPTIMIZATION.md)
 2. **Read Plan:** [`IMPLEMENTATION-PLAN.md#phase-1`](./IMPLEMENTATION-PLAN.md#phase-1-api-integration-week-1)
 3. **Start Sprint C7:** API Client with Prefix Caching
-4. **Implement:** Update `crates/axora-agents/src/api_client.rs`
+4. **Implement:** Update `crates/openakta-agents/src/api_client.rs`
 
 ### For Agent B (Phase 2: Graph-Based Context)
 
 1. **Read Research:** [`R-17-MULTI-AGENT-OPTIMIZATION.md`](./R-17-MULTI-AGENT-OPTIMIZATION.md)
 2. **Read Plan:** [`IMPLEMENTATION-PLAN.md#phase-2`](./IMPLEMENTATION-PLAN.md#phase-2-graph-based-context-week-2)
 3. **Start Sprint B9:** SCIP Indexing (after Local-First RAG complete)
-4. **Implement:** Update `crates/axora-indexing/src/scip.rs`
+4. **Implement:** Update `crates/openakta-indexing/src/scip.rs`
 
 ### For Agent A (Phase 4: Validation)
 
@@ -107,10 +107,10 @@ multi-agent-optimization/
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| PrefixCache | ✅ Implemented | `crates/axora-cache/src/prefix_cache.rs` |
-| Diff | ✅ Implemented | `crates/axora-cache/src/diff.rs` |
-| InfluenceGraph | ✅ Implemented | `crates/axora-indexing/src/influence.rs` |
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` |
+| PrefixCache | ✅ Implemented | `crates/openakta-cache/src/prefix_cache.rs` |
+| Diff | ✅ Implemented | `crates/openakta-cache/src/diff.rs` |
+| InfluenceGraph | ✅ Implemented | `crates/openakta-indexing/src/influence.rs` |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` |
 
 **Key Insight:** This is **integration work**, not greenfield development!
 

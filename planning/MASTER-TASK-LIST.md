@@ -126,15 +126,15 @@ Week 4:                                            │  │  │
 **Tasks:**
 - [ ] Download Jina Code v2 weights from HuggingFace
 - [ ] Convert model to Candle Safetensors format
-- [ ] Implement `JinaEmbedder` struct in `axora-embeddings`
+- [ ] Implement `JinaEmbedder` struct in `openakta-embeddings`
 - [ ] Add CPU-only inference (AVX2 acceleration)
 - [ ] Implement embedding normalization
 - [ ] Add embedding cache (disk-based)
 - [ ] Write benchmarks (target: <25ms per block)
 
 **Deliverables:**
-- `crates/axora-embeddings/src/jina.rs`
-- `crates/axora-embeddings/src/cache.rs`
+- `crates/openakta-embeddings/src/jina.rs`
+- `crates/openakta-embeddings/src/cache.rs`
 - `benches/embed_bench.rs`
 
 **Reference:** `research/findings/local-first-rag/IMPLEMENTATION-PLAN.md#sprint-1`
@@ -157,9 +157,9 @@ Week 4:                                            │  │  │
 - [ ] Add persistence (survive restarts)
 
 **Deliverables:**
-- `crates/axora-rag/src/vector_store.rs`
-- `crates/axora-rag/src/hybrid_search.rs`
-- `crates/axora-rag/src/schema.rs`
+- `crates/openakta-rag/src/vector_store.rs`
+- `crates/openakta-rag/src/hybrid_search.rs`
+- `crates/openakta-rag/src/schema.rs`
 
 **Reference:** `research/findings/local-first-rag/IMPLEMENTATION-PLAN.md#sprint-2`
 
@@ -180,9 +180,9 @@ Week 4:                                            │  │  │
 - [ ] Handle edge cases (malformed code, mixed languages)
 
 **Deliverables:**
-- `crates/axora-indexing/src/chunker.rs`
-- `crates/axora-indexing/src/languages/`
-- `crates/axora-indexing/src/metadata.rs`
+- `crates/openakta-indexing/src/chunker.rs`
+- `crates/openakta-indexing/src/languages/`
+- `crates/openakta-indexing/src/metadata.rs`
 
 **Reference:** `research/findings/local-first-rag/IMPLEMENTATION-PLAN.md#sprint-3`
 
@@ -203,9 +203,9 @@ Week 4:                                            │  │  │
 - [ ] Implement garbage collection
 
 **Deliverables:**
-- `crates/axora-indexing/src/merkle.rs`
-- `crates/axora-indexing/src/watcher.rs`
-- `crates/axora-indexing/src/gc.rs`
+- `crates/openakta-indexing/src/merkle.rs`
+- `crates/openakta-indexing/src/watcher.rs`
+- `crates/openakta-indexing/src/gc.rs`
 
 **Reference:** `research/findings/local-first-rag/IMPLEMENTATION-PLAN.md#sprint-4`
 
@@ -227,9 +227,9 @@ Week 4:                                            │  │  │
 - [ ] Write integration tests
 
 **Deliverables:**
-- `crates/axora-agents/src/api_client.rs`
-- `crates/axora-agents/src/cache_integration.rs`
-- `crates/axora-agents/src/metrics.rs`
+- `crates/openakta-agents/src/api_client.rs`
+- `crates/openakta-agents/src/cache_integration.rs`
+- `crates/openakta-agents/src/metrics.rs`
 
 **Reference:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-c7`
 
@@ -250,9 +250,9 @@ Week 4:                                            │  │  │
 - [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/diff_enforcer.rs`
-- `crates/axora-agents/src/prompts/diff_only.md`
-- `crates/axora-agents/src/converter.rs`
+- `crates/openakta-agents/src/diff_enforcer.rs`
+- `crates/openakta-agents/src/prompts/diff_only.md`
+- `crates/openakta-agents/src/converter.rs`
 
 **Reference:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-c8`
 
@@ -273,9 +273,9 @@ Week 4:                                            │  │  │
 - [ ] Write tests (verify symbol extraction)
 
 **Deliverables:**
-- `crates/axora-indexing/src/scip.rs`
-- `crates/axora-indexing/src/parsers/`
-- `crates/axora-indexing/src/scip.proto`
+- `crates/openakta-indexing/src/scip.rs`
+- `crates/openakta-indexing/src/parsers/`
+- `crates/openakta-indexing/src/scip.proto`
 
 **Reference:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-b9`
 
@@ -297,9 +297,9 @@ Week 4:                                            │  │  │
 - [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-rag/src/graph_retriever.rs`
-- `crates/axora-rag/src/pruning.rs`
-- `crates/axora-rag/src/traversal.rs`
+- `crates/openakta-rag/src/graph_retriever.rs`
+- `crates/openakta-rag/src/pruning.rs`
+- `crates/openakta-rag/src/traversal.rs`
 
 **Reference:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-b10`
 
@@ -320,8 +320,8 @@ Week 4:                                            │  │  │
 - [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/protocol.rs`
-- `crates/axora-agents/src/protocol.proto`
+- `crates/openakta-agents/src/protocol.rs`
+- `crates/openakta-agents/src/protocol.proto`
 
 **Reference:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-c11`
 
@@ -342,8 +342,8 @@ Week 4:                                            │  │  │
 - [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/workflow.rs`
-- `crates/axora-agents/src/state_machine.rs`
+- `crates/openakta-agents/src/workflow.rs`
+- `crates/openakta-agents/src/state_machine.rs`
 
 **Reference:** `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-c12`
 

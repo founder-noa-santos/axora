@@ -1,4 +1,4 @@
-# AXORA Benchmark Plan
+# OPENAKTA Benchmark Plan
 
 ## Goals
 
@@ -68,10 +68,10 @@
 
 ```bash
 # Frame benchmarks
-cargo bench -p axora-core
+cargo bench -p openakta-core
 
 # Storage benchmarks
-cargo bench -p axora-storage
+cargo bench -p openakta-storage
 
 # gRPC load test
 k6 run scripts/grpc-load-test.js

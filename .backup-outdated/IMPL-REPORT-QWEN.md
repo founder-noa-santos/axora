@@ -13,7 +13,7 @@
 **Confidence:** `MEDIUM`
 
 **Summary:**
-The AXORA implementation is materially incomplete against both approved plans. Critical gaps exist in: (1) no actual Provider layer for Anthropic/OpenAI with proper prompt caching, (2) diff-only enforcement exists as types but not as runtime gates, (3) protobuf transport defined but not wired end-to-end in coordinator/dispatcher paths, (4) TOON serializer documented but no evidence of LLM-boundary integration, (5) SCIP/InfluenceGraph modules exist but graph retrieval is not the primary runtime selector. The largest risks are missing runtime enforcement, architectural drift (research documents created instead of code), and missing wiring between defined types and actual execution paths. This audit is based on research/documentation files created during this conversation and known implementation state—not full codebase access.
+The OPENAKTA implementation is materially incomplete against both approved plans. Critical gaps exist in: (1) no actual Provider layer for Anthropic/OpenAI with proper prompt caching, (2) diff-only enforcement exists as types but not as runtime gates, (3) protobuf transport defined but not wired end-to-end in coordinator/dispatcher paths, (4) TOON serializer documented but no evidence of LLM-boundary integration, (5) SCIP/InfluenceGraph modules exist but graph retrieval is not the primary runtime selector. The largest risks are missing runtime enforcement, architectural drift (research documents created instead of code), and missing wiring between defined types and actual execution paths. This audit is based on research/documentation files created during this conversation and known implementation state—not full codebase access.
 
 ---
 
@@ -28,11 +28,11 @@ The AXORA implementation is materially incomplete against both approved plans. C
 - `docs/active_architecture/` — Three architecture documents
 - `planning/MASTER-TASK-LIST.md` — All 12 sprints mapped
 - `planning/agent-*/current_task.md` — Agent assignments
-- `crates/axora-cache/src/` — Known modules: `prefix_cache.rs`, `diff.rs`, `blackboard/v2.rs`
-- `crates/axora-indexing/src/` — Known modules: `influence.rs`, `chunker.rs`, `merkle.rs`
-- `crates/axora-agents/src/` — Known modules: `worker_pool.rs`, `api_client.rs` (placeholder)
-- `crates/axora-embeddings/src/` — Known: `embedder.rs` (pseudo-embeddings, not Jina)
-- `crates/axora-proto/` — Scaffolded, not production-ready
+- `crates/openakta-cache/src/` — Known modules: `prefix_cache.rs`, `diff.rs`, `blackboard/v2.rs`
+- `crates/openakta-indexing/src/` — Known modules: `influence.rs`, `chunker.rs`, `merkle.rs`
+- `crates/openakta-agents/src/` — Known modules: `worker_pool.rs`, `api_client.rs` (placeholder)
+- `crates/openakta-embeddings/src/` — Known: `embedder.rs` (pseudo-embeddings, not Jina)
+- `crates/openakta-proto/` — Scaffolded, not production-ready
 - `apps/desktop/` — Electron + Next.js (not Rust implementation)
 
 **Important Limits:**
@@ -49,19 +49,19 @@ The AXORA implementation is materially incomplete against both approved plans. C
 |--------|-------------|-------------|----------|----------|--------|----------|
 | P1-01 | Diff-only as prerequisite | Plan 1 Summary | Diff-only before Phase 2 | Documented in research, not enforced in runtime | `PARTIAL` | R-17 research exists, no runtime gate found |
 | P1-02 | Prohibit full-file LLM output | Plan 1 Summary | Hard reject, not repair | `DiffEnforcer` type exists, not wired to all publish paths | `PARTIAL` | `diff_enforcer.rs` planned, not confirmed wired |
-| P1-03 | Protobuf for internal transport | Plan 1 Summary | All orchestration via protobuf | `axora-proto` scaffolded, runtime still uses string messaging | `PARTIAL` | Proto definitions exist, end-to-end usage unconfirmed |
+| P1-03 | Protobuf for internal transport | Plan 1 Summary | All orchestration via protobuf | `openakta-proto` scaffolded, runtime still uses string messaging | `PARTIAL` | Proto definitions exist, end-to-end usage unconfirmed |
 | P1-04 | TOON at LLM boundary only | Plan 1 Summary | TOON for model-facing text | TOON documented, no evidence of adapter layer | `MISSING` | Research mentions TOON, no implementation found |
-| P1-05 | Jina for embeddings only | Plan 1 Key Decisions | Jina restricted to RAG layer | `axora-embeddings` uses pseudo-embeddings, not Jina | `INCORRECT` | `embedder.rs` uses hash-based placeholders |
+| P1-05 | Jina for embeddings only | Plan 1 Key Decisions | Jina restricted to RAG layer | `openakta-embeddings` uses pseudo-embeddings, not Jina | `INCORRECT` | `embedder.rs` uses hash-based placeholders |
 | P1-06 | Claude/frontier for reasoning | Plan 1 Key Decisions | Separate provider for code editing | No provider abstraction implemented | `MISSING` | No ProviderClient trait found |
 | P1-07 | MetaGlyph for control plane | Plan 1 Key Decisions | Opcodes for frequent instructions | MetaGlyph documented, not implemented | `MISSING` | Research only, no code |
-| P1-08 | PatchEnvelope in core.proto | Plan 1 Implementation | Typed envelope with task_id, format, patch_text | Proto scaffold exists, envelope structure unconfirmed | `NEEDS VERIFICATION` | `axora-proto` exists but contents unverified |
+| P1-08 | PatchEnvelope in core.proto | Plan 1 Implementation | Typed envelope with task_id, format, patch_text | Proto scaffold exists, envelope structure unconfirmed | `NEEDS VERIFICATION` | `openakta-proto` exists but contents unverified |
 | P1-09 | Output validator at agent runtime | Plan 1 Implementation | Reject full-file outputs | `DiffEnforcer` planned, runtime enforcement unconfirmed | `PARTIAL` | Type exists, gate not confirmed in publish path |
 | P1-10 | Deterministic patch applicator | Plan 1 Implementation | Apply/reject/conflict without LLM | No patch applicator module found | `MISSING` | Not in known crate structure |
 | P1-11 | TOON for retrieval packs | Plan 1 RAG | Structured context serialized to TOON | TOON documented, serializer not found | `MISSING` | No `toon.rs` in known modules |
 | P1-12 | Merkle two-level index | Plan 1 Merkle sync | file_hashes + block_hashes with Blake3 | `merkle.rs` planned, implementation unconfirmed | `NEEDS VERIFICATION` | Referenced in research, code not inspected |
 | P1-13 | Stable BlockId from semantic path | Plan 1 Merkle sync | Not UUID-based | Unconfirmed | `NEEDS VERIFICATION` | Requires code inspection |
 | P1-14 | Persist Merkle state to disk | Plan 1 Merkle sync | Survive restart without full reindex | Unconfirmed | `NEEDS VERIFICATION` | Requires code inspection |
-| P1-15 | MessageType extensions | Plan 1 Public Interfaces | PATCH, PATCH_RESULT, CONTEXT_PACK, VALIDATION_RESULT | Proto scaffold exists, message types unconfirmed | `NEEDS VERIFICATION` | `axora-proto` exists |
+| P1-15 | MessageType extensions | Plan 1 Public Interfaces | PATCH, PATCH_RESULT, CONTEXT_PACK, VALIDATION_RESULT | Proto scaffold exists, message types unconfirmed | `NEEDS VERIFICATION` | `openakta-proto` exists |
 | P1-16 | PatchFormat enum | Plan 1 Public Interfaces | UNIFIED_DIFF_ZERO \| AST_SEARCH_REPLACE | Unconfirmed | `NEEDS VERIFICATION` | Proto definitions not inspected |
 | P1-17 | PatchApplyStatus enum | Plan 1 Public Interfaces | APPLIED \| CONFLICT \| INVALID \| STALE_BASE | Unconfirmed | `NEEDS VERIFICATION` | Proto definitions not inspected |
 | P1-18 | TOON schema for retrieval/AST/symbols | Plan 1 Public Interfaces | Fixed schema for LLM-facing context | No TOON schema found | `MISSING` | Documented but not implemented |
@@ -89,7 +89,7 @@ The AXORA implementation is materially incomplete against both approved plans. C
 | P2-17 | Enforce token budgets at retrieval | Plan 2 Graph retrieval | Not only at prompt assembly | Unconfirmed | `NEEDS VERIFICATION` | Requires runtime inspection |
 | P2-18 | Recall-oriented diagnostics | Plan 2 Graph retrieval | Budget exhausted, dependency omitted | Unconfirmed | `NEEDS VERIFICATION` | Requires diagnostics inspection |
 | P2-19 | Hybrid retriever as secondary | Plan 2 Graph retrieval | Graph pruning as primary | Unconfirmed | `NEEDS VERIFICATION` | Requires retrieval path inspection |
-| P2-20 | Extend proto surface | Plan 2 Transport | Task assignment, progress, result, blocker, workflow | Proto scaffold exists, message types unconfirmed | `PARTIAL` | `axora-proto` exists, contents unverified |
+| P2-20 | Extend proto surface | Plan 2 Transport | Task assignment, progress, result, blocker, workflow | Proto scaffold exists, message types unconfirmed | `PARTIAL` | `openakta-proto` exists, contents unverified |
 | P2-21 | Code results carry validated diffs | Plan 2 Transport | Not free-form negotiation | Unconfirmed | `NEEDS VERIFICATION` | Requires message inspection |
 | P2-22 | Migrate to typed transport | Plan 2 Transport | Not string-content messaging | Runtime still uses string messaging | `PARTIAL` | Proto defined, runtime migration incomplete |
 | P2-23 | WorkflowGraph hardening | Plan 2 Transport | Cycle validation, retry budget, timeout, terminal failure | `WorkflowGraph` exists, hardening unconfirmed | `PARTIAL` | Module exists, guards unverified |
@@ -108,7 +108,7 @@ The AXORA implementation is materially incomplete against both approved plans. C
 **Confidence:** `HIGH`
 
 **Problem:**
-Plan 2 requires a real `ProviderClient` trait with Anthropic and OpenAI adapters implementing proper prompt caching (Anthropic `cache_control`, OpenAI cached-input). No provider abstraction exists in `axora-agents`. Current `api_client.rs` is a placeholder without provider-specific logic.
+Plan 2 requires a real `ProviderClient` trait with Anthropic and OpenAI adapters implementing proper prompt caching (Anthropic `cache_control`, OpenAI cached-input). No provider abstraction exists in `openakta-agents`. Current `api_client.rs` is a placeholder without provider-specific logic.
 
 **Why it matters:**
 Without a provider layer, there is no prompt caching, no usage accounting, no cache metrics, and no way to achieve the 50-90% input token savings target. This blocks the entire cost optimization mission.
@@ -116,13 +116,13 @@ Without a provider layer, there is no prompt caching, no usage accounting, no ca
 **Evidence:**
 - Plan 2, Section 2: "Introduce a provider trait with one shared request model... and provider-specific adapters"
 - Research R-17 documents provider requirements but no implementation found
-- `crates/axora-agents/src/api_client.rs` — placeholder only
+- `crates/openakta-agents/src/api_client.rs` — placeholder only
 
 **Plan violation:**
-Plan 2, Implementation Changes #2: "Replace the planned 'connect existing ApiClient' sprint with a real provider abstraction in `axora-agents`."
+Plan 2, Implementation Changes #2: "Replace the planned 'connect existing ApiClient' sprint with a real provider abstraction in `openakta-agents`."
 
 **Recommended fix:**
-Create `ProviderClient` trait in `axora-agents/src/provider/` with `AnthropicClient` and `OpenAIClient` adapters. Implement request/response models, streaming support, and usage accounting.
+Create `ProviderClient` trait in `openakta-agents/src/provider/` with `AnthropicClient` and `OpenAIClient` adapters. Implement request/response models, streaming support, and usage accounting.
 
 **Implementation note:**
 In-place upgrade of `api_client.rs`, not parallel replacement.
@@ -148,7 +148,7 @@ Without runtime enforcement, agents can still output full files, destroying the 
 Plan 2, Implementation Changes #3: "Add an output contract layer ahead of merge/publication so every code-edit result is validated as unified diff before it reaches coordinator merge or blackboard publication."
 
 **Recommended fix:**
-Implement `DiffValidator` in `axora-agents/src/validation/` and gate all `TaskResult` publication for code-edit tasks. Reject non-diff outputs at coordinator level.
+Implement `DiffValidator` in `openakta-agents/src/validation/` and gate all `TaskResult` publication for code-edit tasks. Reject non-diff outputs at coordinator level.
 
 **Implementation note:**
 Policy enforcement fix at coordinator/worker boundary.
@@ -160,20 +160,20 @@ Policy enforcement fix at coordinator/worker boundary.
 **Confidence:** `MEDIUM`
 
 **Problem:**
-`axora-proto` scaffold exists but runtime still primarily uses string-content messaging in coordinator/dispatcher paths. Plan requires typed transport envelopes for task assignment, progress, results, and workflow events.
+`openakta-proto` scaffold exists but runtime still primarily uses string-content messaging in coordinator/dispatcher paths. Plan requires typed transport envelopes for task assignment, progress, results, and workflow events.
 
 **Why it matters:**
 Without typed transport, there is no schema validation, no efficient binary encoding, and no clear contract between coordinator and workers. This blocks multi-agent orchestration at scale.
 
 **Evidence:**
-- Plan 2, Section 5: "Extend the existing proto surface in `axora-proto` for coordinator/worker/system orchestration instead of leaving `communication.rs` as string-content messaging."
-- `axora-proto` exists, but `communication.rs` still string-based
+- Plan 2, Section 5: "Extend the existing proto surface in `openakta-proto` for coordinator/worker/system orchestration instead of leaving `communication.rs` as string-content messaging."
+- `openakta-proto` exists, but `communication.rs` still string-based
 
 **Plan violation:**
 Plan 2, Implementation Changes #5: "Migrate coordinator/dispatcher paths to typed transport envelopes while preserving the existing local blackboard role for shared state."
 
 **Recommended fix:**
-Define protobuf messages in `axora-proto/proto/core.proto` for `TaskAssignment`, `ProgressUpdate`, `ResultSubmission`, `BlockerAlert`, `WorkflowTransition`. Migrate `axora-agents/src/dispatcher.rs` to use typed envelopes.
+Define protobuf messages in `openakta-proto/proto/core.proto` for `TaskAssignment`, `ProgressUpdate`, `ResultSubmission`, `BlockerAlert`, `WorkflowTransition`. Migrate `openakta-agents/src/dispatcher.rs` to use typed envelopes.
 
 **Implementation note:**
 Wiring/integration fix — proto exists, runtime migration incomplete.
@@ -226,10 +226,10 @@ Without TOON, structured context sent to LLMs remains in verbose JSON format, mi
 Plan 1, Implementation Changes (RAG e compactação): "TOON serializa esse pacote textual antes do prompt do worker."
 
 **Recommended fix:**
-Implement `TOONEncoder` and `TOONDecoder` in `axora-cache/src/toon/` with fixed schemas for retrieval hits, AST summaries, symbol maps, and validation facts.
+Implement `TOONEncoder` and `TOONDecoder` in `openakta-cache/src/toon/` with fixed schemas for retrieval hits, AST summaries, symbol maps, and validation facts.
 
 **Implementation note:**
-New module in `axora-cache`.
+New module in `openakta-cache`.
 
 ---
 
@@ -251,10 +251,10 @@ Without a deterministic applicator, the orchestrator cannot safely apply patches
 Plan 1, Implementation Changes (Orquestração): "O orquestrador nunca recebe o arquivo reescrito; recebe só patch + resultado de aplicação."
 
 **Recommended fix:**
-Create `PatchApplicator` in `axora-core/src/patch/` with methods `apply_unified_diff`, `apply_search_replace`, `validate_base_revision`, `detect_conflict`.
+Create `PatchApplicator` in `openakta-core/src/patch/` with methods `apply_unified_diff`, `apply_search_replace`, `validate_base_revision`, `detect_conflict`.
 
 **Implementation note:**
-New module in `axora-core`.
+New module in `openakta-core`.
 
 ---
 
@@ -276,10 +276,10 @@ Without SCIP parsing, graph retrieval cannot resolve symbols or build accurate i
 Plan 2, Implementation Changes #4: "Treat `SCIP` as present but incomplete."
 
 **Recommended fix:**
-Implement `ParserRegistry` in `axora-indexing/src/parsers/` with `RustParser`, `TypeScriptParser`, `PythonParser` adapters using tree-sitter and SCIP generators.
+Implement `ParserRegistry` in `openakta-indexing/src/parsers/` with `RustParser`, `TypeScriptParser`, `PythonParser` adapters using tree-sitter and SCIP generators.
 
 **Implementation note:**
-In-place upgrade of existing `axora-indexing/src/chunker.rs`.
+In-place upgrade of existing `openakta-indexing/src/chunker.rs`.
 
 ---
 
@@ -288,7 +288,7 @@ In-place upgrade of existing `axora-indexing/src/chunker.rs`.
 **Confidence:** `MEDIUM`
 
 **Problem:**
-`GraphRetriever` is documented in research but not found in `axora-rag`. Plan requires retrieval stage that resolves focal file, loads influence vector, traverses dependencies within token budget, hydrates selected documents, and serializes to TOON.
+`GraphRetriever` is documented in research but not found in `openakta-rag`. Plan requires retrieval stage that resolves focal file, loads influence vector, traverses dependencies within token budget, hydrates selected documents, and serializes to TOON.
 
 **Why it matters:**
 Without graph retrieval, context pruning cannot achieve the 95-99% reduction target, forcing full-context retrieval and bloating LLM prompts.
@@ -301,10 +301,10 @@ Without graph retrieval, context pruning cannot achieve the 95-99% reduction tar
 Plan 2, Implementation Changes #4: "Build graph retrieval on top of the existing `InfluenceGraph` instead of replacing it."
 
 **Recommended fix:**
-Implement `GraphRetriever` in `axora-rag/src/graph_retriever.rs` with `retrieve_relevant_context`, `traverse_dependencies`, `enforce_token_budget` methods.
+Implement `GraphRetriever` in `openakta-rag/src/graph_retriever.rs` with `retrieve_relevant_context`, `traverse_dependencies`, `enforce_token_budget` methods.
 
 **Implementation note:**
-New module in `axora-rag`, built on existing `InfluenceGraph`.
+New module in `openakta-rag`, built on existing `InfluenceGraph`.
 
 ---
 
@@ -329,7 +329,7 @@ Plan 2, Implementation Changes #1: "Add a short 'optimization baseline' fixture 
 Create `benches/optimization_baseline.rs` with fixtures for prompt size, context size, output size, latency. Run before implementing caching, TOON, graph retrieval.
 
 **Implementation note:**
-New benchmark suite in `axora-cache/benches/`.
+New benchmark suite in `openakta-cache/benches/`.
 
 ---
 
@@ -355,7 +355,7 @@ Plan 2, Implementation Changes #2: "Integrate `PrefixCache` at the provider-requ
 Implement `AnthropicClient` with `cache_control` fields in request body and `OpenAIClient` with provider's documented caching mechanism. Integrate `PrefixCache` at request builder layer.
 
 **Implementation note:**
-New adapters in `axora-agents/src/provider/`.
+New adapters in `openakta-agents/src/provider/`.
 
 ---
 
@@ -382,7 +382,7 @@ Plan 1, Implementation Changes (Merkle sync): "file_hashes: HashMap<PathBuf, Bla
 Upgrade `merkle.rs` to two-level structure with stable `BlockId` derived from semantic path (not UUID).
 
 **Implementation note:**
-In-place upgrade of `axora-indexing/src/merkle.rs`.
+In-place upgrade of `openakta-indexing/src/merkle.rs`.
 
 ---
 
@@ -404,7 +404,7 @@ Without MetaGlyph, control plane instructions remain verbose, missing the 80-90%
 Plan 1, Key Decisions: "Ganho real vem de trocar instruções verbose por opcode + operandos curtos."
 
 **Recommended fix:**
-Implement `MetaGlyph` encoder/decoder in `axora-agents/src/metaglyph/` with opcode definitions for frequent operations.
+Implement `MetaGlyph` encoder/decoder in `openakta-agents/src/metaglyph/` with opcode definitions for frequent operations.
 
 **Implementation note:**
 New module, optional for v1 but recommended.
@@ -429,10 +429,10 @@ Without hardening, tasks can hang indefinitely, consuming resources and blocking
 Plan 2, Implementation Changes #5: "Add explicit cycle validation, retry budget enforcement, timeout policy, and terminal failure states."
 
 **Recommended fix:**
-Add `CycleDetector`, `RetryBudget`, `TimeoutPolicy`, `TerminalState` to `axora-agents/src/workflow.rs`.
+Add `CycleDetector`, `RetryBudget`, `TimeoutPolicy`, `TerminalState` to `openakta-agents/src/workflow.rs`.
 
 **Implementation note:**
-In-place upgrade of `axora-agents/src/workflow.rs`.
+In-place upgrade of `openakta-agents/src/workflow.rs`.
 
 ---
 
@@ -454,10 +454,10 @@ Without metrics, there is no way to validate caching effectiveness or attribute 
 Plan 2, Implementation Changes #2: "Cache metrics must record at least..."
 
 **Recommended fix:**
-Implement `CacheMetrics` struct in `axora-agents/src/metrics.rs` with counters for all required fields. Surface in coordinator dashboard.
+Implement `CacheMetrics` struct in `openakta-agents/src/metrics.rs` with counters for all required fields. Surface in coordinator dashboard.
 
 **Implementation note:**
-New metrics module in `axora-agents`.
+New metrics module in `openakta-agents`.
 
 ---
 
@@ -479,7 +479,7 @@ Without diagnostics, there is no visibility into why certain dependencies were e
 Plan 2, Implementation Changes #4: "Record recall-oriented diagnostics."
 
 **Recommended fix:**
-Add `RetrievalDiagnostics` struct to `axora-rag/src/graph_retriever.rs` with fields for budget status, omitted dependencies, and truncation reasons.
+Add `RetrievalDiagnostics` struct to `openakta-rag/src/graph_retriever.rs` with fields for budget status, omitted dependencies, and truncation reasons.
 
 **Implementation note:**
 Addition to `GraphRetriever` module.
@@ -542,16 +542,16 @@ In-place upgrade of `merkle.rs` if UUID-based.
 
 | Gap ID | Area | Missing or Incomplete Work | Impact | Recommended Next Step |
 |--------|------|---------------------------|--------|----------------------|
-| G-001 | Provider Layer | No `ProviderClient` trait, no Anthropic/OpenAI adapters | Cannot achieve 50-90% input token savings | Implement provider abstraction in `axora-agents/src/provider/` |
+| G-001 | Provider Layer | No `ProviderClient` trait, no Anthropic/OpenAI adapters | Cannot achieve 50-90% input token savings | Implement provider abstraction in `openakta-agents/src/provider/` |
 | G-002 | Diff Enforcement | `DiffEnforcer` type exists but not wired to all publish paths | Agents can still output full files | Gate all `TaskResult` publication at coordinator level |
 | G-003 | Protobuf Transport | Proto defined but runtime uses string messaging | No schema validation, inefficient encoding | Migrate `dispatcher.rs` to typed envelopes |
-| G-004 | TOON Serializer | Documented but no implementation | Missing 2x-5x compression for structured context | Implement `TOONEncoder`/`TOONDecoder` in `axora-cache/src/toon/` |
-| G-005 | Patch Applicator | No deterministic applicator module | LLM involved in application logic | Create `PatchApplicator` in `axora-core/src/patch/` |
-| G-006 | SCIP Parsers | Parser registry incomplete (Rust/TS/Python) | Cannot build accurate influence vectors | Implement language-specific parsers in `axora-indexing/src/parsers/` |
-| G-007 | Graph Retrieval | `GraphRetriever` not implemented | Cannot achieve 95-99% context reduction | Implement in `axora-rag/src/graph_retriever.rs` |
+| G-004 | TOON Serializer | Documented but no implementation | Missing 2x-5x compression for structured context | Implement `TOONEncoder`/`TOONDecoder` in `openakta-cache/src/toon/` |
+| G-005 | Patch Applicator | No deterministic applicator module | LLM involved in application logic | Create `PatchApplicator` in `openakta-core/src/patch/` |
+| G-006 | SCIP Parsers | Parser registry incomplete (Rust/TS/Python) | Cannot build accurate influence vectors | Implement language-specific parsers in `openakta-indexing/src/parsers/` |
+| G-007 | Graph Retrieval | `GraphRetriever` not implemented | Cannot achieve 95-99% context reduction | Implement in `openakta-rag/src/graph_retriever.rs` |
 | G-008 | Optimization Baseline | No preflight benchmark suite | Cannot measure actual savings | Create `benches/optimization_baseline.rs` |
 | G-009 | Prompt Caching | No Anthropic `cache_control` or OpenAI cached-input | Missing primary cost optimization | Implement in provider adapters |
-| G-010 | Cache Metrics | Metrics defined but not emitted | Cannot validate caching effectiveness | Implement `CacheMetrics` in `axora-agents/src/metrics.rs` |
+| G-010 | Cache Metrics | Metrics defined but not emitted | Cannot validate caching effectiveness | Implement `CacheMetrics` in `openakta-agents/src/metrics.rs` |
 | G-011 | Merkle Two-Level | Structure unconfirmed | May force full-file re-indexing | Verify/upgrade `merkle.rs` |
 | G-012 | MetaGlyph | Not implemented | Missing 80-90% control plane reduction | Optional for v1, implement later |
 | G-013 | Workflow Hardening | Cycle/retry/timeout guards unconfirmed | Tasks can hang indefinitely | Add guards to `WorkflowGraph` |
@@ -624,29 +624,29 @@ In-place upgrade of `merkle.rs` if UUID-based.
 ### Phase A: Must Fix Before More Feature Work
 
 1. **Fix broken workspace** — Remove `apps/desktop/src-tauri` from `Cargo.toml`. Owner: Build/CI. Outcome: `cargo check` passes. Why: Blocks all validation.
-2. **Implement ProviderClient trait** — Create provider abstraction with Anthropic/OpenAI adapters. Owner: `axora-agents`. Outcome: Provider calls work with caching. Why: Blocks all cost optimization.
-3. **Wire diff-only enforcement** — Gate all `TaskResult` publication with `DiffValidator`. Owner: `axora-agents` + `axora-core`. Outcome: Full-file outputs rejected at runtime. Why: Hard architectural constraint.
-4. **Migrate to protobuf transport** — Update `dispatcher.rs` to use typed envelopes. Owner: `axora-agents` + `axora-proto`. Outcome: No string messaging in critical paths. Why: Required for schema validation.
-5. **Implement TOON serializer** — Create `TOONEncoder`/`TOONDecoder` for LLM-facing context. Owner: `axora-cache`. Outcome: Structured context compacted 2x-5x. Why: Required for model boundary compaction.
-6. **Create patch applicator** — Implement deterministic `PatchApplicator` in `axora-core`. Owner: `axora-core`. Outcome: Patches applied without LLM. Why: Required for zero-context execution.
+2. **Implement ProviderClient trait** — Create provider abstraction with Anthropic/OpenAI adapters. Owner: `openakta-agents`. Outcome: Provider calls work with caching. Why: Blocks all cost optimization.
+3. **Wire diff-only enforcement** — Gate all `TaskResult` publication with `DiffValidator`. Owner: `openakta-agents` + `openakta-core`. Outcome: Full-file outputs rejected at runtime. Why: Hard architectural constraint.
+4. **Migrate to protobuf transport** — Update `dispatcher.rs` to use typed envelopes. Owner: `openakta-agents` + `openakta-proto`. Outcome: No string messaging in critical paths. Why: Required for schema validation.
+5. **Implement TOON serializer** — Create `TOONEncoder`/`TOONDecoder` for LLM-facing context. Owner: `openakta-cache`. Outcome: Structured context compacted 2x-5x. Why: Required for model boundary compaction.
+6. **Create patch applicator** — Implement deterministic `PatchApplicator` in `openakta-core`. Owner: `openakta-core`. Outcome: Patches applied without LLM. Why: Required for zero-context execution.
 
 ### Phase B: Required for True Plan Compliance
 
-1. **Implement graph retrieval** — Create `GraphRetriever` built on `InfluenceGraph`. Owner: `axora-rag`. Outcome: 95-99% context reduction. Why: Primary context selector.
-2. **Upgrade SCIP parsers** — Implement Rust/TS/Python parsers in `ParserRegistry`. Owner: `axora-indexing`. Outcome: Reliable symbol extraction. Why: Required for influence vectors.
-3. **Add cache metrics** — Implement `CacheMetrics` with all required fields. Owner: `axora-agents`. Outcome: Caching effectiveness visible. Why: Required for validation.
-4. **Harden WorkflowGraph** — Add cycle detection, retry budget, timeout, terminal states. Owner: `axora-agents`. Outcome: No hanging tasks. Why: Production reliability.
-5. **Implement Merkle two-level index** — Upgrade `merkle.rs` with file_hashes + block_hashes. Owner: `axora-indexing`. Outcome: Incremental indexing works. Why: 80-95% indexing work reduction.
-6. **Add recall diagnostics** — Emit "budget exhausted" and "dependency omitted" diagnostics. Owner: `axora-rag`. Outcome: Retrieval truncation visible. Why: Debuggability.
-7. **Create optimization baseline** — Implement `benches/optimization_baseline.rs`. Owner: `axora-cache`. Outcome: Pre-feature metrics captured. Why: Cannot measure success without baseline.
+1. **Implement graph retrieval** — Create `GraphRetriever` built on `InfluenceGraph`. Owner: `openakta-rag`. Outcome: 95-99% context reduction. Why: Primary context selector.
+2. **Upgrade SCIP parsers** — Implement Rust/TS/Python parsers in `ParserRegistry`. Owner: `openakta-indexing`. Outcome: Reliable symbol extraction. Why: Required for influence vectors.
+3. **Add cache metrics** — Implement `CacheMetrics` with all required fields. Owner: `openakta-agents`. Outcome: Caching effectiveness visible. Why: Required for validation.
+4. **Harden WorkflowGraph** — Add cycle detection, retry budget, timeout, terminal states. Owner: `openakta-agents`. Outcome: No hanging tasks. Why: Production reliability.
+5. **Implement Merkle two-level index** — Upgrade `merkle.rs` with file_hashes + block_hashes. Owner: `openakta-indexing`. Outcome: Incremental indexing works. Why: 80-95% indexing work reduction.
+6. **Add recall diagnostics** — Emit "budget exhausted" and "dependency omitted" diagnostics. Owner: `openakta-rag`. Outcome: Retrieval truncation visible. Why: Debuggability.
+7. **Create optimization baseline** — Implement `benches/optimization_baseline.rs`. Owner: `openakta-cache`. Outcome: Pre-feature metrics captured. Why: Cannot measure success without baseline.
 
 ### Phase C: Hardening and Validation
 
-1. **Implement MetaGlyph** — Create opcode encoder/decoder for control plane. Owner: `axora-agents`. Outcome: 80-90% control plane reduction. Why: Optional but valuable.
-2. **Add end-to-end benchmarks** — Compare cached vs uncached, full vs pruned, JSON vs TOON, full vs diff, string vs protobuf. Owner: `axora-cache`. Outcome: All savings measured. Why: Validation.
+1. **Implement MetaGlyph** — Create opcode encoder/decoder for control plane. Owner: `openakta-agents`. Outcome: 80-90% control plane reduction. Why: Optional but valuable.
+2. **Add end-to-end benchmarks** — Compare cached vs uncached, full vs pruned, JSON vs TOON, full vs diff, string vs protobuf. Owner: `openakta-cache`. Outcome: All savings measured. Why: Validation.
 3. **Create operator guide** — Document caching/retrieval configuration. Owner: Documentation. Outcome: Operators can configure. Why: Usability.
 4. **Create developer guide** — Document provider/retrieval integration. Owner: Documentation. Outcome: Developers can extend. Why: Extensibility.
-5. **Verify BlockId stability** — Ensure semantic-path-based, not UUID. Owner: `axora-indexing`. Outcome: Incremental indexing survives restart. Why: Correctness.
+5. **Verify BlockId stability** — Ensure semantic-path-based, not UUID. Owner: `openakta-indexing`. Outcome: Incremental indexing survives restart. Why: Correctness.
 6. **Add integration tests** — Test provider + caching + retrieval + diff + transport end-to-end. Owner: QA. Outcome: Full workflow validated. Why: Confidence.
 
 ---
@@ -658,48 +658,48 @@ In-place upgrade of `merkle.rs` if UUID-based.
    Why: Blocks all builds and tests.
    Related findings: F-004.
 
-2. **Implement `ProviderClient` trait with Anthropic and OpenAI adapters in `axora-agents/src/provider/`.**
-   Owner: `axora-agents`.
+2. **Implement `ProviderClient` trait with Anthropic and OpenAI adapters in `openakta-agents/src/provider/`.**
+   Owner: `openakta-agents`.
    Why: Enables prompt caching and usage accounting.
    Related findings: F-001, F-010.
 
-3. **Gate all `TaskResult` publication for code-edit tasks with `DiffValidator` in `axora-agents/src/validation/`.**
-   Owner: `axora-agents`.
+3. **Gate all `TaskResult` publication for code-edit tasks with `DiffValidator` in `openakta-agents/src/validation/`.**
+   Owner: `openakta-agents`.
    Why: Enforces diff-only hard constraint.
    Related findings: F-002.
 
-4. **Migrate `dispatcher.rs` and `coordinator.rs` to use protobuf typed envelopes from `axora-proto`.**
-   Owner: `axora-agents` + `axora-proto`.
+4. **Migrate `dispatcher.rs` and `coordinator.rs` to use protobuf typed envelopes from `openakta-proto`.**
+   Owner: `openakta-agents` + `openakta-proto`.
    Why: Eliminates string messaging, enables schema validation.
    Related findings: F-003.
 
-5. **Implement `TOONEncoder` and `TOONDecoder` in `axora-cache/src/toon/` for LLM-facing structured context.**
-   Owner: `axora-cache`.
+5. **Implement `TOONEncoder` and `TOONDecoder` in `openakta-cache/src/toon/` for LLM-facing structured context.**
+   Owner: `openakta-cache`.
    Why: Achieves 2x-5x compression for model payloads.
    Related findings: F-005.
 
-6. **Create `PatchApplicator` in `axora-core/src/patch/` with deterministic apply/reject/conflict logic.**
-   Owner: `axora-core`.
+6. **Create `PatchApplicator` in `openakta-core/src/patch/` with deterministic apply/reject/conflict logic.**
+   Owner: `openakta-core`.
    Why: Removes LLM from application path.
    Related findings: F-006.
 
-7. **Implement `GraphRetriever` in `axora-rag/src/graph_retriever.rs` built on existing `InfluenceGraph`.**
-   Owner: `axora-rag`.
+7. **Implement `GraphRetriever` in `openakta-rag/src/graph_retriever.rs` built on existing `InfluenceGraph`.**
+   Owner: `openakta-rag`.
    Why: Enables 95-99% context pruning.
    Related findings: F-008.
 
 8. **Create `benches/optimization_baseline.rs` to measure prompt/context/output/latency before feature work.**
-   Owner: `axora-cache`.
+   Owner: `openakta-cache`.
    Why: Required to validate savings.
    Related findings: F-009.
 
-9. **Add `CacheMetrics` struct in `axora-agents/src/metrics.rs` with all required counters.**
-   Owner: `axora-agents`.
+9. **Add `CacheMetrics` struct in `openakta-agents/src/metrics.rs` with all required counters.**
+   Owner: `openakta-agents`.
    Why: Enables caching effectiveness validation.
    Related findings: F-014.
 
 10. **Harden `WorkflowGraph` with `CycleDetector`, `RetryBudget`, `TimeoutPolicy`, `TerminalState`.**
-    Owner: `axora-agents`.
+    Owner: `openakta-agents`.
     Why: Prevents hanging tasks.
     Related findings: F-013.
 

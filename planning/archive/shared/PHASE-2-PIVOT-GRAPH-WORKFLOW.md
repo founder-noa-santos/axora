@@ -8,7 +8,7 @@
 
 ## 🚨 Executive Summary
 
-**DDD Agents Status:** ❌ **REJECTED** for AXORA's target audience (individual developers)
+**DDD Agents Status:** ❌ **REJECTED** for OPENAKTA's target audience (individual developers)
 
 **Key Findings:**
 1. **DDD is enterprise over-engineering** — solves problems individual devs don't have
@@ -191,7 +191,7 @@ Token Overhead: <10% (just RAG retrieval)
 ### Next Week (Medium Priority)
 
 **New Sprint: Graph Workflow Engine**
-- [ ] Create `crates/axora-graph/` (new crate)
+- [ ] Create `crates/openakta-graph/` (new crate)
 - [ ] Implement state machine primitives
 - [ ] Implement deterministic routing
 - [ ] Integrate with RAG for domain knowledge
@@ -248,6 +248,6 @@ Pivot is successful when:
 
 ---
 
-**This pivot FUNDAMENTALLY CHANGES AXORA's architecture from enterprise DDD to individual-dev-friendly Graph + RAG.**
+**This pivot FUNDAMENTALLY CHANGES OPENAKTA's architecture from enterprise DDD to individual-dev-friendly Graph + RAG.**
 
 **All agents must read this and update their current sprints accordingly.**

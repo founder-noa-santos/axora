@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Context Management & RAG for Multi-Agent AI Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system that competes with Cursor, GitHub Copilot, and similar tools. We need SCIENTIFIC-LEVEL understanding of context management. This is not casual research - we need production-grade, SOTA knowledge.
+I'm building OPENAKTA, a multi-agent AI coding system that competes with Cursor, GitHub Copilot, and similar tools. We need SCIENTIFIC-LEVEL understanding of context management. This is not casual research - we need production-grade, SOTA knowledge.
 
 ## Core Research Questions
 
@@ -280,7 +280,7 @@ Save research findings in `research/findings/context-management/` using this tem
 **Description:** ...
 **Source:** [Link]
 **Confidence:** High/Medium/Low
-**Implication for AXORA:** ...
+**Implication for OPENAKTA:** ...
 
 ### Finding 2: [Title]
 ...

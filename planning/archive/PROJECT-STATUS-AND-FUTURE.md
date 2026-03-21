@@ -1,4 +1,4 @@
-# AXORA — Project Status & Future Paths
+# OPENAKTA — Project Status & Future Paths
 
 **Document Created:** 2026-03-16  
 **Purpose:** Single reference for what's done, what's in progress, what's next  
@@ -22,20 +22,20 @@
 
 | Sprint | Title | Output | Tests |
 |--------|-------|-------|-------|
-| 1 | Prefix Caching | `axora-cache/src/prefix_cache.rs` | 8 passing |
-| 2 | Diff-Based Communication | `axora-cache/src/diff.rs` | 7 passing |
-| 3 | Code Minification | `axora-cache/src/minifier.rs` | 10 passing |
-| 3b | Heartbeat System | `axora-agents/src/heartbeat.rs` | 13 passing |
-| 5 | TOON Serialization | `axora-cache/src/toon.rs` | 14 passing |
-| 6 | Documentation Management | `axora-docs/` (5 files) | 54 passing |
-| 8 | Graph Workflow | `axora-agents/src/graph.rs` | 8 passing |
-| 9 | Dual-Thread ReAct | `axora-agents/src/react.rs` | 10 passing |
-| 11 | Context + RAG Pivot | `axora-cache/src/context.rs` | 14 passing |
-| 12 | Snapshot Blackboard | `axora-cache/src/blackboard.rs` | 8 passing |
-| 16 | SCIP Indexing | `axora-indexing/src/scip.rs` | 8 passing |
+| 1 | Prefix Caching | `openakta-cache/src/prefix_cache.rs` | 8 passing |
+| 2 | Diff-Based Communication | `openakta-cache/src/diff.rs` | 7 passing |
+| 3 | Code Minification | `openakta-cache/src/minifier.rs` | 10 passing |
+| 3b | Heartbeat System | `openakta-agents/src/heartbeat.rs` | 13 passing |
+| 5 | TOON Serialization | `openakta-cache/src/toon.rs` | 14 passing |
+| 6 | Documentation Management | `openakta-docs/` (5 files) | 54 passing |
+| 8 | Graph Workflow | `openakta-agents/src/graph.rs` | 8 passing |
+| 9 | Dual-Thread ReAct | `openakta-agents/src/react.rs` | 10 passing |
+| 11 | Context + RAG Pivot | `openakta-cache/src/context.rs` | 14 passing |
+| 12 | Snapshot Blackboard | `openakta-cache/src/blackboard.rs` | 8 passing |
+| 16 | SCIP Indexing | `openakta-indexing/src/scip.rs` | 8 passing |
 | 18 | Business Rule Documentation | `docs/business_rules/` (10+ files) | N/A |
-| 19 | Bidirectional Traceability | `axora-indexing/src/traceability.rs` | 8 passing |
-| 23 | ACI Formatting | `axora-agents/src/aci_formatter.rs` | 8 passing |
+| 19 | Bidirectional Traceability | `openakta-indexing/src/traceability.rs` | 8 passing |
+| 23 | ACI Formatting | `openakta-agents/src/aci_formatter.rs` | 8 passing |
 | 25 | AGENTS.md Living Document | `AGENTS.md`, `docs/ARCHITECTURE-LEDGER.md` | N/A |
 
 **Total Completed:** 15 sprints  
@@ -69,17 +69,17 @@
 ## 📁 What We Have (Code Structure)
 
 ```
-axora/
+openakta/
 ├── crates/
-│   ├── axora-agents/          # Agent framework, state machine, ReAct loops
-│   ├── axora-cache/           # Token optimization (caching, diff, minification, TOON)
-│   ├── axora-core/            # Core types, traits
-│   ├── axora-daemon/          # Background services
-│   ├── axora-docs/            # Living documentation system
-│   ├── axora-embeddings/      # Embedding generation (pseudo, ready for real model)
-│   ├── axora-indexing/        # Code indexing, SCIP, traceability
-│   ├── axora-rag/             # Hybrid retriever (RRF fusion)
-│   └── axora-memory/          # NEW: Tripartite memory architecture (in progress)
+│   ├── openakta-agents/          # Agent framework, state machine, ReAct loops
+│   ├── openakta-cache/           # Token optimization (caching, diff, minification, TOON)
+│   ├── openakta-core/            # Core types, traits
+│   ├── openakta-daemon/          # Background services
+│   ├── openakta-docs/            # Living documentation system
+│   ├── openakta-embeddings/      # Embedding generation (pseudo, ready for real model)
+│   ├── openakta-indexing/        # Code indexing, SCIP, traceability
+│   ├── openakta-rag/             # Hybrid retriever (RRF fusion)
+│   └── openakta-memory/          # NEW: Tripartite memory architecture (in progress)
 │
 ├── apps/
 │   └── desktop/               # Tauri v2 + React (placeholder, not started)
@@ -102,8 +102,8 @@ axora/
 **Why First:**
 - Solves YOUR problem (tired of managing everything manually)
 - **Key differentiator** — no other framework has this
-- Without it, AXORA is "just another multi-agent framework"
-- With it, AXORA is "the only self-managing framework"
+- Without it, OPENAKTA is "just another multi-agent framework"
+- With it, OPENAKTA is "the only self-managing framework"
 
 **What to Build:**
 - Coordinator Agent (manages worker agents)

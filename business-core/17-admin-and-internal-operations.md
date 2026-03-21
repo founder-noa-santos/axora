@@ -6,7 +6,7 @@ Document the internal/operator workflows that are currently supported by the bac
 
 ## Executive Summary
 
-AXORA currently supports a meaningful internal operations model even though it lacks customer administration flows. Operators can configure and start the daemon, manage runtime config, register agents, observe task/message behavior through gRPC, and run mission execution through the coordinated runtime. Internal operations matter more than customer admin in the current stage of the product.
+OPENAKTA currently supports a meaningful internal operations model even though it lacks customer administration flows. Operators can configure and start the daemon, manage runtime config, register agents, observe task/message behavior through gRPC, and run mission execution through the coordinated runtime. Internal operations matter more than customer admin in the current stage of the product.
 
 ## Confirmed Current State
 
@@ -43,17 +43,17 @@ AXORA currently supports a meaningful internal operations model even though it l
 
 ## Implementation Evidence
 
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-core/src/config.rs`
-- `crates/axora-core/src/server.rs`
-- `crates/axora-agents/src/worker_pool.rs`
-- `crates/axora-agents/src/heartbeat.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-core/tests/integration.rs`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-core/src/config.rs`
+- `crates/openakta-core/src/server.rs`
+- `crates/openakta-agents/src/worker_pool.rs`
+- `crates/openakta-agents/src/heartbeat.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-core/tests/integration.rs`
 
 ## Business Meaning
 
-AXORA’s current operational center of gravity is internal administration of an execution system, not customer self-service operations. This is typical of an infrastructure-heavy product in an earlier commercialization stage.
+OPENAKTA’s current operational center of gravity is internal administration of an execution system, not customer self-service operations. This is typical of an infrastructure-heavy product in an earlier commercialization stage.
 
 ## Open Ambiguities
 

@@ -1,11 +1,11 @@
 #!/bin/bash
-# AXORA Development Smoke Test Script
+# OPENAKTA Development Smoke Test Script
 # Quick validation that the project builds and basic tests pass
 
 set -e
 
 echo "=========================================="
-echo "AXORA Development Smoke Test"
+echo "OPENAKTA Development Smoke Test"
 echo "=========================================="
 
 # Colors for output
@@ -104,6 +104,6 @@ echo -e "${GREEN}All smoke tests passed!${NC}"
 echo "=========================================="
 echo ""
 echo "Next steps:"
-echo "  1. Run the daemon: cargo run -p axora-daemon"
-echo "  2. Run the desktop app: pnpm --filter @axora/desktop dev"
+echo "  1. Run the daemon: cargo run -p openakta-daemon"
+echo "  2. Run the desktop app: pnpm --filter @openakta/desktop dev"
 echo ""

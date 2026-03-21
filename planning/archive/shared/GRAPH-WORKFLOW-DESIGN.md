@@ -27,7 +27,7 @@ A **state machine with deterministic nodes** where:
 
 ### Who
 
-**Target:** Individual developers (AXORA's primary user)
+**Target:** Individual developers (OPENAKTA's primary user)
 
 **Not for:** Enterprise teams with 20+ concurrent agents (use DDD if needed)
 
@@ -360,7 +360,7 @@ impl ColBERTIndex {
 
 ### When to Use Each
 
-**Use Graph + RAG (AXORA default):**
+**Use Graph + RAG (OPENAKTA default):**
 - Individual developers
 - <10 concurrent agents
 - Mixed domain tasks

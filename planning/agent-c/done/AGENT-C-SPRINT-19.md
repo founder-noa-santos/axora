@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 19 (Implementation)  
-**File:** `crates/axora-indexing/src/traceability.rs`  
+**File:** `crates/openakta-indexing/src/traceability.rs`  
 **Priority:** MEDIUM (depends on Agent A Sprint 18)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ Research provides CRITICAL implementation details:
 
 ### 1. Create traceability.rs
 
-**File:** `crates/axora-indexing/src/traceability.rs`
+**File:** `crates/openakta-indexing/src/traceability.rs`
 
 **Core Structure:**
 ```rust
@@ -114,7 +114,7 @@ impl TraceabilityMatrix {
 
 ### 2. Implement @req Annotation Parser
 
-**File:** `crates/axora-indexing/src/traceability.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/traceability.rs` (add to existing)
 
 ```rust
 impl TraceabilityMatrix {
@@ -190,7 +190,7 @@ fn extract_symbol_at_position(content: &str, position: usize) -> Result<Option<S
 
 ### 3. Implement YAML applies_to Parser
 
-**File:** `crates/axora-indexing/src/traceability.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/traceability.rs` (add to existing)
 
 ```rust
 impl TraceabilityMatrix {
@@ -265,7 +265,7 @@ fn extract_yaml_frontmatter(content: &str) -> Result<serde_yaml::Value> {
 
 ### 4. Implement Validation (Orphaned Links Detection)
 
-**File:** `crates/axora-indexing/src/traceability.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/traceability.rs` (add to existing)
 
 ```rust
 /// Traceability error (orphaned link)
@@ -357,7 +357,7 @@ impl TraceabilityMatrix {
 
 ### 5. Integrate with Influence Graph
 
-**File:** `crates/axora-indexing/src/influence.rs` (UPDATE from Sprint 17)
+**File:** `crates/openakta-indexing/src/influence.rs` (UPDATE from Sprint 17)
 
 ```rust
 impl InfluenceVector {
@@ -384,15 +384,15 @@ impl InfluenceGraph {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-indexing/src/traceability.rs` (NEW)
+- `crates/openakta-indexing/src/traceability.rs` (NEW)
 
 **Update:**
-- `crates/axora-indexing/src/lib.rs` (add module export)
-- `crates/axora-indexing/src/influence.rs` (link business rules)
+- `crates/openakta-indexing/src/lib.rs` (add module export)
+- `crates/openakta-indexing/src/influence.rs` (link business rules)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 **Dependencies:**
 - Agent A Sprint 18 (Business Rule Documentation) — must complete first

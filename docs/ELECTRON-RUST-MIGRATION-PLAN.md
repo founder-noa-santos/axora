@@ -11,7 +11,7 @@ Keep the new Electron + Next.js frontend stable while integrating existing Rust 
 
 - Renderer: Next.js App Router with static export for production loading
 - Shell: Electron main process with secure preload bridge
-- Bridge: typed contracts in [apps/desktop/shared/contracts/desktop.ts](/Users/noasantos/Fluri/axora/apps/desktop/shared/contracts/desktop.ts)
+- Bridge: typed contracts in [apps/desktop/shared/contracts/desktop.ts](/Users/noasantos/Fluri/openakta/apps/desktop/shared/contracts/desktop.ts)
 - Rust: existing crates remain outside the desktop renderer and are not imported directly by UI code
 
 ## Integration principle
@@ -61,9 +61,9 @@ is a main-process concern.
 |------------|--------------------|--------------------|-------------|
 | App metadata | `desktopClient.getInfo()` | Electron main | none |
 | Preferences | `desktopClient.getPreferences()` | Electron main | none |
-| Mission execution | future service | Electron main | `axora-core`, `axora-daemon` |
-| Task/run history | future service | Electron main | `axora-storage` |
-| Repository search/index | future service | Electron main | `axora-indexing`, `axora-rag` |
+| Mission execution | future service | Electron main | `openakta-core`, `openakta-daemon` |
+| Task/run history | future service | Electron main | `openakta-storage` |
+| Repository search/index | future service | Electron main | `openakta-indexing`, `openakta-rag` |
 
 ## Constraints
 

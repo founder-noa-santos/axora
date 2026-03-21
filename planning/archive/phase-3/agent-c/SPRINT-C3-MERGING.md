@@ -24,7 +24,7 @@ Implement result merging with automatic conflict detection and resolution for mu
 
 ### Subagent 1: Result Combiner
 **Task:** Implement combining results from multiple workers
-**File:** `crates/axora-agents/src/merger/result_combiner.rs`
+**File:** `crates/openakta-agents/src/merger/result_combiner.rs`
 **Deliverables:**
 - `ResultCombiner` struct
 - `combine_results(results)` → `MergedResult`
@@ -34,7 +34,7 @@ Implement result merging with automatic conflict detection and resolution for mu
 
 ### Subagent 2: Conflict Detector + Resolver
 **Task:** Implement conflict detection and auto-resolution
-**File:** `crates/axora-agents/src/merger/conflict_resolver.rs`
+**File:** `crates/openakta-agents/src/merger/conflict_resolver.rs`
 **Deliverables:**
 - `ConflictDetector` struct
 - `detect_conflicts(results)` → `Vec<Conflict>`
@@ -55,7 +55,7 @@ Implement result merging with automatic conflict detection and resolution for mu
    - Resolve integration issues
 
 2. **Integrate Components:**
-   - Create `crates/axora-agents/src/merger.rs` (main module)
+   - Create `crates/openakta-agents/src/merger.rs` (main module)
    - Combine result combiner + conflict detector + resolver
    - Export unified `ResultMerger` struct
 
@@ -72,7 +72,7 @@ Implement result merging with automatic conflict detection and resolution for mu
    - Test user escalation (complex conflicts)
 
 5. **Update Documentation:**
-   - Add module to `crates/axora-agents/src/lib.rs`
+   - Add module to `crates/openakta-agents/src/lib.rs`
    - Add merging examples
 
 ---

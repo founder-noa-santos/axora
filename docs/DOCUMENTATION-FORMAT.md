@@ -1,14 +1,14 @@
-# AXORA Documentation Format
+# OPENAKTA Documentation Format
 
 **Date:** 2026-03-16
 **Status:** ADOPTED
-**Purpose:** Define documentation standards for AXORA project
+**Purpose:** Define documentation standards for OPENAKTA project
 
 ---
 
 ## 📋 Overview
 
-AXORA uses a **structured documentation approach** with:
+OPENAKTA uses a **structured documentation approach** with:
 
 - **Machine-parseable** metadata (YAML frontmatter)
 - **Human-readable** content (Markdown)
@@ -123,7 +123,7 @@ API documentation describes endpoints:
 ```yaml
 openapi: 3.0.0
 info:
-  title: AXORA API
+  title: OPENAKTA API
   version: 1.0.0
 paths:
   /api/v1/users:
@@ -296,4 +296,4 @@ pub fn authenticate_user(...) { }
 
 ---
 
-**This format enables CONSISTENT, VALIDATED, TRACEABLE documentation across AXORA.**
+**This format enables CONSISTENT, VALIDATED, TRACEABLE documentation across OPENAKTA.**

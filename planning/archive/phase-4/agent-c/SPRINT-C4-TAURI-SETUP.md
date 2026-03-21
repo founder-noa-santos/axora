@@ -118,9 +118,9 @@ fn main() {
 ```json
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AXORA",
+  "productName": "OPENAKTA",
   "version": "0.1.0",
-  "identifier": "dev.axora.app",
+  "identifier": "dev.openakta.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5173",
@@ -130,7 +130,7 @@ fn main() {
   "app": {
     "windows": [
       {
-        "title": "AXORA — Autonomous AI Orchestration",
+        "title": "OPENAKTA — Autonomous AI Orchestration",
         "width": 1200,
         "height": 800,
         "resizable": true,
@@ -172,7 +172,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>AXORA</h1>
+        <h1>OPENAKTA</h1>
       </header>
       <div className="sidebar">
         {/* Navigation */}

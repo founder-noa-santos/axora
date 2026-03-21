@@ -10,7 +10,7 @@
 ### Phase 3 Sprints
 | Sprint | Title | File | Verified |
 |--------|-------|------|----------|
-| **B1** | **Worker Agent Pool** | `axora-agents/src/worker_pool.rs` | ✅ |
+| **B1** | **Worker Agent Pool** | `openakta-agents/src/worker_pool.rs` | ✅ |
 
 ### Phase 4 Sprints
 | Sprint | Title | File | Verified |
@@ -21,17 +21,17 @@
 ### Legacy Sprints
 | Sprint | Title | File | Verified |
 |--------|-------|------|----------|
-| 5 | TOON Serialization | `axora-cache/src/toon.rs` | ✅ |
-| 8 | Context Distribution | `axora-cache/src/context.rs` | ✅ |
-| 10 | Documentation & Consolidation | `axora-cache/docs/` | ✅ |
-| 11 | Context + RAG Pivot | `axora-cache/src/context.rs` | ✅ |
-| 12 | Snapshot Blackboard | `axora-cache/src/blackboard.rs` | ✅ |
-| 16 | SCIP Indexing | `axora-indexing/src/scip.rs` | ✅ |
-| 17 | Influence Vector | `axora-indexing/src/influence.rs` | ✅ |
-| 20 | Context Pruning | `axora-cache/src/context_pruning.rs` | ✅ |
-| 21 | Sliding-Window Semaphores | `axora-cache/src/concurrency.rs` | ✅ |
-| 22 | Atomic Checkout | `axora-indexing/src/task_queue.rs` | ✅ |
-| 24 | Repository Map | `axora-indexing/src/repository_map.rs` | ✅ |
+| 5 | TOON Serialization | `openakta-cache/src/toon.rs` | ✅ |
+| 8 | Context Distribution | `openakta-cache/src/context.rs` | ✅ |
+| 10 | Documentation & Consolidation | `openakta-cache/docs/` | ✅ |
+| 11 | Context + RAG Pivot | `openakta-cache/src/context.rs` | ✅ |
+| 12 | Snapshot Blackboard | `openakta-cache/src/blackboard.rs` | ✅ |
+| 16 | SCIP Indexing | `openakta-indexing/src/scip.rs` | ✅ |
+| 17 | Influence Vector | `openakta-indexing/src/influence.rs` | ✅ |
+| 20 | Context Pruning | `openakta-cache/src/context_pruning.rs` | ✅ |
+| 21 | Sliding-Window Semaphores | `openakta-cache/src/concurrency.rs` | ✅ |
+| 22 | Atomic Checkout | `openakta-indexing/src/task_queue.rs` | ✅ |
+| 24 | Repository Map | `openakta-indexing/src/repository_map.rs` | ✅ |
 
 ---
 

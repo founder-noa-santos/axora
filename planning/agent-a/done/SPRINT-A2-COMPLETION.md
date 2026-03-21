@@ -32,7 +32,7 @@ Successfully implemented Blackboard v2 with versioned context management, subscr
 ## 📦 Deliverables
 
 ### 1. BlackboardV2
-**File:** `crates/axora-cache/src/blackboard/v2.rs`
+**File:** `crates/openakta-cache/src/blackboard/v2.rs`
 
 - Versioned context tracking
 - Subscribe/notify pattern
@@ -40,21 +40,21 @@ Successfully implemented Blackboard v2 with versioned context management, subscr
 - Configuration via `BlackboardConfig`
 
 ### 2. Versioning System
-**File:** `crates/axora-cache/src/blackboard/versioning.rs`
+**File:** `crates/openakta-cache/src/blackboard/versioning.rs`
 
 - Track context versions with timestamps
 - Compare versions for conflicts
 - Rollback support
 
 ### 3. Subscribe/Notify Pattern
-**File:** `crates/axora-cache/src/blackboard/subscription.rs`
+**File:** `crates/openakta-cache/src/blackboard/subscription.rs`
 
 - Workers subscribe to contexts they care about
 - Real-time notifications on changes
 - Unsubscribe support
 
 ### 4. Atomic Updates
-**File:** `crates/axora-cache/src/blackboard/atomic.rs`
+**File:** `crates/openakta-cache/src/blackboard/atomic.rs`
 
 - Lock context before update
 - Check version (optimistic locking)
@@ -62,14 +62,14 @@ Successfully implemented Blackboard v2 with versioned context management, subscr
 - Release lock
 
 ### 5. Diff-based Push
-**File:** `crates/axora-cache/src/blackboard/diff.rs`
+**File:** `crates/openakta-cache/src/blackboard/diff.rs`
 
 - Calculate diff between versions
 - Send only changes (not full context)
 - 80% size reduction vs full context
 
 ### 6. Tests
-**Location:** `crates/axora-cache/src/blackboard/`
+**Location:** `crates/openakta-cache/src/blackboard/`
 
 - 4 tests in `v2.rs`
 - 3 tests in `versioning.rs`
@@ -186,7 +186,7 @@ pub fn calculate_diff(old: &Context, new: &Context) -> ContextDiff {
 ## 📚 References
 
 - [Sprint A2 Plan](../../archive/phase-3/agent-a/SPRINT-A2-BLACKBOARD-V2.md)
-- [Blackboard Implementation](../../crates/axora-cache/src/blackboard/v2.rs)
+- [Blackboard Implementation](../../crates/openakta-cache/src/blackboard/v2.rs)
 - [Phase 3 Status](../../archive/phase-3/CURRENT-STATUS.md)
 
 ---

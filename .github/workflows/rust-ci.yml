@@ -1,0 +1,96 @@
+name: Rust CI
+
+concurrency:
+  group: rust-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**'
+      - 'proto/**'
+      - '.cargo/**'
+      - 'rustfmt.toml'
+      - 'clippy.toml'
+      - '.github/workflows/rust-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/**'
+      - 'proto/**'
+      - '.cargo/**'
+      - 'rustfmt.toml'
+      - 'clippy.toml'
+      - '.github/workflows/rust-ci.yml'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # MSRV gate: compile-only, parallel with main job. Must match [workspace.package].rust-version.
+  msrv:
+    name: MSRV check
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          prefix-key: msrv-1.88
+      - name: cargo check (MSRV)
+        run: cargo check --workspace --all-targets --all-features --locked
+
+  quality:
+    name: fmt, clippy, test
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      # Default suite excludes #[ignore] slow tests (see openakta-agents executor/worker_pool).
+      - name: tests
+        run: cargo test --workspace --all-features --locked
+
+  # Full coverage on main: run ignored (slow) tests after the fast suite passes.
+  slow-tests:
+    name: slow (ignored) tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          prefix-key: slow-tests
+      - name: ignored tests only
+        run: cargo test --workspace --all-features --locked -- --ignored

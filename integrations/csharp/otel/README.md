@@ -1,3 +1,3 @@
-# Axora.Logger.Otel
+# Openakta.Logger.Otel
 
-OpenTelemetry adapter boundary for AXORA Wide Events.
+OpenTelemetry adapter boundary for OPENAKTA Wide Events.

@@ -1,0 +1,157 @@
+# OPENAKTA Configuration File
+# Copy this file to openakta.toml in your project root
+
+# ─────────────────────────────────────────────────────────────
+# SERVER CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[server]
+bind_address = "127.0.0.1"
+port = 50051
+
+# ─────────────────────────────────────────────────────────────
+# DATABASE CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[database]
+path = "~/.local/share/openakta/openakta.db"
+wal_mode = true
+busy_timeout_ms = 5000
+
+# ─────────────────────────────────────────────────────────────
+# AGENT CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[agents]
+max_concurrent_agents = 10
+frame_duration_ms = 16  # ~60 FPS
+health_check_interval_seconds = 30
+
+# ─────────────────────────────────────────────────────────────
+# PROVIDER INSTANCES CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+# Provider instances define execution lanes (cloud or local).
+# API keys MUST be stored in files, not inline in this config.
+# Create .openakta/secrets/<instance-name>.key with your API key.
+
+[providers]
+# Default cloud instance (optional - omit for local-only operation)
+default_cloud_instance = "anthropic-cloud"
+# Default local instance (optional - omit for cloud-only operation)
+default_local_instance = "ollama-local"
+# Deterministic routing priority (optional)
+model_instance_priority = ["anthropic-cloud", "ollama-local"]
+
+# Cloud provider instance - Anthropic
+[providers.instances.anthropic-cloud]
+profile = "anthropic_messages_v1"
+base_url = "https://api.anthropic.com"
+is_local = false
+default_model = "claude-sonnet-4-5"
+label = "Anthropic Cloud"
+# NEVER put api_key inline - use api_key_file instead:
+api_key_file = ".openakta/secrets/anthropic-cloud.key"
+
+# Local provider instance - Ollama
+[providers.instances.ollama-local]
+profile = "open_ai_compatible"
+base_url = "http://127.0.0.1:11434"
+is_local = true
+default_model = "qwen2.5-coder:7b"
+label = "Ollama Local"
+# Local providers typically don't need API keys
+# api_key_file = ".openakta/secrets/ollama-local.key"
+
+# ─────────────────────────────────────────────────────────────
+# MODEL REGISTRY (Optional: Local overrides for custom models)
+# ─────────────────────────────────────────────────────────────
+# [[registry_models]]
+# name = "custom-model"
+# max_context_window = 32768
+# max_output_tokens = 4096
+# preferred_instance = "ollama-local"
+
+# ─────────────────────────────────────────────────────────────
+# REMOTE REGISTRY (Optional: Dynamic model metadata updates)
+# ─────────────────────────────────────────────────────────────
+# [remote_registry]
+# url = "https://example.com/model-registry.json"
+# poll_interval_secs = 3600
+# http_timeout_secs = 5
+
+# ─────────────────────────────────────────────────────────────
+# ROUTING AND FALLBACK CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+# Fallback policy when cloud is unavailable
+# Options: "never", "explicit", "automatic"
+fallback_policy = "explicit"
+
+# Enable difficulty-aware routing (cloud vs local)
+routing_enabled = true
+
+# Retry budget for local validation failures
+local_validation_retry_budget = 1
+
+# Token budget configuration (dynamically derived from model metadata by default)
+context_use_ratio = 0.85
+context_margin_tokens = 1024
+retrieval_share = 0.30
+
+# ─────────────────────────────────────────────────────────────
+# TOKEN LIMITS (Legacy - now dynamically derived from registry)
+# ─────────────────────────────────────────────────────────────
+[tokens]
+max_tokens_per_request = 4096
+max_context_tokens = 8192
+token_budget_per_session = 100000
+
+# ─────────────────────────────────────────────────────────────
+# UI CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[ui]
+theme = "dark"  # Options: "light", "dark", "system"
+language = "pt-BR"  # Options: "en", "pt-BR", "es"
+sidebar_width = 300
+font_size = 14
+
+# ─────────────────────────────────────────────────────────────
+# ADVANCED CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[advanced]
+enable_logging = true
+log_level = "info"  # Options: "debug", "info", "warn", "error"
+auto_update = true
+telemetry_enabled = false  # Set to true to help improve OPENAKTA
+
+# ─────────────────────────────────────────────────────────────
+# WORKER POOL CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[worker_pool]
+min_workers = 2
+max_workers = 10
+idle_timeout_seconds = 300
+
+# ─────────────────────────────────────────────────────────────
+# MEMORY CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[memory]
+max_episodic_memories = 1000
+max_semantic_memories = 5000
+consolidation_interval_minutes = 60
+enable_memgas = true
+
+# ─────────────────────────────────────────────────────────────
+# RETRIEVAL CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[retrieval]
+backend = "sqlite"
+
+[retrieval.code]
+token_budget = 4096
+
+[retrieval.skills]
+token_budget = 2048
+
+# ─────────────────────────────────────────────────────────────
+# PROVIDER RUNTIME CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+[provider_runtime]
+timeout = 120
+max_retries = 3

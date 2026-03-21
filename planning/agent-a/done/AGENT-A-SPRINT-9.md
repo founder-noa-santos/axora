@@ -1,7 +1,7 @@
 # Agent A — Sprint 9: Phase 2 Integration & Benchmarking
 
 **Sprint:** 9 of Phase 2  
-**File:** `crates/axora-cache/benches/` (NOVO) + Integration tests  
+**File:** `crates/openakta-cache/benches/` (NOVO) + Integration tests  
 **Estimated Time:** 8 horas  
 
 ---
@@ -242,14 +242,14 @@ fn benchmark_context_allocation(c: &mut Criterion) {
 ## 📁 File Boundaries
 
 **Criar:**
-- `crates/axora-cache/tests/integration.rs` (NOVO)
-- `crates/axora-cache/benches/token_savings.rs` (NOVO)
-- `crates/axora-cache/benches/performance.rs` (NOVO)
-- `crates/axora-agents/tests/integration.rs` (NOVO)
+- `crates/openakta-cache/tests/integration.rs` (NOVO)
+- `crates/openakta-cache/benches/token_savings.rs` (NOVO)
+- `crates/openakta-cache/benches/performance.rs` (NOVO)
+- `crates/openakta-agents/tests/integration.rs` (NOVO)
 
 **Editar:**
-- `crates/axora-cache/Cargo.toml` (add benchmark deps)
-- `crates/axora-agents/Cargo.toml` (add benchmark deps)
+- `crates/openakta-cache/Cargo.toml` (add benchmark deps)
+- `crates/openakta-agents/Cargo.toml` (add benchmark deps)
 
 **NÃO editar:**
 - Implementações existentes (só testes/benchmarks)
@@ -259,8 +259,8 @@ fn benchmark_context_allocation(c: &mut Criterion) {
 ## 🚀 Passos
 
 1. **Criar integration tests:**
-   - `tests/integration.rs` em axora-cache
-   - `tests/integration.rs` em axora-agents
+   - `tests/integration.rs` em openakta-cache
+   - `tests/integration.rs` em openakta-agents
    - 4+ integration tests (veja exemplos acima)
 
 2. **Criar benchmarks:**
@@ -344,4 +344,4 @@ fn benchmark_context_allocation(c: &mut Criterion) {
 
 **Comece AGORA. Foque em integração real e benchmarks precisos.**
 
-**Use dados reais (código do AXORA, JSONs reais, etc.).**
+**Use dados reais (código do OPENAKTA, JSONs reais, etc.).**

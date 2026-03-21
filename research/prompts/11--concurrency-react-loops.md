@@ -8,7 +8,7 @@
 
 ## Context & Motivation
 
-**Problem:** When a user gives AXORA a complex mission (e.g., "implement authentication system"), we currently:
+**Problem:** When a user gives OPENAKTA a complex mission (e.g., "implement authentication system"), we currently:
 - ❌ Assign to a single agent
 - ❌ Agent works sequentially on everything
 - ❌ Context window fills up quickly
@@ -156,7 +156,7 @@ Thought → Action → Observation → Thought → Action → ...
 
 ---
 
-## 💡 Proposed AXORA Patterns
+## 💡 Proposed OPENAKTA Patterns
 
 ### Pattern 1: Mission Breakdown
 
@@ -358,7 +358,7 @@ impl ContextManager {
 **Setup:**
 - 10 complex missions (e.g., "implement auth", "add payment system")
 - **Method A:** Manual decomposition (human)
-- **Method B:** LLM-based decomposition (AXORA)
+- **Method B:** LLM-based decomposition (OPENAKTA)
 
 **Metrics:**
 - Task count (more = finer granularity)
@@ -469,4 +469,4 @@ Concurrent task decomposition is successful when:
 
 ---
 
-**Ready to execute this research.** This will provide the foundation for **concurrent multi-agent execution** in AXORA.
+**Ready to execute this research.** This will provide the foundation for **concurrent multi-agent execution** in OPENAKTA.

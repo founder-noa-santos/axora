@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 22 (Implementation)  
-**File:** `crates/axora-indexing/src/task_queue.rs`  
+**File:** `crates/openakta-indexing/src/task_queue.rs`  
 **Priority:** HIGH (prevents duplicate execution)  
 **Estimated Tokens:** ~100K output  
 
@@ -27,7 +27,7 @@ Competitive analysis provides CRITICAL implementation details:
 
 ### 1. Create task_queue.rs
 
-**File:** `crates/axora-indexing/src/task_queue.rs`
+**File:** `crates/openakta-indexing/src/task_queue.rs`
 
 **Core Structure:**
 ```rust
@@ -166,7 +166,7 @@ impl TaskQueue {
 
 ### 2. Create Database Migration
 
-**File:** `crates/axora-indexing/migrations/0002_task_queue.sql`
+**File:** `crates/openakta-indexing/migrations/0002_task_queue.sql`
 
 ```sql
 -- Task queue table
@@ -195,7 +195,7 @@ ON tasks(assignee_id);
 
 ### 3. Integrate with Coordinator
 
-**File:** `crates/axora-agents/src/coordinator.rs` (UPDATE)
+**File:** `crates/openakta-agents/src/coordinator.rs` (UPDATE)
 
 ```rust
 // Add to existing Coordinator
@@ -227,16 +227,16 @@ impl Coordinator {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-indexing/src/task_queue.rs` (NEW)
-- `crates/axora-indexing/migrations/0002_task_queue.sql` (NEW)
+- `crates/openakta-indexing/src/task_queue.rs` (NEW)
+- `crates/openakta-indexing/migrations/0002_task_queue.sql` (NEW)
 
 **Update:**
-- `crates/axora-indexing/src/lib.rs` (add module export)
-- `crates/axora-agents/src/coordinator.rs` (integrate queue)
+- `crates/openakta-indexing/src/lib.rs` (add module export)
+- `crates/openakta-agents/src/coordinator.rs` (integrate queue)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's other work)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-cache/` (Agent B's other work)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

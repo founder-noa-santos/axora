@@ -1,4 +1,4 @@
-# 📊 AXORA — Status Completo do Projeto
+# 📊 OPENAKTA — Status Completo do Projeto
 
 **Data:** 2026-03-17
 **Autor:** Architect Agent
@@ -8,7 +8,7 @@
 ## 🎯 Visão Geral
 
 ```
-AXORA = Multi-Agent Coding System
+OPENAKTA = Multi-Agent Coding System
 ├── Backend (Rust) — Coordinator + Workers
 ├── Frontend (React + Tauri) — Desktop App
 └── Protocolo (gRPC + Protobuf) — Comunicação
@@ -20,10 +20,10 @@ AXORA = Multi-Agent Coding System
 
 ### 1. **Backend Rust (Phase 3 - 100%)**
 
-#### ✅ axora-proto
+#### ✅ openakta-proto
 - **O que é:** Definições Protocol Buffer (gRPC)
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-proto/`
+- **Local:** `crates/openakta-proto/`
 - **Tipos gerados:**
   - `Agent` — Definição de agente
   - `Task` — Definição de tarefa
@@ -45,10 +45,10 @@ service CollectiveService {
 
 ---
 
-#### ✅ axora-core
+#### ✅ openakta-core
 - **O que é:** Lógica de negócio do Coordinator
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-core/`
+- **Local:** `crates/openakta-core/`
 
 **Componentes:**
 - ✅ `CoreConfig` — Configuração do sistema
@@ -66,10 +66,10 @@ service CollectiveService {
 
 ---
 
-#### ✅ axora-storage
+#### ✅ openakta-storage
 - **O que é:** Camada de armazenamento SQLite
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-storage/`
+- **Local:** `crates/openakta-storage/`
 
 **Componentes:**
 - ✅ `Database` — Gerenciador de conexão
@@ -83,10 +83,10 @@ service CollectiveService {
 
 ---
 
-#### ✅ axora-daemon
+#### ✅ openakta-daemon
 - **O que é:** Executável principal do backend
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-daemon/`
+- **Local:** `crates/openakta-daemon/`
 
 **Funcionalidades:**
 - ✅ CLI com clap
@@ -97,15 +97,15 @@ service CollectiveService {
 
 **Como rodar:**
 ```bash
-cargo run -p axora-daemon -- --help
+cargo run -p openakta-daemon -- --help
 ```
 
 ---
 
-#### 🔄 axora-agents (Phase 2 - 100%)
+#### 🔄 openakta-agents (Phase 2 - 100%)
 - **O que é:** Implementação dos Worker Agents
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-agents/`
+- **Local:** `crates/openakta-agents/`
 
 **Componentes:**
 - ✅ `Heartbeat` — Sistema de health check
@@ -116,10 +116,10 @@ cargo run -p axora-daemon -- --help
 
 ---
 
-#### 🔄 axora-cache (Phase 2 - 100%)
+#### 🔄 openakta-cache (Phase 2 - 100%)
 - **O que é:** Otimização de contexto
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-cache/`
+- **Local:** `crates/openakta-cache/`
 
 **Componentes:**
 - ✅ `TOON` — Serialização de contexto
@@ -129,10 +129,10 @@ cargo run -p axora-daemon -- --help
 
 ---
 
-#### 🔄 axora-memory (Phase 2 - 100%)
+#### 🔄 openakta-memory (Phase 2 - 100%)
 - **O que é:** Sistema de memória tripartite
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-memory/`
+- **Local:** `crates/openakta-memory/`
 
 **Componentes:**
 - ✅ `SemanticStore` — Memória semântica (conceitos)
@@ -143,10 +143,10 @@ cargo run -p axora-daemon -- --help
 
 ---
 
-#### 🔄 axora-indexing (Phase 2 - 100%)
+#### 🔄 openakta-indexing (Phase 2 - 100%)
 - **O que é:** Indexação e dependências
 - **Status:** ✅ Completo
-- **Local:** `crates/axora-indexing/`
+- **Local:** `crates/openakta-indexing/`
 
 **Componentes:**
 - ✅ `SCIP` — Indexação semântica
@@ -214,23 +214,23 @@ async fn submit_mission(mission: String) -> Result<Mission, String> {
 **Status:** ⚠️ **Parcial**
 
 **O que temos:**
-- ✅ `CoreConfig` em TOML (`crates/axora-core/src/config.rs`)
+- ✅ `CoreConfig` em TOML (`crates/openakta-core/src/config.rs`)
 - ✅ CLI args no daemon
 - ⚠️ **Falta:** Arquivo de configuração padrão
 
 **Solução Proposta:**
 
-#### Criar `axora.toml` (ou `axora.yaml`)
+#### Criar `openakta.toml` (ou `openakta.yaml`)
 
 ```toml
-# ~/.config/axora/axora.toml
+# ~/.config/openakta/openakta.toml
 
 [server]
 bind_address = "127.0.0.1"
 port = 50051
 
 [database]
-path = "~/.local/share/axora/axora.db"
+path = "~/.local/share/openakta/openakta.db"
 wal_mode = true
 
 [agents]
@@ -284,7 +284,7 @@ export const useSettingsStore = create((set) => ({
 
 ```bash
 # Testar o daemon diretamente
-cargo run -p axora-daemon -- --config axora.toml
+cargo run -p openakta-daemon -- --config openakta.toml
 
 # Em outro terminal, usar grpcurl
 grpcurl -plaintext localhost:50051 list
@@ -294,7 +294,7 @@ grpcurl -plaintext localhost:50051 collective.CollectiveService/ListAgents
 #### Opção 2: Rust Integration Tests
 
 ```rust
-// crates/axora-core/tests/integration.rs
+// crates/openakta-core/tests/integration.rs
 #[tokio::test]
 async fn test_submit_task() {
     let server = CollectiveServer::new(CoreConfig::default());
@@ -312,7 +312,7 @@ async fn test_submit_task() {
 
 ```rust
 // tests/grpc_client.rs
-use axora_proto::collective::v1::{
+use openakta_proto::collective::v1::{
     collective_service_client::CollectiveServiceClient,
     SubmitTaskRequest,
 };
@@ -363,8 +363,8 @@ async def test_submit_task():
 
 1. **Criar arquivo de configuração padrão**
    ```bash
-   mkdir -p ~/.config/axora
-   cp axora.example.toml ~/.config/axora/axora.toml
+   mkdir -p ~/.config/openakta
+   cp openakta.example.toml ~/.config/openakta/openakta.toml
    ```
 
 2. **Adicionar suporte a YAML/TOML no frontend**
@@ -378,7 +378,7 @@ async def test_submit_task():
 
 3. **Criar testes de integração**
    ```bash
-   cargo test -p axora-core --test integration
+   cargo test -p openakta-core --test integration
    ```
 
 ---
@@ -387,7 +387,7 @@ async def test_submit_task():
 
 1. **Adicionar WebSocket no backend**
    ```rust
-   // crates/axora-daemon/src/websocket.rs
+   // crates/openakta-daemon/src/websocket.rs
    use tokio_tungstenite;
    
    pub async fn start_websocket_server() {
@@ -415,7 +415,7 @@ async def test_submit_task():
 
 1. **Build de release**
    ```bash
-   cargo build --release -p axora-daemon
+   cargo build --release -p openakta-daemon
    pnpm tauri build
    ```
 
@@ -430,7 +430,7 @@ async def test_submit_task():
 
 | Componente | Status | Como Testar |
 |------------|--------|-------------|
-| **Backend gRPC** | ✅ 100% | `cargo run -p axora-daemon` |
+| **Backend gRPC** | ✅ 100% | `cargo run -p openakta-daemon` |
 | **Frontend UI** | ✅ 100% | `pnpm tauri dev` |
 | **Agentes (Rust)** | ✅ 100% | Testes unitários |
 | **Memória** | ✅ 100% | Testes unitários |
@@ -443,7 +443,7 @@ async def test_submit_task():
 
 ## 📚 Próximos Passos Imediatos
 
-1. **Criar `axora.example.toml`** — Configuração padrão
+1. **Criar `openakta.example.toml`** — Configuração padrão
 2. **Adicionar comando no Tauri** — `load_config` / `save_config`
 3. **Criar testes de integração** — `cargo test --test integration`
 4. **Conectar frontend ↔ backend** — WebSocket + REST

@@ -1,4 +1,4 @@
-# AXORA Technical Architecture: Inter-Agent Communication
+# OPENAKTA Technical Architecture: Inter-Agent Communication
 
 **Created:** 2026-03-16  
 **Status:** ✅ Approved  
@@ -8,11 +8,11 @@
 
 ## System Overview
 
-AXORA's inter-agent communication system implements a **hybrid architecture** combining deterministic state machine orchestration with asynchronous pub/sub for utility agents.
+OPENAKTA's inter-agent communication system implements a **hybrid architecture** combining deterministic state machine orchestration with asynchronous pub/sub for utility agents.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              AXORA Communication Stack                           │
+│              OPENAKTA Communication Stack                           │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -89,10 +89,10 @@ AXORA's inter-agent communication system implements a **hybrid architecture** co
 ### Protobuf Definition
 
 ```protobuf
-// axora/proto/agent_message.proto
+// openakta/proto/agent_message.proto
 syntax = "proto3";
 
-package axora.v1;
+package openakta.v1;
 
 enum MessageType {
   TASK_ASSIGN = 0;
@@ -187,13 +187,13 @@ struct ConversationThread {
 ### NATS Subject Hierarchy
 
 ```
-axora.orchestrator.lead           // Orchestrator → Team Leads
-axora.team.frontend.worker        // Frontend team workers
-axora.team.backend.worker         // Backend team workers
-axora.team.qa.worker              // QA team workers
-axora.utility.linter              // Linter (pub/sub)
-axora.utility.security-scanner    // Security scanner (pub/sub)
-axora.dlq                         // Dead Letter Queue
+openakta.orchestrator.lead           // Orchestrator → Team Leads
+openakta.team.frontend.worker        // Frontend team workers
+openakta.team.backend.worker         // Backend team workers
+openakta.team.qa.worker              // QA team workers
+openakta.utility.linter              // Linter (pub/sub)
+openakta.utility.security-scanner    // Security scanner (pub/sub)
+openakta.dlq                         // Dead Letter Queue
 ```
 
 ### Queue Groups (Horizontal Scaling)
@@ -202,7 +202,7 @@ axora.dlq                         // Dead Letter Queue
 // All frontend workers share the same queue group
 // Messages are load-balanced across available workers
 let worker = nats_client
-    .queue_subscribe("axora.team.frontend.worker", "frontend-pool")
+    .queue_subscribe("openakta.team.frontend.worker", "frontend-pool")
     .await?;
 ```
 
@@ -217,8 +217,8 @@ let worker = nats_client
 use async_nats::jetstream::stream;
 
 let stream_config = stream::Config {
-    name: "AXORA_TASKS".to_string(),
-    subjects: vec!["axora.*".to_string()],
+    name: "OPENAKTA_TASKS".to_string(),
+    subjects: vec!["openakta.*".to_string()],
     retention: stream::Retention::WorkQueue,
     max_messages_per_subject: 1000,
     storage: stream::Storage::File,
@@ -501,7 +501,7 @@ impl SecureMessage {
 
 ```rust
 use tonic::{Request, Response, Status};
-use axora_proto::mcp::v1::{
+use openakta_proto::mcp::v1::{
     tool_service_server::ToolService,
     ToolRequest, ToolResponse, ListToolsRequest, ToolDefinition,
 };
@@ -586,12 +586,12 @@ impl DeadLetterQueue {
         if retry_count >= self.max_retries {
             // Move to DLQ for human review
             self.nats_client
-                .publish("axora.dlq", message.encode_to_vec().into())
+                .publish("openakta.dlq", message.encode_to_vec().into())
                 .await?;
             
             // Notify debugger agent
             self.nats_client
-                .publish("axora.utility.debugger", DebuggerNotification {
+                .publish("openakta.utility.debugger", DebuggerNotification {
                     message: message.clone(),
                     error: error.clone(),
                 }.encode_to_vec().into())

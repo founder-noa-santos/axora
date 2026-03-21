@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useTheme as useNextTheme } from "next-themes";
-import type { DesktopPreferences, DesktopPreferencesPatch } from "@/shared/contracts/desktop";
+import type {
+  DesktopPreferences,
+  DesktopPreferencesPatch,
+} from "@/shared/contracts/desktop";
 import { desktopService } from "@/lib/services/desktop-service";
 
 export type ThemeMode = "dark" | "system" | "light";
@@ -22,7 +25,7 @@ interface UseThemeReturn {
 
 /**
  * Hook to manage theme preferences integrated with DesktopPreferences.
- * 
+ *
  * - When themeMode is "system", automatically detects and responds to OS preference changes
  * - Persists theme preference across app restarts via desktopService
  * - Provides both the user preference (themeMode) and actual applied theme (resolvedTheme)
@@ -36,7 +39,8 @@ export function useTheme(): UseThemeReturn {
   useEffect(() => {
     let mounted = true;
 
-    desktopService.getPreferences()
+    desktopService
+      .getPreferences()
       .then((preferences: DesktopPreferences | null) => {
         if (mounted && preferences) {
           setThemeModeState(preferences.themeMode);
@@ -46,7 +50,7 @@ export function useTheme(): UseThemeReturn {
         }
       })
       .catch((error: unknown) => {
-        console.error('[use-theme] Failed to fetch preferences:', error);
+        console.error("[use-theme] Failed to fetch preferences:", error);
         if (mounted) {
           setIsLoading(false);
         }
@@ -66,12 +70,12 @@ export function useTheme(): UseThemeReturn {
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
     setThemeModeState(mode);
-    
+
     // Persist to preferences
     const patch: DesktopPreferencesPatch = {
       themeMode: mode,
     };
-    
+
     desktopService.updatePreferences(patch).catch((error: unknown) => {
       console.error("Failed to update theme preference:", error);
     });

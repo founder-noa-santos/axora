@@ -9,7 +9,7 @@
 
 ## 📊 Summary
 
-Successfully implemented a comprehensive Settings & Configuration Panel for AXORA with:
+Successfully implemented a comprehensive Settings & Configuration Panel for OPENAKTA with:
 - Full settings UI with 5 configuration sections
 - Zustand-based state management with persistence
 - Backend API sync capabilities
@@ -36,7 +36,7 @@ Successfully implemented a comprehensive Settings & Configuration Panel for AXOR
 
 ### 2. Settings Store (`src/store/settings-store.ts`)
 - ✅ Zustand store with persist middleware
-- ✅ Local storage persistence (`axora-settings`)
+- ✅ Local storage persistence (`openakta-settings`)
 - ✅ Backend API sync (PUT/GET `/api/settings`)
 - ✅ Settings import/export
 - ✅ Error handling
@@ -172,7 +172,7 @@ export const useSettingsStore = create<SettingsStore>()(
       // ... actions
     }),
     {
-      name: 'axora-settings',
+      name: 'openakta-settings',
       partialize: (state) => ({ settings: state.settings }),
     }
   )

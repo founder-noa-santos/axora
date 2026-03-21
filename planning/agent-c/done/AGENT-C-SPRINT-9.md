@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 9 (Implementation)  
-**File:** `crates/axora-agents/src/react.rs` + `crates/axora-agents/src/coordinator.rs`  
+**File:** `crates/openakta-agents/src/react.rs` + `crates/openakta-agents/src/coordinator.rs`  
 **Priority:** CRITICAL (core execution engine)  
 **Estimated Tokens:** ~150K output  
 
@@ -27,7 +27,7 @@ Research validates our Graph-Based pivot and adds CRITICAL improvements:
 
 ### 1. Create react.rs (Dual-Thread ReAct)
 
-**File:** `crates/axora-agents/src/react.rs`
+**File:** `crates/openakta-agents/src/react.rs`
 
 **Core Structure:**
 ```rust
@@ -241,7 +241,7 @@ impl DualThreadReactAgent {
 
 ### 2. Create coordinator.rs (Centralized Orchestrator)
 
-**File:** `crates/axora-agents/src/coordinator.rs`
+**File:** `crates/openakta-agents/src/coordinator.rs`
 
 **Core Structure:**
 ```rust
@@ -342,7 +342,7 @@ impl Coordinator {
 
 ### 3. Implement Critical Path Optimization
 
-**File:** `crates/axora-agents/src/coordinator.rs` (add to existing)
+**File:** `crates/openakta-agents/src/coordinator.rs` (add to existing)
 
 ```rust
 impl Coordinator {
@@ -368,15 +368,15 @@ impl Coordinator {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-agents/src/react.rs` (NEW)
-- `crates/axora-agents/src/coordinator.rs` (NEW)
+- `crates/openakta-agents/src/react.rs` (NEW)
+- `crates/openakta-agents/src/coordinator.rs` (NEW)
 
 **Update:**
-- `crates/axora-agents/src/lib.rs` (add module exports)
+- `crates/openakta-agents/src/lib.rs` (add module exports)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 **Dependencies:**
 - Agent A's ACONIC docs (for DAG structure)

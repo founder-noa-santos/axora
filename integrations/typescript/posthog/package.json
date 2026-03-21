@@ -1,7 +1,7 @@
 {
-  "name": "@axora/logger-posthog",
+  "name": "@openakta/logger-posthog",
   "version": "0.1.0",
-  "description": "AXORA Wide Event PostHog adapter",
+  "description": "OPENAKTA Wide Event PostHog adapter",
   "type": "module",
   "exports": {
     ".": {
@@ -25,13 +25,13 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@axora/logger-core": "workspace:*"
+    "@openakta/logger-core": "workspace:*"
   },
   "peerDependencies": {
     "posthog-node": "^4.0.0"
   },
   "devDependencies": {
-    "@axora/logger-core": "workspace:*",
+    "@openakta/logger-core": "workspace:*",
     "@types/node": "^20.10.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",

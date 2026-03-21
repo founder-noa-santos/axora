@@ -7,13 +7,13 @@
 
 ## 🎯 Problem Statement
 
-**Current AXORA behavior:**
+**Current OPENAKTA behavior:**
 - User gives complex mission → Single agent works sequentially
 - Context window fills up quickly
 - No parallelization
 - Slow execution
 
-**Desired AXORA behavior:**
+**Desired OPENAKTA behavior:**
 - User gives complex mission → Automatically decomposed
 - Multiple agents work **concurrently**
 - Each agent has **minimal context**
@@ -99,17 +99,17 @@ Sync Points: Between parallel groups
 **Dispatch 3 agents concurrently:**
 
 **Agent A Prompt:** Sprint 3 (Code Minification)
-- File: `crates/axora-cache/src/minifier.rs`
+- File: `crates/openakta-cache/src/minifier.rs`
 - Task: Implement whitespace removal, identifier compression
 - Estimated: 8 hours
 
 **Agent B Prompt:** Sprint 5 (TOON Serialization)
-- File: `crates/axora-cache/src/toon.rs`
+- File: `crates/openakta-cache/src/toon.rs`
 - Task: Implement TOON encoder/decoder
 - Estimated: 8 hours
 
 **Agent C Prompt:** Sprint 3b (Heartbeat)
-- File: `crates/axora-agents/src/heartbeat.rs`
+- File: `crates/openakta-agents/src/heartbeat.rs`
 - Task: Implement hybrid heartbeat (timer + event)
 - Estimated: 8 hours
 
@@ -168,17 +168,17 @@ T+48h:
 
 **Agent A (Minification):**
 ```
-crates/axora-cache/src/minifier.rs ← ONLY this file
+crates/openakta-cache/src/minifier.rs ← ONLY this file
 ```
 
 **Agent B (TOON):**
 ```
-crates/axora-cache/src/toon.rs ← ONLY this file
+crates/openakta-cache/src/toon.rs ← ONLY this file
 ```
 
 **Agent C (Heartbeat):**
 ```
-crates/axora-agents/src/heartbeat.rs ← ONLY this file
+crates/openakta-agents/src/heartbeat.rs ← ONLY this file
 ```
 
 **No overlap = No conflicts**

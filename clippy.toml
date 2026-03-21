@@ -1,0 +1,2 @@
+# Align Clippy MSRV-aware lints with workspace.package.rust-version (root Cargo.toml).
+msrv = "1.88"

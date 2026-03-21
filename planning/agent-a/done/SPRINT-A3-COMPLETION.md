@@ -35,7 +35,7 @@ Successfully implemented real-time progress monitoring system with ETA calculati
 
 ### 1. Progress Monitoring Module
 
-**File:** `crates/axora-agents/src/monitor.rs`
+**File:** `crates/openakta-agents/src/monitor.rs`
 
 **Core Components:**
 
@@ -255,7 +255,7 @@ TaskProgress       Velocity History
 ### Basic Usage
 
 ```rust
-use axora_agents::monitor::{ProgressMonitor, TaskStatus};
+use openakta_agents::monitor::{ProgressMonitor, TaskStatus};
 use std::sync::Arc;
 
 let blackboard = Arc::new(BlackboardV2::default());
@@ -333,9 +333,9 @@ let counts = tracker.get_task_counts();
 
 ## 📚 Related Files
 
-- **Module:** `crates/axora-agents/src/monitor.rs`
-- **Exports:** `crates/axora-agents/src/lib.rs`
-- **BlackboardV2:** `crates/axora-agents/src/coordinator/v2.rs`
+- **Module:** `crates/openakta-agents/src/monitor.rs`
+- **Exports:** `crates/openakta-agents/src/lib.rs`
+- **BlackboardV2:** `crates/openakta-agents/src/coordinator/v2.rs`
 - **Sprint Plan:** `planning/archive/phase-3/agent-a/SPRINT-A3-PROGRESS-MONITORING.md`
 
 ---

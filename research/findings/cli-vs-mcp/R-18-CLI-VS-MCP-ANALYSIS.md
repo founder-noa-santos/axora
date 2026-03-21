@@ -11,7 +11,7 @@
 
 **The Core Tension:**
 
-AXORA aims to be:
+OPENAKTA aims to be:
 - ✅ **3-5x faster** than single-agent systems (requires parallel execution)
 - ✅ **CLI-first** for developer experience (terminal-native, fast)
 - ✅ **Secure** (sandboxed tool execution, no accidental file deletions)
@@ -19,13 +19,13 @@ AXORA aims to be:
 
 **The Conflict:**
 
-| Approach | Benefits | Critical Flaws for AXORA |
+| Approach | Benefits | Critical Flaws for OPENAKTA |
 |----------|----------|-------------------------|
 | **Pure CLI** (Aider model) | Fast, optimized, token-efficient | ❌ Single blocking loop, no parallelism, no sandboxing |
 | **MCP (Model Context Protocol)** | Secure, concurrent, sandboxed | ⚠️ More complex, potential overhead |
 
 **Decision Required:**
-> Should AXORA adopt a pure CLI model (like Aider) or use MCP over gRPC for multi-agent orchestration?
+> Should OPENAKTA adopt a pure CLI model (like Aider) or use MCP over gRPC for multi-agent orchestration?
 
 ---
 
@@ -35,17 +35,17 @@ AXORA aims to be:
 
 | Component | Status | Location | Architecture |
 |-----------|--------|----------|--------------|
-| **Blackboard v2** | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` | Pub/Sub (MCP-compatible) |
-| **Worker Agents** | ✅ Implemented | `crates/axora-agents/src/worker_pool.rs` | Parallel execution |
+| **Blackboard v2** | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` | Pub/Sub (MCP-compatible) |
+| **Worker Agents** | ✅ Implemented | `crates/openakta-agents/src/worker_pool.rs` | Parallel execution |
 | **Dual-Thread ReAct** | ✅ Designed | Research complete | Parallel planning/acting |
 | **Tool Execution** | 📋 Planned | Not yet implemented | CLI or MCP? |
-| **gRPC Services** | ✅ Scaffolded | `crates/axora-proto/` | MCP-ready infrastructure |
+| **gRPC Services** | ✅ Scaffolded | `crates/openakta-proto/` | MCP-ready infrastructure |
 
 ### Current Architecture (As-Built)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    AXORA Current Architecture                    │
+│                    OPENAKTA Current Architecture                    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐   │
@@ -100,14 +100,14 @@ User Terminal
 
 ### CLI Advantages
 
-| Benefit | Impact | Relevance to AXORA |
+| Benefit | Impact | Relevance to OPENAKTA |
 |---------|--------|-------------------|
 | **Speed** | Sub-second response times | ✅ Highly relevant |
 | **Token Efficiency** | AST compression + diffs = 90%+ savings | ✅ Already implemented |
 | **Simplicity** | Single process, no orchestration | ⚠️ Conflicts with multi-agent goal |
 | **Developer Experience** | Terminal-native, familiar | ✅ Aligned with CLI-first vision |
 
-### CLI Critical Flaws for AXORA
+### CLI Critical Flaws for OPENAKTA
 
 | Flaw | Impact | Why It Matters |
 |------|--------|----------------|
@@ -119,13 +119,13 @@ User Terminal
 
 ### Aider's Token Optimization (Worth Stealing)
 
-**What AXORA Should Adopt:**
+**What OPENAKTA Should Adopt:**
 1. ✅ **AST-Based Repository Maps** — Tree-sitter for context compression
 2. ✅ **Diff-Only Responses** — Git-style patches (already planned)
 3. ✅ **Prefix Caching** — Static prompts cached (already implemented)
 4. ✅ **Context Pruning** — Send only relevant files (already planned via Influence Graph)
 
-**What AXORA Should NOT Adopt:**
+**What OPENAKTA Should NOT Adopt:**
 1. ❌ **Single-Agent Loop** — Blocks parallelism
 2. ❌ **Direct CLI Tool Execution** — No sandboxing
 3. ❌ **In-Memory Communication** — Not network-transparent
@@ -174,9 +174,9 @@ User Terminal
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### MCP Advantages for AXORA
+### MCP Advantages for OPENAKTA
 
-| Benefit | Impact | Relevance to AXORA |
+| Benefit | Impact | Relevance to OPENAKTA |
 |---------|--------|-------------------|
 | **Parallel Execution** | Multiple agents run concurrently | ✅ Enables 3-5x speed goal |
 | **Tool Sandboxing** | Each tool is isolated, permissioned | ✅ Zero-trust security |
@@ -199,7 +199,7 @@ User Terminal
 
 ### Performance Comparison
 
-| Metric | Pure CLI | MCP over gRPC | AXORA Target |
+| Metric | Pure CLI | MCP over gRPC | OPENAKTA Target |
 |--------|----------|---------------|--------------|
 | **Single Tool Call Latency** | ~5ms | ~6ms (+1ms gRPC overhead) | <10ms ✅ |
 | **Parallel Tool Calls** | 1 at a time (blocking) | N at a time (concurrent) | 3-5x speedup ✅ |
@@ -209,7 +209,7 @@ User Terminal
 
 ### Security Comparison
 
-| Security Feature | Pure CLI | MCP over gRPC | AXORA Requirement |
+| Security Feature | Pure CLI | MCP over gRPC | OPENAKTA Requirement |
 |------------------|----------|---------------|-------------------|
 | **Tool Sandboxing** | ❌ No | ✅ Yes | ✅ Required |
 | **RBAC** | ❌ No | ✅ Yes | ✅ Required |
@@ -219,7 +219,7 @@ User Terminal
 
 ### Developer Experience Comparison
 
-| DX Feature | Pure CLI | MCP over gRPC | AXORA Target |
+| DX Feature | Pure CLI | MCP over gRPC | OPENAKTA Target |
 |------------|----------|---------------|--------------|
 | **Terminal-Native** | ✅ Yes | ✅ Yes (CLI wrapper) | ✅ Required |
 | **Fast Response** | ✅ Yes | ✅ Yes (<1ms overhead) | ✅ Required |
@@ -234,7 +234,7 @@ User Terminal
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              AXORA Hybrid Architecture                           │
+│              OPENAKTA Hybrid Architecture                           │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  User Interface Layer (CLI-First)                               │
@@ -316,13 +316,13 @@ User Terminal
 #### 3. Security Model
 
 **Questions:**
-- What RBAC policies should AXORA enforce by default?
+- What RBAC policies should OPENAKTA enforce by default?
 - How to sandbox tool execution without breaking functionality?
 - Should users be able to customize permissions per agent type?
 
 **Research Needed:**
 - [ ] Survey industry RBAC best practices
-- [ ] Design AXORA-specific permission model
+- [ ] Design OPENAKTA-specific permission model
 - [ ] Identify sandboxing strategies (containers, namespaces, etc.)
 
 ---
@@ -358,7 +358,7 @@ User Terminal
 - ❌ No RBAC (all agents have full access)
 - ❌ Not scalable (single machine only)
 
-**Verdict:** ❌ **REJECTED** — Conflicts with core AXORA goals
+**Verdict:** ❌ **REJECTED** — Conflicts with core OPENAKTA goals
 
 ---
 
@@ -413,9 +413,9 @@ User Terminal
 | **M4** | Tool Sandboxing (File System) | 3 days | Agent C |
 
 **Deliverables:**
-- `crates/axora-mcp-server/` — MCP server implementation
-- `crates/axora-proto/mcp.proto` — gRPC service definitions
-- `crates/axora-mcp-server/src/rbac.rs` — RBAC engine
+- `crates/openakta-mcp-server/` — MCP server implementation
+- `crates/openakta-proto/mcp.proto` — gRPC service definitions
+- `crates/openakta-mcp-server/src/rbac.rs` — RBAC engine
 
 ---
 
@@ -473,7 +473,7 @@ User Terminal
 
 ## ✅ Decision Required
 
-**Question:** Should AXORA adopt the **Hybrid (CLI-First, MCP-Backed)** architecture?
+**Question:** Should OPENAKTA adopt the **Hybrid (CLI-First, MCP-Backed)** architecture?
 
 **If Approved:**
 - Agent C starts Phase 1 (MCP Foundation)

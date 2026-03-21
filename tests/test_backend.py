@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-AXORA Backend Test Script
+OPENAKTA Backend Test Script
 
-This script tests the AXORA gRPC backend without needing the frontend.
+This script tests the OPENAKTA gRPC backend without needing the frontend.
 
 Usage:
     python tests/test_backend.py
@@ -23,8 +23,8 @@ from typing import Optional
 # import collective_pb2_grpc
 
 
-class AXORABackendTester:
-    """Test the AXORA gRPC backend."""
+class OPENAKTABackendTester:
+    """Test the OPENAKTA gRPC backend."""
     
     def __init__(self, address: str = "localhost:50051"):
         self.address = address
@@ -95,7 +95,7 @@ class AXORABackendTester:
     
     async def run_all_tests(self):
         """Run all tests."""
-        print("🚀 AXORA Backend Tester")
+        print("🚀 OPENAKTA Backend Tester")
         print("=" * 50)
         
         await self.connect()
@@ -113,7 +113,7 @@ class AXORABackendTester:
 
 async def main():
     """Main entry point."""
-    tester = AXORABackendTester()
+    tester = OPENAKTABackendTester()
     await tester.run_all_tests()
 
 

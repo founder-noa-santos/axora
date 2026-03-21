@@ -83,7 +83,7 @@ pnpm dev
 **Current Status:** ✅ Updated with Chat/Settings navigation
 
 **Check:**
-- [ ] Header renders with AXORA logo + version badge
+- [ ] Header renders with OPENAKTA logo + version badge
 - [ ] Chat/Settings toggle buttons work
 - [ ] Active panel highlighted correctly
 - [ ] Main content area switches panels

@@ -3,16 +3,16 @@ import { cloneStructured, normalizeEnvironment } from './internal/snapshot.js';
 import { WideEvent } from './WideEvent.js';
 
 function resolveService(service?: string): string {
-  const resolved = service?.trim() || process.env.AXORA_SERVICE?.trim();
+  const resolved = service?.trim() || process.env.OPENAKTA_SERVICE?.trim();
   if (!resolved) {
-    throw new Error('Logger requires a service name or AXORA_SERVICE');
+    throw new Error('Logger requires a service name or OPENAKTA_SERVICE');
   }
 
   return resolved;
 }
 
 function resolveEnvironment(environment?: string): string {
-  return normalizeEnvironment(environment ?? process.env.AXORA_ENV);
+  return normalizeEnvironment(environment ?? process.env.OPENAKTA_ENV);
 }
 
 export class Logger {

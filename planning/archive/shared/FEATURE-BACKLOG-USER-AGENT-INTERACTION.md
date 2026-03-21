@@ -1,4 +1,4 @@
-# AXORA Feature Backlog — User-Agent Interaction
+# OPENAKTA Feature Backlog — User-Agent Interaction
 
 **Date:** 2026-03-16  
 **Priority:** 🔴 HIGH (Fundamental for UX)
@@ -365,7 +365,7 @@ How should I proceed?"
 
 ---
 
-**These features are CRITICAL for AXORA's differentiation.** No other agent framework has:
+**These features are CRITICAL for OPENAKTA's differentiation.** No other agent framework has:
 - ✅ Always-on user channel during execution
 - ✅ Automatic decision capture with relevance detection
 - ✅ Multi-level memory (session, long-term, shared, domain)

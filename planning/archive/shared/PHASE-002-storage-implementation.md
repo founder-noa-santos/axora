@@ -11,7 +11,7 @@ The storage layer has the structure in place but lacks actual database migration
 ## Current State
 
 ### ✅ What Exists
-- Database connection manager (`crates/axora-storage/src/db.rs`)
+- Database connection manager (`crates/openakta-storage/src/db.rs`)
 - Store structs for Agent, Task, Message operations
 - Basic error handling with `StorageError`
 
@@ -24,7 +24,7 @@ The storage layer has the structure in place but lacks actual database migration
 
 ### Step 1: Create Database Migrations
 
-Create `crates/axora-storage/migrations/0001_init.sql`:
+Create `crates/openakta-storage/migrations/0001_init.sql`:
 
 ```sql
 -- Agents table
@@ -83,7 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_agent ON sessions(agent_id);
 
 ### Step 2: Implement Database Migrations
 
-Update `crates/axora-storage/src/db.rs`:
+Update `crates/openakta-storage/src/db.rs`:
 
 ```rust
 use refinery::{embed_migrations, Runner};
@@ -99,7 +99,7 @@ pub fn migrate(&self, conn: &mut Connection) -> Result<()> {
 }
 ```
 
-Add to `axora-storage/Cargo.toml`:
+Add to `openakta-storage/Cargo.toml`:
 ```toml
 refinery = { version = "0.8", features = ["rusqlite"] }
 ```
@@ -206,7 +206,7 @@ mod tests {
 ## Dependencies to Add
 
 ```toml
-# axora-storage/Cargo.toml
+# openakta-storage/Cargo.toml
 [dependencies]
 refinery = { version = "0.8", features = ["rusqlite"] }
 

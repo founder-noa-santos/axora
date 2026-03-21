@@ -198,9 +198,9 @@ All users must successfully authenticate via a cryptographically verified JWT to
 ```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://axora.dev/schemas/business-rule.json",
+  "$id": "https://openakta.dev/schemas/business-rule.json",
   "title": "Business Rule",
-  "description": "Schema for AXORA business rule documentation",
+  "description": "Schema for OPENAKTA business rule documentation",
   "type": "object",
   "properties": {
     "rule_id": {

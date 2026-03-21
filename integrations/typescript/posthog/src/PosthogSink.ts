@@ -1,4 +1,4 @@
-import type { Sink, WideEventPayload } from '@axora/logger-core';
+import type { Sink, WideEventPayload } from '@openakta/logger-core';
 
 export interface PosthogClientLike {
   capture(payload: {
@@ -26,8 +26,8 @@ export class PosthogSink implements Sink {
       timestamp: new Date(event.timestamp_start),
       properties: {
         ...event.context,
-        axora_event_id: event.event_id,
-        axora_service: event.service,
+        openakta_event_id: event.event_id,
+        openakta_service: event.service,
         status: event.status,
         level: event.level,
         duration_ms: event.duration_ms,

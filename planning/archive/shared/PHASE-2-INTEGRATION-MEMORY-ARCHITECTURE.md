@@ -225,7 +225,7 @@ impl MemoryLifecycle {
 
 ---
 
-### 5. Integration with Existing AXORA
+### 5. Integration with Existing OPENAKTA
 
 **Living Docs (Sprint 6) → Semantic Memory:**
 ```rust

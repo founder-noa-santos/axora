@@ -47,7 +47,9 @@ export function WorkspaceCanvas({
                   </h1>
                 </div>
                 <div className="rounded-[16px] border border-white/8 bg-white/6 px-3 py-2 text-right text-[12px] text-muted-foreground">
-                  <div>{info?.platform ?? "darwin"} · {info?.arch ?? "arm64"}</div>
+                  <div>
+                    {info?.platform ?? "darwin"} · {info?.arch ?? "arm64"}
+                  </div>
                   <div>{info?.version ?? "0.2.0"} renderer shell</div>
                 </div>
               </div>
@@ -108,7 +110,9 @@ export function WorkspaceCanvas({
                 <p className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                   Command surface
                 </p>
-                <h3 className="mt-1 text-[15px] font-semibold">Pinned actions</h3>
+                <h3 className="mt-1 text-[15px] font-semibold">
+                  Pinned actions
+                </h3>
               </div>
               <ArrowUpRight size={ICON_METRICS.body} />
             </div>
@@ -142,7 +146,9 @@ export function WorkspaceCanvas({
                     <p className="text-[13px] font-medium">{item.title}</p>
                     <p className="mt-1 muted-copy">{item.detail}</p>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">{item.time}</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {item.time}
+                  </span>
                 </div>
               </div>
             ))}
@@ -157,7 +163,7 @@ export function WorkspaceCanvas({
             <dl className="space-y-3 text-[13px]">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">App</dt>
-                <dd>{info?.name ?? "AXORA"}</dd>
+                <dd>{info?.name ?? "OPENAKTA"}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Renderer</dt>

@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 12 (Implementation)  
-**File:** `crates/axora-cache/src/blackboard.rs`  
+**File:** `crates/openakta-cache/src/blackboard.rs`  
 **Priority:** HIGH (blocks Agent C's ReAct implementation)  
 **Estimated Tokens:** ~100K output  
 
@@ -27,7 +27,7 @@ Research validates our Blackboard pattern and adds CRITICAL safety features:
 
 ### 1. Create blackboard.rs
 
-**File:** `crates/axora-cache/src/blackboard.rs`
+**File:** `crates/openakta-cache/src/blackboard.rs`
 
 **Core Structure:**
 ```rust
@@ -97,7 +97,7 @@ impl Blackboard {
 
 ### 2. Implement TOCTOU Prevention
 
-**File:** `crates/axora-cache/src/blackboard.rs` (add to existing)
+**File:** `crates/openakta-cache/src/blackboard.rs` (add to existing)
 
 ```rust
 /// TOCTOU-safe read-modify-write
@@ -169,7 +169,7 @@ pub enum BlackboardError {
 
 ### 3. Add Snapshot-Based Merging
 
-**File:** `crates/axora-cache/src/blackboard.rs` (add to existing)
+**File:** `crates/openakta-cache/src/blackboard.rs` (add to existing)
 
 ```rust
 impl Blackboard {
@@ -213,7 +213,7 @@ impl Blackboard {
 
 ### 4. Add Reflection Phase (For Stale Detection)
 
-**File:** `crates/axora-cache/src/blackboard.rs` (add to existing)
+**File:** `crates/openakta-cache/src/blackboard.rs` (add to existing)
 
 ```rust
 /// Reflection phase (when state changed during agent reasoning)
@@ -269,7 +269,7 @@ impl ReflectionPhase {
 
 ### 5. Add Strict JSON Schema Validation
 
-**File:** `crates/axora-cache/src/blackboard.rs` (add to existing)
+**File:** `crates/openakta-cache/src/blackboard.rs` (add to existing)
 
 ```rust
 /// Schema-validated post (prevents logical corruption)
@@ -322,14 +322,14 @@ impl Blackboard {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-cache/src/blackboard.rs` (NEW)
+- `crates/openakta-cache/src/blackboard.rs` (NEW)
 
 **Update:**
-- `crates/axora-cache/src/lib.rs` (add module export)
+- `crates/openakta-cache/src/lib.rs` (add module export)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

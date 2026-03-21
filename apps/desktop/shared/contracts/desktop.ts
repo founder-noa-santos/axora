@@ -60,7 +60,9 @@ export interface DesktopApi {
     getInfo: () => Promise<AppInfo>;
     getShellState: () => Promise<ShellState>;
     getFullscreenState: () => Promise<boolean>;
-    onFullscreenChange: (callback: (isFullscreen: boolean) => void) => () => void;
+    onFullscreenChange: (
+      callback: (isFullscreen: boolean) => void,
+    ) => () => void;
   };
   preferences: {
     get: () => Promise<DesktopPreferences>;

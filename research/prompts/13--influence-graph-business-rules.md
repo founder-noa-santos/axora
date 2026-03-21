@@ -268,7 +268,7 @@ for file in business_logic_files {
 
 ---
 
-### 4. Integration with AXORA
+### 4. Integration with OPENAKTA
 
 **Questions:**
 - How does this integrate with Living Docs (Sprint 6)?
@@ -367,7 +367,7 @@ Savings: 50,000 → 500 tokens = **99% reduction**
 - Code hotspots
 - Business context (some)
 
-**AXORA Differentiator:** Combine static analysis with **explicit business rule documentation** (not just code analysis).
+**OPENAKTA Differentiator:** Combine static analysis with **explicit business rule documentation** (not just code analysis).
 
 ---
 
@@ -408,7 +408,7 @@ Savings: 50,000 → 500 tokens = **99% reduction**
 **Content:**
 - Tools evaluated per language
 - Capabilities comparison
-- Recommendations for AXORA
+- Recommendations for OPENAKTA
 
 ---
 
@@ -441,7 +441,7 @@ Savings: 50,000 → 500 tokens = **99% reduction**
 **File:** `research/findings/influence-graph/INTEGRATION-PLAN.md`
 
 **Content:**
-- Integration with existing AXORA components
+- Integration with existing OPENAKTA components
 - API design
 - Token savings estimation
 - Implementation roadmap
@@ -454,7 +454,7 @@ Research is successful when:
 - [ ] Static analysis tools identified for all target languages
 - [ ] Business rule format specified and validated
 - [ ] Influence graph design complete
-- [ ] Integration plan with AXORA defined
+- [ ] Integration plan with OPENAKTA defined
 - [ ] Token savings estimated (target: 95%+ reduction)
 - [ ] Implementation roadmap created
 
@@ -462,7 +462,7 @@ Research is successful when:
 
 ## 🚨 Why This Is CRITICAL
 
-**This research could fundamentally change AXORA's architecture:**
+**This research could fundamentally change OPENAKTA's architecture:**
 
 **Current:**
 ```
@@ -480,4 +480,4 @@ User Request → Static analysis (no LLM) → Influence graph → Minimal contex
 
 ---
 
-**Ready to execute. This research could be the key to making AXORA truly scalable and cost-effective.**
+**Ready to execute. This research could be the key to making OPENAKTA truly scalable and cost-effective.**

@@ -6,7 +6,7 @@ Explain the current activation and setup logic that exists in code, even where c
 
 ## Executive Summary
 
-AXORA still does not implement customer onboarding in the conventional SaaS sense, but the activation surface is now mission-first instead of operator-first. The enforced path is: export provider credentials, run `axora do "<mission>"`, and let the runtime bootstrap storage, MCP, skills, and the default squad automatically.
+OPENAKTA still does not implement customer onboarding in the conventional SaaS sense, but the activation surface is now mission-first instead of operator-first. The enforced path is: export provider credentials, run `openakta do "<mission>"`, and let the runtime bootstrap storage, MCP, skills, and the default squad automatically.
 
 ## Confirmed Current State
 
@@ -21,8 +21,8 @@ AXORA still does not implement customer onboarding in the conventional SaaS sens
 ### Current activation sequence
 
 1. Export provider credentials.
-2. Run `axora do "<mission>"`.
-3. Infer workspace and create `.axora/` local runtime paths.
+2. Run `openakta do "<mission>"`.
+3. Infer workspace and create `.openakta/` local runtime paths.
 4. Initialize SQLite, memory services, and skill library.
 5. Start native MCP and runtime-managed background services.
 6. Bootstrap the Base Squad inside `CoordinatorV2`.
@@ -49,13 +49,13 @@ AXORA still does not implement customer onboarding in the conventional SaaS sens
 
 ## Implementation Evidence
 
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-core/src/config.rs`
-- `crates/axora-core/src/bootstrap.rs`
-- `crates/axora-core/src/runtime_services.rs`
-- `crates/axora-core/src/server.rs`
-- `crates/axora-cli/src/main.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-core/src/config.rs`
+- `crates/openakta-core/src/bootstrap.rs`
+- `crates/openakta-core/src/runtime_services.rs`
+- `crates/openakta-core/src/server.rs`
+- `crates/openakta-cli/src/main.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
 - `proto/collective/v1/core.proto`
 
 ## Business Meaning

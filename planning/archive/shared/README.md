@@ -1,8 +1,8 @@
-# AXORA Development Plan
+# OPENAKTA Development Plan
 
 ## Overview
 
-This folder contains the comprehensive development plan for the AXORA Multi-Agent Coding System.
+This folder contains the comprehensive development plan for the OPENAKTA Multi-Agent Coding System.
 
 **Vision:** "A primeira equipe de AI que trabalha pra você, do seu jeito."
 
@@ -205,7 +205,7 @@ Prepare for production deployment.
 └───────────────────────────────┬─────────────────────────────────┘
                                 │ gRPC (Port 50051)
 ┌───────────────────────────────▼─────────────────────────────────┐
-│                         AXORA Daemon                             │
+│                         OPENAKTA Daemon                             │
 │                    (Tokio + Tonic gRPC Server)                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
@@ -262,13 +262,13 @@ npm install -g pnpm
 
 ### Build Daemon
 ```bash
-cd axora
-cargo build -p axora-daemon
+cd openakta
+cargo build -p openakta-daemon
 ```
 
 ### Run Daemon
 ```bash
-cargo run -p axora-daemon -- --debug
+cargo run -p openakta-daemon -- --debug
 ```
 
 ### Build Desktop (when ready)
@@ -324,6 +324,6 @@ When working on a phase:
 
 ## Contact & Resources
 
-- **Repository:** https://github.com/axora/axora-mvp
+- **Repository:** https://github.com/openakta/aktacode
 - **Architecture Docs:** `/docs/architecture.md`
 - **Implementation Plan:** `/docs/implementation-plan.md`

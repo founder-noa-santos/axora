@@ -34,15 +34,15 @@ Implement a **zero-cloud-cost RAG system** that:
 **Tasks:**
 1. [ ] Download Jina Code v2 weights from HuggingFace
 2. [ ] Convert model to Candle Safetensors format
-3. [ ] Implement `JinaEmbedder` struct in `axora-embeddings`
+3. [ ] Implement `JinaEmbedder` struct in `openakta-embeddings`
 4. [ ] Add CPU-only inference (AVX2 acceleration)
 5. [ ] Implement embedding normalization
 6. [ ] Add embedding cache (disk-based, avoid re-computation)
 7. [ ] Write benchmarks (target: <25ms per block)
 
 **Deliverables:**
-- `crates/axora-embeddings/src/jina.rs` — Jina model wrapper
-- `crates/axora-embeddings/src/cache.rs` — Embedding cache
+- `crates/openakta-embeddings/src/jina.rs` — Jina model wrapper
+- `crates/openakta-embeddings/src/cache.rs` — Embedding cache
 - `benches/embed_bench.rs` — Performance benchmarks
 
 **Success Criteria:**
@@ -75,9 +75,9 @@ Implement a **zero-cloud-cost RAG system** that:
 7. [ ] Add persistence (survive app restarts)
 
 **Deliverables:**
-- `crates/axora-rag/src/vector_store.rs` — Qdrant wrapper
-- `crates/axora-rag/src/hybrid_search.rs` — BM25 + vectors
-- `crates/axora-rag/src/schema.rs` — Payload schema
+- `crates/openakta-rag/src/vector_store.rs` — Qdrant wrapper
+- `crates/openakta-rag/src/hybrid_search.rs` — BM25 + vectors
+- `crates/openakta-rag/src/schema.rs` — Payload schema
 
 **Success Criteria:**
 - [ ] Can store 100K vectors in <200MB RAM
@@ -122,9 +122,9 @@ Implement a **zero-cloud-cost RAG system** that:
    - Very large files (>10K lines)
 
 **Deliverables:**
-- `crates/axora-indexing/src/chunker.rs` — AST chunker
-- `crates/axora-indexing/src/languages/` — Language-specific logic
-- `crates/axora-indexing/src/metadata.rs` — Chunk metadata
+- `crates/openakta-indexing/src/chunker.rs` — AST chunker
+- `crates/openakta-indexing/src/languages/` — Language-specific logic
+- `crates/openakta-indexing/src/metadata.rs` — Chunk metadata
 
 **Success Criteria:**
 - [ ] Chunks preserve semantic meaning (functions intact)
@@ -164,9 +164,9 @@ Implement a **zero-cloud-cost RAG system** that:
    - Periodic cleanup (remove orphaned hashes)
 
 **Deliverables:**
-- `crates/axora-indexing/src/merkle.rs` — Merkle tree index
-- `crates/axora-indexing/src/watcher.rs` — File watcher integration
-- `crates/axora-indexing/src/gc.rs` — Garbage collection
+- `crates/openakta-indexing/src/merkle.rs` — Merkle tree index
+- `crates/openakta-indexing/src/watcher.rs` — File watcher integration
+- `crates/openakta-indexing/src/gc.rs` — Garbage collection
 
 **Success Criteria:**
 - [ ] Single function edit triggers re-index of 1 block (not entire file)
@@ -198,7 +198,7 @@ Implement a **zero-cloud-cost RAG system** that:
 3. [ ] Add reranking (optional, for precision):
    - Use cross-encoder for fine-grained scoring
    - Re-rank top-20 results to top-10
-4. [ ] Integrate with existing `axora-rag` crate:
+4. [ ] Integrate with existing `openakta-rag` crate:
    - Merge with BM25-only implementation
    - Add feature flag for vector search
 5. [ ] Add retrieval metrics:
@@ -207,9 +207,9 @@ Implement a **zero-cloud-cost RAG system** that:
    - Recall@k (coverage metric)
 
 **Deliverables:**
-- `crates/axora-rag/src/pipeline.rs` — Unified RAG pipeline
-- `crates/axora-rag/src/retrieval.rs` — Retrieval logic
-- `crates/axora-rag/src/reranker.rs` — Cross-encoder reranker
+- `crates/openakta-rag/src/pipeline.rs` — Unified RAG pipeline
+- `crates/openakta-rag/src/retrieval.rs` — Retrieval logic
+- `crates/openakta-rag/src/reranker.rs` — Cross-encoder reranker
 
 **Success Criteria:**
 - [ ] End-to-end retrieval latency <100ms P95
@@ -248,8 +248,8 @@ Implement a **zero-cloud-cost RAG system** that:
    - CPU usage (during indexing)
 
 **Deliverables:**
-- `crates/axora-embeddings/src/batch.rs` — Batch embedding
-- `crates/axora-rag/src/cache.rs` — Disk cache
+- `crates/openakta-embeddings/src/batch.rs` — Batch embedding
+- `crates/openakta-rag/src/cache.rs` — Disk cache
 - `benches/rag_bench.rs` — End-to-end benchmarks
 
 **Success Criteria:**
@@ -278,7 +278,7 @@ Implement a **zero-cloud-cost RAG system** that:
    - Idle (green)
    - Error (red)
 3. [ ] Manual re-index command:
-   - `axora index --force`
+   - `openakta index --force`
    - Full re-index (ignore hashes)
 4. [ ] Index health checks:
    - Detect corrupted index
@@ -291,7 +291,7 @@ Implement a **zero-cloud-cost RAG system** that:
 
 **Deliverables:**
 - `apps/desktop/src/components/index-status.tsx` — Status UI
-- `crates/axora-daemon/src/commands/index.rs` — CLI commands
+- `crates/openakta-daemon/src/commands/index.rs` — CLI commands
 - Enhanced logging throughout
 
 **Success Criteria:**

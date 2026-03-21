@@ -50,7 +50,7 @@ planning/
 **Move Phase 2 agent folders to archive:**
 
 ```bash
-cd /Users/noasantos/Downloads/axora/planning
+cd /Users/noasantos/Downloads/openakta/planning
 
 # Move old agent folders to archive
 mv agent-a archive/phase-2/
@@ -101,7 +101,7 @@ ls -la archive/phase-2/
 
 **1. Move Phase 2 folders to archive (manual):**
 ```bash
-cd /Users/noasantos/Downloads/axora/planning
+cd /Users/noasantos/Downloads/openakta/planning
 mv agent-a agent-b agent-c archive/phase-2/
 ```
 

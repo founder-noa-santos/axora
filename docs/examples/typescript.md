@@ -1,8 +1,8 @@
 # TypeScript Example
 
 ```typescript
-import { Logger, ConsoleSink } from '@axora/logger-core';
-import { OtelSink } from '@axora/logger-otel';
+import { Logger, ConsoleSink } from '@openakta/logger-core';
+import { OtelSink } from '@openakta/logger-otel';
 
 const logger = new Logger({
   service: 'billing-api',

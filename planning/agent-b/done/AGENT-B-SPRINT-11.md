@@ -1,7 +1,7 @@
 # Agent B — Sprint 11: Context Distribution Pivot (Graph + RAG)
 
 **Sprint:** 11 of Phase 2  
-**File:** `crates/axora-cache/src/context.rs` + `crates/axora-cache/src/rag.rs`  
+**File:** `crates/openakta-cache/src/context.rs` + `crates/openakta-cache/src/rag.rs`  
 **Estimated Tokens:** ~80K output tokens  
 
 ---
@@ -74,7 +74,7 @@ impl ContextManager {
 
 ### 2. Create rag.rs (NEW FILE)
 
-**File:** `crates/axora-cache/src/rag.rs`
+**File:** `crates/openakta-cache/src/rag.rs`
 
 **Purpose:** Domain RAG implementation (Experience-as-Parameters)
 
@@ -142,7 +142,7 @@ pub struct Experience {
 
 ### 3. Update DocHealth Metrics
 
-**File:** `crates/axora-cache/src/living.rs` (expand existing)
+**File:** `crates/openakta-cache/src/living.rs` (expand existing)
 
 **Add:**
 ```rust
@@ -167,7 +167,7 @@ pub struct DocHealth {
 
 ### 4. Add Hybrid Search Implementation
 
-**File:** `crates/axora-cache/src/rag.rs` (add to existing)
+**File:** `crates/openakta-cache/src/rag.rs` (add to existing)
 
 ```rust
 impl DomainRagStore {
@@ -206,15 +206,15 @@ impl DomainRagStore {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-cache/src/rag.rs` (NEW)
+- `crates/openakta-cache/src/rag.rs` (NEW)
 
 **Update:**
-- `crates/axora-cache/src/context.rs` (refactor to use RAG)
-- `crates/axora-cache/src/living.rs` (expand DocHealth)
+- `crates/openakta-cache/src/context.rs` (refactor to use RAG)
+- `crates/openakta-cache/src/living.rs` (expand DocHealth)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

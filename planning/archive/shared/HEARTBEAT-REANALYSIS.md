@@ -1,7 +1,7 @@
 # Heartbeat System — Deep Dive Analysis
 
 **Date:** 2026-03-16  
-**Request:** Re-evaluate heartbeat system for AXORA
+**Request:** Re-evaluate heartbeat system for OPENAKTA
 
 ---
 
@@ -31,7 +31,7 @@ You're right that heartbeat is becoming a **de facto standard** in agent framewo
 | AutoGen | ✅ Group chat with timeouts |
 | CrewAI | ✅ Sequential with callbacks |
 | LangGraph | ✅ State machine with checkpoints |
-| **AXORA (current)** | ❌ No scheduled execution |
+| **OPENAKTA (current)** | ❌ No scheduled execution |
 
 ---
 
@@ -51,7 +51,7 @@ I may have misunderstood the pattern. Let me clarify:
 
 ---
 
-## ✅ Heartbeat Benefits for AXORA
+## ✅ Heartbeat Benefits for OPENAKTA
 
 ### 1. Cost Efficiency
 **Without heartbeat:**
@@ -70,7 +70,7 @@ I may have misunderstood the pattern. Let me clarify:
 
 ### 2. Natural Task Boundaries
 
-**Current AXORA flow:**
+**Current OPENAKTA flow:**
 ```
 Agent receives task → Executes → Completes → Waits for next task
 ```
@@ -176,7 +176,7 @@ pub struct Heartbeat {
 **Pros:** Event-driven + safety net (prevents "lost" agents)  
 **Cons:** Most complex
 
-**Recommendation:** **Option C** for AXORA.
+**Recommendation:** **Option C** for OPENAKTA.
 
 ---
 
@@ -223,7 +223,7 @@ impl StateMachine {
 
 ```rust
 // Agent subscribes to its own heartbeat channel
-let heartbeat_subject = format!("axora.agent.{}.heartbeat", agent_id);
+let heartbeat_subject = format!("openakta.agent.{}.heartbeat", agent_id);
 
 nats.subscribe(heartbeat_subject, move |msg| {
     // Wake up and process

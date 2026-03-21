@@ -293,7 +293,7 @@ pub struct Symbol {
 
 **NEW: Architectural Ledger**
 ```markdown
-# AXORA Architecture Ledger
+# OPENAKTA Architecture Ledger
 
 **Last Updated:** 2026-03-16  
 **Maintained By:** Architect Agent

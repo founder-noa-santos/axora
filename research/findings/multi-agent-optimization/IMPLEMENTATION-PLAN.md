@@ -24,12 +24,12 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| PrefixCache | ✅ Implemented (not connected) | `crates/axora-cache/src/prefix_cache.rs` |
-| Diff | ✅ Implemented (not enforced) | `crates/axora-cache/src/diff.rs` |
-| InfluenceGraph | ✅ Implemented (simple parsing) | `crates/axora-indexing/src/influence.rs` |
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` |
-| API Client | ❌ No caching | `crates/axora-agents/` |
-| Agent Output | ❌ Not enforced (full files) | `crates/axora-agents/` |
+| PrefixCache | ✅ Implemented (not connected) | `crates/openakta-cache/src/prefix_cache.rs` |
+| Diff | ✅ Implemented (not enforced) | `crates/openakta-cache/src/diff.rs` |
+| InfluenceGraph | ✅ Implemented (simple parsing) | `crates/openakta-indexing/src/influence.rs` |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` |
+| API Client | ❌ No caching | `crates/openakta-agents/` |
+| Agent Output | ❌ Not enforced (full files) | `crates/openakta-agents/` |
 | SCIP Indexing | ❌ Not implemented | — |
 | Graph Retriever | ❌ Not implemented | — |
 | Agent Protocol | ❌ Natural language | — |
@@ -81,9 +81,9 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 7. [ ] Write integration tests (verify caching works)
 
 **Deliverables:**
-- `crates/axora-agents/src/api_client.rs` — Enhanced API client
-- `crates/axora-agents/src/cache_integration.rs` — Cache integration
-- `crates/axora-agents/src/metrics.rs` — Metrics tracking
+- `crates/openakta-agents/src/api_client.rs` — Enhanced API client
+- `crates/openakta-agents/src/cache_integration.rs` — Cache integration
+- `crates/openakta-agents/src/metrics.rs` — Metrics tracking
 
 **Success Criteria:**
 - [ ] 50-90% reduction in prompt tokens (static prefixes cached)
@@ -137,9 +137,9 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/diff_enforcer.rs` — Output validator
-- `crates/axora-agents/src/prompts/diff_only.md` — System prompt
-- `crates/axora-agents/src/converter.rs` — Full-to-diff converter
+- `crates/openakta-agents/src/diff_enforcer.rs` — Output validator
+- `crates/openakta-agents/src/prompts/diff_only.md` — System prompt
+- `crates/openakta-agents/src/converter.rs` — Full-to-diff converter
 
 **Success Criteria:**
 - [ ] 89-98% reduction in output tokens
@@ -191,12 +191,12 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 6. [ ] Write tests (verify symbol extraction accuracy)
 
 **Deliverables:**
-- `crates/axora-indexing/src/scip.rs` — SCIP index
-- `crates/axora-indexing/src/parsers/` — Language-specific parsers
-- `crates/axora-indexing/src/scip.proto` — Protobuf schema
-- `crates/axora-indexing/src/parsers/rust.rs` — Rust parser
-- `crates/axora-indexing/src/parsers/typescript.rs` — TS parser
-- `crates/axora-indexing/src/parsers/python.rs` — Python parser
+- `crates/openakta-indexing/src/scip.rs` — SCIP index
+- `crates/openakta-indexing/src/parsers/` — Language-specific parsers
+- `crates/openakta-indexing/src/scip.proto` — Protobuf schema
+- `crates/openakta-indexing/src/parsers/rust.rs` — Rust parser
+- `crates/openakta-indexing/src/parsers/typescript.rs` — TS parser
+- `crates/openakta-indexing/src/parsers/python.rs` — Python parser
 
 **Success Criteria:**
 - [ ] Accurate symbol extraction (functions, classes, imports)
@@ -280,9 +280,9 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-rag/src/graph_retriever.rs` — Graph-based retrieval
-- `crates/axora-rag/src/pruning.rs` — Context pruning logic
-- `crates/axora-rag/src/traversal.rs` — Graph traversal
+- `crates/openakta-rag/src/graph_retriever.rs` — Graph-based retrieval
+- `crates/openakta-rag/src/pruning.rs` — Context pruning logic
+- `crates/openakta-rag/src/traversal.rs` — Graph traversal
 
 **Success Criteria:**
 - [ ] 95-99% reduction in context tokens (50K → 500-2.5K)
@@ -353,9 +353,9 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/protocol.rs` — Message protocol
-- `crates/axora-agents/src/protocol.proto` — Protobuf schema
-- `crates/axora-agents/src/protocol_integration.rs` — Integration tests
+- `crates/openakta-agents/src/protocol.rs` — Message protocol
+- `crates/openakta-agents/src/protocol.proto` — Protobuf schema
+- `crates/openakta-agents/src/protocol_integration.rs` — Integration tests
 
 **Success Criteria:**
 - [ ] Zero natural language negotiations
@@ -411,9 +411,9 @@ Reduce multi-agent API costs by **90-95%** while improving latency by **30-50%**
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/workflow.rs` — Workflow graph
-- `crates/axora-agents/src/state_machine.rs` — State machine
-- `crates/axora-agents/src/timeout.rs` — Timeout enforcement
+- `crates/openakta-agents/src/workflow.rs` — Workflow graph
+- `crates/openakta-agents/src/state_machine.rs` — State machine
+- `crates/openakta-agents/src/timeout.rs` — Timeout enforcement
 
 **Success Criteria:**
 - [ ] Zero infinite loops

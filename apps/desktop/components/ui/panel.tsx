@@ -16,7 +16,9 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className={cn("panel-surface flex h-full flex-col p-5", className)}>
+    <section
+      className={cn("panel-surface flex h-full flex-col p-5", className)}
+    >
       <header className="mb-4 flex items-start justify-between gap-4">
         <div className="space-y-1">
           {eyebrow ? (

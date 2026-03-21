@@ -1,4 +1,4 @@
-AXORA’s evaluation should combine strong single‑agent benchmarks (for raw coding/reasoning ability) with multi‑agent–specific, production‑grade metrics (task success, collaboration quality, cost, and drift), plus a proper A/B and monitoring setup.
+OPENAKTA’s evaluation should combine strong single‑agent benchmarks (for raw coding/reasoning ability) with multi‑agent–specific, production‑grade metrics (task success, collaboration quality, cost, and drift), plus a proper A/B and monitoring setup.
 
 ***
 
@@ -70,7 +70,7 @@ These show a trend toward **harder, contamination‑aware, evolving** benchmarks
 - Subset of 23 especially hard BIG‑Bench tasks (6,511 examples) chosen because prior LLMs could not beat average humans; covers arithmetic, logic, temporal reasoning, causal judgment, and complex language tasks. [llm-stats](https://llm-stats.com/benchmarks/big-bench-hard)
 - 2026 BBH leaderboard: best models (e.g., Claude 4.5, GLM‑5) reach ~93–94% accuracy. [pricepertoken](https://pricepertoken.com/leaderboards/benchmark/bbh)
 
-Other advanced reasoning sets (not exhaustive): AIME 2025, GPQA Diamond, MATH‑500, and domain‑specific law/medical exams; these are useful for stress‑testing very hard reasoning, but for AXORA the above three are sufficient anchors. [vertu](https://vertu.com/lifestyle/open-source-llm-leaderboard-2026-rankings-benchmarks-the-best-models-right-now/)
+Other advanced reasoning sets (not exhaustive): AIME 2025, GPQA Diamond, MATH‑500, and domain‑specific law/medical exams; these are useful for stress‑testing very hard reasoning, but for OPENAKTA the above three are sufficient anchors. [vertu](https://vertu.com/lifestyle/open-source-llm-leaderboard-2026-rankings-benchmarks-the-best-models-right-now/)
 
 ### Benchmark limitations & Goodhart’s law
 
@@ -79,32 +79,32 @@ Other advanced reasoning sets (not exhaustive): AIME 2025, GPQA Diamond, MATH‑
 - **Static datasets**: SWE‑bench and GSM8K showed apparent “plateaus” (models near ceiling), but re‑annotation (Verified, GSM8K‑Platinum) and live variants (SWE‑bench‑Live) revealed that static benchmarks underestimated model deficiencies and encouraged over‑specialization. [gradientscience](https://gradientscience.org/gsm8k-platinum/)
 - **Goodhart’s law**: When benchmarks become the target (e.g., marketing around a single score like HumanEval or MMLU), systems are optimized for that metric at the expense of generalization; explicit discussions of this risk now appear in both LLM evaluation blogs and practitioner write‑ups. [towardsdatascience](https://towardsdatascience.com/how-metrics-and-llms-can-trick-you-a-field-guide-to-paradoxes/)
 
-For AXORA, these benchmarks are **necessary but not sufficient**: treat them as regression gates and sanity checks, not as proxies for real‑world coding or multi‑agent performance.
+For OPENAKTA, these benchmarks are **necessary but not sufficient**: treat them as regression gates and sanity checks, not as proxies for real‑world coding or multi‑agent performance.
 
 ### Which benchmarks to adopt vs deprioritize
 
-For AXORA (multi‑agent coding system) I’d recommend:
+For OPENAKTA (multi‑agent coding system) I’d recommend:
 
 - **Adopt as hard gates / regressions**
   - **HumanEval + HumanEval Pro**: quick sanity check on Python function synthesis; use primarily as a **regression suite**, not as a KPI; track pass@1 as main metric. [deepeval](https://deepeval.com/docs/benchmarks-human-eval)
   - **MBPP**: broader coverage of basic Python skills; again, use for regression and early‑stage model selection. [llm-stats](https://llm-stats.com/benchmarks/mbpp)
   - **LiveCodeBench**: gate raw algorithmic coding ability and competitive‑programming style reasoning. [artificialanalysis](https://artificialanalysis.ai/evaluations/livecodebench)
-  - **SWE‑bench Verified**: primary *single‑agent* proxy for real‑world bugfixing; track resolution rate; this is the closest offline proxy to AXORA’s target work. [epoch](https://epoch.ai/benchmarks/swe-bench-verified)
+  - **SWE‑bench Verified**: primary *single‑agent* proxy for real‑world bugfixing; track resolution rate; this is the closest offline proxy to OPENAKTA’s target work. [epoch](https://epoch.ai/benchmarks/swe-bench-verified)
   - **SWE‑bench‑Live**: use periodically (e.g., weekly or per major release) to detect overfitting to static SWE‑bench; expensive but critical for frontier systems. [arxiv](https://arxiv.org/html/2505.23419v2)
-  - **MMLU / MMLU‑Pro, GSM8K / GSM8K‑Platinum, BBH**: ensure general reasoning ability—especially important if AXORA agents must plan and reason beyond code (requirements analysis, refactoring strategies, design discussions). [pricepertoken](https://pricepertoken.com/leaderboards/benchmark/mmlu-pro)
+  - **MMLU / MMLU‑Pro, GSM8K / GSM8K‑Platinum, BBH**: ensure general reasoning ability—especially important if OPENAKTA agents must plan and reason beyond code (requirements analysis, refactoring strategies, design discussions). [pricepertoken](https://pricepertoken.com/leaderboards/benchmark/mmlu-pro)
 
 - **Use selectively**
-  - Extreme reasoning sets (AIME 2025, GPQA Diamond, MATH‑500): useful when deciding between closely matched top‑tier models, but not central to day‑to‑day AXORA evaluation. [vertu](https://vertu.com/lifestyle/open-source-llm-leaderboard-2026-rankings-benchmarks-the-best-models-right-now/)
+  - Extreme reasoning sets (AIME 2025, GPQA Diamond, MATH‑500): useful when deciding between closely matched top‑tier models, but not central to day‑to‑day OPENAKTA evaluation. [vertu](https://vertu.com/lifestyle/open-source-llm-leaderboard-2026-rankings-benchmarks-the-best-models-right-now/)
 
-- **Deprioritize / ignore for AXORA**
-  - Benchmarks focused purely on chat quality, summarization, or multimodal perception (unless you later extend AXORA beyond coding).  
+- **Deprioritize / ignore for OPENAKTA**
+  - Benchmarks focused purely on chat quality, summarization, or multimodal perception (unless you later extend OPENAKTA beyond coding).  
   - Easy subsets (e.g., SWE‑bench‑Lite) once your system is clearly above them. [openai](https://openai.com/index/introducing-swe-bench-verified/)
 
 ***
 
 ## Section 2: Multi‑Agent Metrics
 
-You’ll need **system‑level metrics** that capture how well AXORA’s agents collaborate, not just whether one model can write code.
+You’ll need **system‑level metrics** that capture how well OPENAKTA’s agents collaborate, not just whether one model can write code.
 
 ### Task completion & efficiency
 
@@ -166,7 +166,7 @@ Based on MultiAgentBench KPIs and broader LLM‑MAS surveys: [arxiv](https://arx
   - Lower is generally better, but **some** redundancy can improve robustness.
 - **Coverage / Missed Requirements Rate**  
   - Whether the final output addresses *all* stated requirements and test cases; MultiAgentBench uses milestone‑based KPIs to capture partial progress; you can mimic this with checklists or LLM‑judged rubrics. [arxiv](https://arxiv.org/abs/2503.01935)
-  - For AXORA, you can define per‑task checklists (e.g., “bug fixed”, “tests added/updated”, “docs updated”) and track coverage.
+  - For OPENAKTA, you can define per‑task checklists (e.g., “bug fixed”, “tests added/updated”, “docs updated”) and track coverage.
 
 ### Cost metrics
 
@@ -177,7 +177,7 @@ Following LLMOps monitoring guides that emphasize token and cost awareness: [nex
 - **Compute Cost per Task**  
   - If self‑hosting, translate GPU/CPU time to cost; otherwise use API cost only.
 - **Human Time Saved**  
-  - Baseline human‑only time vs human+AXORA time; measure via user studies and instrumentation.  
+  - Baseline human‑only time vs human+OPENAKTA time; measure via user studies and instrumentation.  
 - **ROI per Task / per User**  
   - Approximate as: \(\text{ROI} \approx \frac{\text{human time saved} \times \text{blended hourly rate}}{\text{LLM + infra cost}}\).  
   - Use as a management‑level metric to justify model upgrades or architecture changes.
@@ -191,7 +191,7 @@ Following LLMOps monitoring guides that emphasize token and cost awareness: [nex
 1. **Unit / integration tests**
 
    - For coding tasks with clear ground truth (e.g., HumanEval, MBPP, SWE‑style tasks), treat **test pass rate** as the primary automated metric. [github](https://github.com/openai/human-eval)
-   - For AXORA:
+   - For OPENAKTA:
      - Require every benchmark task to come with or derive a test harness.  
      - For real‑world tickets, encourage users to supply failing tests or at least reproduction scripts; if not, use LLM‑as‑judge or static analysis as a fallback.
 
@@ -211,7 +211,7 @@ Following LLMOps monitoring guides that emphasize token and cost awareness: [nex
    - Key findings:
      - “Thinking” models (chain‑of‑thought or reasoning‑optimized) are significantly better judges than vanilla instruction models, sometimes outperforming larger specialized judge models. [arxiv](https://arxiv.org/abs/2507.10535)
      - Pairwise comparison (A vs B) is more reliable than scalar scoring; prompts that retain the full context and comments lead to better judge performance. [arxiv](https://arxiv.org/html/2503.02246v1)
-   - For AXORA:
+   - For OPENAKTA:
      - Use a *different* model (or different version) as judge than the one generating code.  
      - Use pairwise comparisons (baseline vs candidate) where possible.  
      - Have the judge output a structured rubric (e.g., 1–5 for correctness, 1–5 for readability, 1–5 for robustness) plus a textual justification.
@@ -230,8 +230,8 @@ When and how to incorporate humans:
   - UX‑heavy tasks (diagnosis explanations, refactoring plans, code review comments).  
   - Safety‑critical or high‑risk changes.  
 - **Methods**
-  - **Code review scores**: human reviewers rate AXORA outputs on clarity, correctness, maintainability, and adherence to style (e.g., 1–5 each).  
-  - **Preference studies / A/B**: show engineers diffs or side‑by‑side solutions (AXORA vs Copilot vs Cursor vs human baseline) and record preferences.  
+  - **Code review scores**: human reviewers rate OPENAKTA outputs on clarity, correctness, maintainability, and adherence to style (e.g., 1–5 each).  
+  - **Preference studies / A/B**: show engineers diffs or side‑by‑side solutions (OPENAKTA vs Copilot vs Cursor vs human baseline) and record preferences.  
   - **User satisfaction instruments**: SUS (System Usability Scale), NPS, and task‑specific satisfaction ratings for UX. [langchain](https://www.langchain.com/conceptual-guides/production-monitoring)
 
 Human evaluation is expensive; use it **sparingly but regularly** to calibrate automated metrics (especially LLM‑as‑judge).
@@ -262,7 +262,7 @@ LLMOps and agent‑observability guides emphasize continuous, online evaluation 
   - Track:
     - success rate by model/version,  
     - distribution shifts in task types,  
-    - tool‑usage patterns (e.g., which AXORA tools are used/overused),  
+    - tool‑usage patterns (e.g., which OPENAKTA tools are used/overused),  
     - coordination metrics (messages per task, role adherence) to detect “agent drift”. [co-r-e](https://co-r-e.com/method/agent-drift-multi-agent)
   - Use statistical tests (e.g., KL divergence on tool‑usage distributions, chi‑squared tests on success rates) to flag deviations, as suggested in drift‑analysis write‑ups. [co-r-e](https://co-r-e.com/method/agent-drift-multi-agent)
 
@@ -272,7 +272,7 @@ LLMOps and agent‑observability guides emphasize continuous, online evaluation 
 
 ### What to test
 
-AXORA is a perfect candidate for systematic experiments:
+OPENAKTA is a perfect candidate for systematic experiments:
 
 - **Agent architectures**
   - Single‑agent vs multi‑agent, chain vs star vs graph orchestration, presence/absence of specialist roles.  
@@ -312,7 +312,7 @@ Borrowing from standard online experimentation and modern LLM evaluation practic
 
 Guardrail metrics ensure that success‑rate improvements are not purchased by shortcuts or unsafe behavior—directly addressing Goodhart’s law concerns. [towardsdatascience](https://towardsdatascience.com/how-metrics-and-llms-can-trick-you-a-field-guide-to-paradoxes/)
 
-### Implementation in AXORA
+### Implementation in OPENAKTA
 
 - **Assignment layer**: in your orchestration service, implement experiment flags (e.g., via a simple experiment service or an external A/B platform) that select:  
   - agent graph configuration,  
@@ -334,7 +334,7 @@ You can implement this evaluation/monitoring stack with standard components plus
 
 - **Evaluation harness**
   - Use or adapt existing open‑source harnesses for HumanEval/MBPP/LiveCodeBench/SWE‑bench to run offline evals in CI. [swebench](https://www.swebench.com/original.html)
-  - Add your own benchmark harness for AXORA tasks with:
+  - Add your own benchmark harness for OPENAKTA tasks with:
     - test runners (pytest for Python, etc.),  
     - static analysis pipeline,  
     - LLM‑as‑judge evaluation.
@@ -356,7 +356,7 @@ All of these are language‑agnostic and can easily support a Rust‑based backe
 - Implement harnesses for: HumanEval, MBPP, LiveCodeBench, SWE‑bench Verified. [llm-stats](https://llm-stats.com/benchmarks/mbpp)
 - Decide and document **core metrics & targets**:
   - e.g., HumanEval pass@1 ≥ 90%, MBPP ≥ 95%, SWE‑bench Verified ≥ X% for chosen model.  
-- Build a small internal AXORA benchmark suite (e.g., 50–100 real coding tasks from your own projects) with:
+- Build a small internal OPENAKTA benchmark suite (e.g., 50–100 real coding tasks from your own projects) with:
   - tests where possible,  
   - human‑annotated outcomes,  
   - initial LLM‑as‑judge rubrics.
@@ -372,7 +372,7 @@ All of these are language‑agnostic and can easily support a Rust‑based backe
 
 **Phase 3 – Production monitoring & A/B (weeks 6–8)**
 
-- Deploy AXORA to a limited beta; enable:
+- Deploy OPENAKTA to a limited beta; enable:
   - trace logging,  
   - online LLM‑as‑judge sampling,  
   - token and cost tracking. [langchain](https://www.langchain.com/conceptual-guides/production-monitoring)
@@ -388,7 +388,7 @@ All of these are language‑agnostic and can easily support a Rust‑based backe
 
 - User studies:
   - Recruit internal and external developers; design tasks that mirror real tickets (bugfix, refactor, small feature).  
-  - Have them work under three conditions: baseline (no AI), AXORA, and competitor (e.g., Copilot or Cursor).  
+  - Have them work under three conditions: baseline (no AI), OPENAKTA, and competitor (e.g., Copilot or Cursor).  
   - Measure task completion time, error rate (bugs introduced, tests failing), satisfaction (SUS, NPS), and qualitative feedback. [nexos](https://nexos.ai/blog/llm-monitoring/)
 - Competitive benchmarking:
   - Re‑implement a subset of your internal benchmark tasks as scripts for Copilot/Cursor or manual workflows.  
@@ -398,9 +398,9 @@ All of these are language‑agnostic and can easily support a Rust‑based backe
     - test harness.  
   - Treat these as *internal R&D metrics*; don’t overfit to them the way vendors sometimes overfit to HumanEval/SWE‑bench.
 
-### Success criteria for AXORA
+### Success criteria for OPENAKTA
 
-At a minimum, to say “AXORA works” in a production‑grade sense, you’d want:
+At a minimum, to say “OPENAKTA works” in a production‑grade sense, you’d want:
 
 - On curated benchmarks:
   - Meets or exceeds SOTA models on HumanEval/MBPP/LiveCodeBench for your chosen model tier.  
@@ -416,4 +416,4 @@ At a minimum, to say “AXORA works” in a production‑grade sense, you’d wa
   - Positive ROI per user or per seat: human time saved clearly exceeds LLM + infrastructure costs.  
   - No sustained regressions in guardrail metrics (safety, regression rate, user satisfaction) across releases, reflecting Goodhart‑aware evaluation rather than score chasing. [stackoverflow](https://stackoverflow.blog/2025/10/09/who-watches-the-watchers-llm-on-llm-evaluations/)
 
-This gives AXORA a **scientifically grounded, production‑oriented** evaluation framework that integrates classical benchmarks, multi‑agent‑specific metrics, and real‑world monitoring.
+This gives OPENAKTA a **scientifically grounded, production‑oriented** evaluation framework that integrates classical benchmarks, multi‑agent‑specific metrics, and real‑world monitoring.

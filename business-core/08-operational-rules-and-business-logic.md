@@ -6,7 +6,7 @@ Capture the rules that the validated runtime now enforces.
 
 ## Executive Summary
 
-AXORA’s business logic is operational and safety-oriented. The system enforces typed transport, patch-only code edits, MCP-scoped tool access, retry and timeout budgets, compressed context assembly, memory lifecycle rules, and background governance sync.
+OPENAKTA’s business logic is operational and safety-oriented. The system enforces typed transport, patch-only code edits, MCP-scoped tool access, retry and timeout budgets, compressed context assembly, memory lifecycle rules, and background governance sync.
 
 ## Core Rules
 
@@ -42,17 +42,17 @@ AXORA’s business logic is operational and safety-oriented. The system enforces
 
 ## Implementation Evidence
 
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-agents/src/provider_transport.rs`
-- `crates/axora-agents/src/react.rs`
-- `crates/axora-mcp-server/src/lib.rs`
-- `crates/axora-memory/src/lifecycle.rs`
-- `crates/axora-daemon/src/services.rs`
-- `crates/axora-docs/src/reconciler.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-agents/src/provider_transport.rs`
+- `crates/openakta-agents/src/react.rs`
+- `crates/openakta-mcp-server/src/lib.rs`
+- `crates/openakta-memory/src/lifecycle.rs`
+- `crates/openakta-daemon/src/services.rs`
+- `crates/openakta-docs/src/reconciler.rs`
 
 ## Business Meaning
 
-Trust in AXORA comes from bounded, inspectable execution. The product’s operational discipline is now enforced through runtime guards rather than only through design intent.
+Trust in OPENAKTA comes from bounded, inspectable execution. The product’s operational discipline is now enforced through runtime guards rather than only through design intent.
 
 ## Open Ambiguities
 

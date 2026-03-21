@@ -4,16 +4,16 @@
 
 | Module | Transport | Notes |
 | --- | --- | --- |
-| `com.axora.logger.otel` | OpenTelemetry logs | Bridge-based adapter for a configured provider |
-| `com.axora.logger.sentry` | Sentry errors and breadcrumbs | Uses scope and capture bridges |
-| `com.axora.logger.datadog` | Datadog stdout JSON | Emits canonical JSON lines in v1 |
-| `com.axora.logger.posthog` | PostHog capture events | Uses `distinct_id` plus flush support |
+| `com.openakta.logger.otel` | OpenTelemetry logs | Bridge-based adapter for a configured provider |
+| `com.openakta.logger.sentry` | Sentry errors and breadcrumbs | Uses scope and capture bridges |
+| `com.openakta.logger.datadog` | Datadog stdout JSON | Emits canonical JSON lines in v1 |
+| `com.openakta.logger.posthog` | PostHog capture events | Uses `distinct_id` plus flush support |
 
 ## Initialization
 
 ```java
-import com.axora.logger.Logger;
-import com.axora.logger.sinks.ConsoleSink;
+import com.openakta.logger.Logger;
+import com.openakta.logger.sinks.ConsoleSink;
 
 Logger logger = Logger.builder()
     .service("billing-api")
@@ -21,4 +21,4 @@ Logger logger = Logger.builder()
     .build();
 ```
 
-Java integration modules depend on the published `com.axora:logger-core` artifact. They are thin adapters and should not re-implement lifecycle logic.
+Java integration modules depend on the published `com.openakta:logger-core` artifact. They are thin adapters and should not re-implement lifecycle logic.

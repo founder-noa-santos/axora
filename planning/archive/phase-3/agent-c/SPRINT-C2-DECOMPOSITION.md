@@ -24,7 +24,7 @@ Implement LLM + Graph hybrid task decomposition that converts missions into para
 
 ### Subagent 1: LLM Decomposer
 **Task:** Implement LLM-based mission decomposition
-**File:** `crates/axora-agents/src/decomposer/llm_decomposer.rs`
+**File:** `crates/openakta-agents/src/decomposer/llm_decomposer.rs`
 **Deliverables:**
 - `LLMDecomposer` struct
 - `decompose(mission)` → `Vec<RawTask>` using LLM
@@ -34,7 +34,7 @@ Implement LLM + Graph hybrid task decomposition that converts missions into para
 
 ### Subagent 2: Graph Builder
 **Task:** Build dependency graph from raw tasks
-**File:** `crates/axora-agents/src/decomposer/graph_builder.rs`
+**File:** `crates/openakta-agents/src/decomposer/graph_builder.rs`
 **Deliverables:**
 - `GraphBuilder` struct
 - `build_dag(raw_tasks)` → `TaskDAG`
@@ -44,7 +44,7 @@ Implement LLM + Graph hybrid task decomposition that converts missions into para
 
 ### Subagent 3: Parallel Group Identifier
 **Task:** Identify parallel groups from DAG
-**File:** `crates/axora-agents/src/decomposer/parallel_groups.rs`
+**File:** `crates/openakta-agents/src/decomposer/parallel_groups.rs`
 **Deliverables:**
 - `ParallelGroupIdentifier` struct
 - `identify_groups(dag)` → `Vec<ParallelGroup>`
@@ -64,7 +64,7 @@ Implement LLM + Graph hybrid task decomposition that converts missions into para
    - Resolve conflicts (LLM output vs graph validation)
 
 2. **Integrate Components:**
-   - Create `crates/axora-agents/src/decomposer/v2.rs` (main module)
+   - Create `crates/openakta-agents/src/decomposer/v2.rs` (main module)
    - Combine LLM + graph + parallel groups
    - Export unified `MissionDecomposer` struct
 
@@ -80,7 +80,7 @@ Implement LLM + Graph hybrid task decomposition that converts missions into para
    - Test with complex missions (10+ tasks)
 
 5. **Update Documentation:**
-   - Add module to `crates/axora-agents/src/lib.rs`
+   - Add module to `crates/openakta-agents/src/lib.rs`
    - Add decomposition examples
 
 ---

@@ -206,7 +206,7 @@ function Example() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Welcome to AXORA</CardTitle>
+        <CardTitle>Welcome to OPENAKTA</CardTitle>
         <Badge variant="secondary">v0.1.0</Badge>
       </CardHeader>
       <CardContent>

@@ -1,6 +1,6 @@
-# AXORA Architecture Ledger
+# OPENAKTA Architecture Ledger
 
-**Last Updated:** 2026-03-17
+**Last Updated:** 2026-03-20
 **Maintained By:** Architect Agent
 **Status:** Active — Living Document (auto-updated on sprint completion)
 
@@ -8,7 +8,7 @@
 
 ## 📋 Overview
 
-This is the **AXORA Architecture Ledger** — a living document that tracks:
+This is the **OPENAKTA Architecture Ledger** — a living document that tracks:
 - Current agent assignments and status
 - Active constraints (token budgets, concurrency limits)
 - Execution graph (dependencies between sprints)
@@ -117,6 +117,20 @@ Dependencies:
 
 ## 📝 Recent Changes
 
+### 2026-03-20
+- ✅ **Deep Audit Complete** — Dynamic Model Registry and Multi-Provider Configuration audited
+- ✅ **R1 Implemented** — `build_model_request` now returns `Result<_, CoordinatorV2Error>`, rejects unknown models
+- ✅ **R2 Implemented** — Bootstrap panics on missing provider config (fail-fast behavior)
+- ✅ **R3 Implemented** — `openakta.example.toml` updated with `[providers]` schema and file-based secrets
+- ✅ **D1-D5 Complete** — All business-core documentation synchronized with audit findings
+- ✅ **35/35 Tests Pass** — v2 coordinator tests updated with registry metadata
+- ✅ **R4 Implemented** — `WireProfile`/`ProviderKind` separation complete
+  - New `WireProfile` enum for transport selection (AnthropicMessagesV1, OpenAiChatCompletions, OpenAiResponses, OllamaChat)
+  - Expanded `ProviderKind` for telemetry (Anthropic, OpenAi, DeepSeek, Qwen, Moonshot, Ollama)
+  - `CloudModelRef` and `LocalModelRef` now have both `wire_profile` and `telemetry_kind`
+  - `ModelRequest.provider` changed from `ProviderKind` to `WireProfile`
+  - All tests updated and passing
+
 ### 2026-03-17
 - ✅ **Frontend Reset Complete** — desktop shell now uses Electron + Next.js with preload isolation
 - ✅ **Legacy Tauri/Vite Frontend Removed** — obsolete renderer, tests, and docs discarded
@@ -166,6 +180,8 @@ Dependencies:
 |--------|-------|--------|------|-----------------|
 | **A4** | UI Components | ✅ Complete | 2026-03-17 | N/A |
 | **A5** | **Progress Dashboard** | ✅ **Complete** | **2026-03-17** | N/A |
+| **A6** | **Deep Audit & Docs** | ✅ **Complete** | **2026-03-20** | N/A |
+| **A7** | **WireProfile Separation** | ✅ **Complete** | **2026-03-20** | N/A |
 
 #### Legacy Sprints
 | Sprint | Title | Status | Date | Token Reduction |
@@ -326,7 +342,7 @@ Run validation to ensure ledger consistency:
 
 ---
 
-**This ledger provides ARCHITECTURAL VISIBILITY for all AXORA agents.**
+**This ledger provides ARCHITECTURAL VISIBILITY for all OPENAKTA agents.**
 
 **Last Automated Update:** 2026-03-16  
 **Next Scheduled Review:** 2026-03-17

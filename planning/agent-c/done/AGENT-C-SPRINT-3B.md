@@ -1,7 +1,7 @@
 # Agent C — Sprint 3b: Heartbeat System
 
 **Sprint:** 3b of Phase 2  
-**File:** `crates/axora-agents/src/heartbeat.rs`  
+**File:** `crates/openakta-agents/src/heartbeat.rs`  
 **Estimated Time:** 8 hours  
 
 ---
@@ -57,9 +57,9 @@ Implementar Heartbeat System para gerenciamento de lifecycle de agents.
 ## 📁 File Boundaries
 
 **Editar APENAS:**
-- `crates/axora-agents/src/heartbeat.rs` (CRIAR)
-- `crates/axora-agents/src/state_machine.rs` (pequena integração)
-- `crates/axora-agents/src/lib.rs` (adicionar módulo)
+- `crates/openakta-agents/src/heartbeat.rs` (CRIAR)
+- `crates/openakta-agents/src/state_machine.rs` (pequena integração)
+- `crates/openakta-agents/src/lib.rs` (adicionar módulo)
 
 **NÃO editar:**
 - Nenhum outro arquivo
@@ -150,13 +150,13 @@ impl StateMachine {
 
 ## 🚀 Passos
 
-1. `cd /Users/noasantos/Downloads/axora`
-2. Criar `crates/axora-agents/src/heartbeat.rs`
+1. `cd /Users/noasantos/Downloads/openakta`
+2. Criar `crates/openakta-agents/src/heartbeat.rs`
 3. Implementar Heartbeat struct e enums
 4. Escrever 10 testes (TDD)
 5. Implementar timer e event-driven wake
 6. Integrar com StateMachine
-7. `cargo test -p axora-agents`
+7. `cargo test -p openakta-agents`
 8. Atualizar `src/lib.rs`
 
 ---

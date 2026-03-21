@@ -1,4 +1,4 @@
-import type { Sink, WideEventPayload } from '@axora/logger-core';
+import type { Sink, WideEventPayload } from '@openakta/logger-core';
 import { SeverityNumber } from '@opentelemetry/api-logs';
 
 export interface OtelLoggerLike {
@@ -25,21 +25,21 @@ export class OtelSink implements Sink {
   private readonly logger: OtelLoggerLike;
 
   constructor(options: OtelSinkOptions) {
-    this.logger = options.provider.getLogger(options.loggerName ?? 'axora-logger', '0.1.0');
+    this.logger = options.provider.getLogger(options.loggerName ?? 'openakta-logger', '0.1.0');
   }
 
   async export(event: WideEventPayload): Promise<void> {
     const attributes: Record<string, unknown> = {
-      'axora.event_id': event.event_id,
-      'axora.operation': event.operation,
-      'axora.status': event.status,
-      'axora.duration_ms': event.duration_ms,
+      'openakta.event_id': event.event_id,
+      'openakta.operation': event.operation,
+      'openakta.status': event.status,
+      'openakta.duration_ms': event.duration_ms,
       'service.name': event.service,
       'deployment.environment.name': event.environment,
     };
 
     for (const [key, value] of Object.entries(event.context)) {
-      attributes[`axora.ctx.${key}`] = value;
+      attributes[`openakta.ctx.${key}`] = value;
     }
 
     if (event.error.message) {

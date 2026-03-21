@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from axora_logger import Logger, Sink
+from openakta_logger import Logger, Sink
 
 
 class CaptureSink(Sink):
@@ -50,8 +50,8 @@ def test_snapshots_context_and_finalizes_event() -> None:
 
 
 def test_env_fallback_is_used_when_constructor_values_are_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("AXORA_SERVICE", "env-service")
-    monkeypatch.setenv("AXORA_ENV", "development")
+    monkeypatch.setenv("OPENAKTA_SERVICE", "env-service")
+    monkeypatch.setenv("OPENAKTA_ENV", "development")
 
     sink = CaptureSink()
     logger = Logger(sinks=[sink])

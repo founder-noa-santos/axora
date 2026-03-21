@@ -1,6 +1,6 @@
-# AXORA Architectural Decisions
+# OPENAKTA Architectural Decisions
 
-This document records all significant architectural decisions made during AXORA development.
+This document records all significant architectural decisions made during OPENAKTA development.
 
 ## Decision Log Format
 
@@ -430,7 +430,7 @@ Local Filesystem
 **Architecture:**
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              AXORA Communication Stack                   │
+│              OPENAKTA Communication Stack                   │
 ├─────────────────────────────────────────────────────────┤
 │  Application Layer                                       │
 │  ┌─────────────────┐  ┌─────────────────┐               │
@@ -1820,7 +1820,7 @@ pub fn is_generated(path: &Path, content: &str) -> bool {
 - ✅ Reduced storage and embedding costs
 - ✅ Faster indexing
 - ⚠️ False positives possible
-- ⚠️ Need `.axoraignore` configuration
+- ⚠️ Need `.openaktaignore` configuration
 
 **Research:** [R-04 Findings](./findings/local-indexing/R-04-result.md)  
 **Review Date:** After false positive analysis (2026-06)
@@ -2231,7 +2231,7 @@ impl HybridInference {
 | **LangGraph** | State machine | Deterministic, checkpointing | More complex |
 | **AutoGen** | Message passing | Flexible, conversational | Hallucination loops |
 | **CrewAI** | Role-based hierarchy | Clear responsibilities | Rigid, sequential |
-| **AXORA (Hybrid)** | State machine + roles | Best of both | Implementation complexity |
+| **OPENAKTA (Hybrid)** | State machine + roles | Best of both | Implementation complexity |
 
 **Consequences:**
 - ✅ Deterministic execution (no hallucination loops)
@@ -2586,7 +2586,7 @@ impl SharedBlackboard {
 | SWE-Bench Verified | Real bug fixing | N/A | >40% |
 | Aider | Multi-file editing | >50% | >65% |
 | LiveCodeBench | Competitive programming | >50% | >70% |
-| Custom AXORA Suite | Agent-specific tasks | Establish baseline | >90% of 7B |
+| Custom OPENAKTA Suite | Agent-specific tasks | Establish baseline | >90% of 7B |
 
 **Implementation:**
 ```rust

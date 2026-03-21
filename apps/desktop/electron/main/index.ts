@@ -10,7 +10,7 @@ const rendererEntry = join(__dirname, "../out/index.html");
 const preloadPath = join(__dirname, "preload.cjs");
 
 const appInfo = {
-  name: "AXORA",
+  name: "OPENAKTA",
   version: app.getVersion(),
   platform: process.platform,
   arch: process.arch,
@@ -38,7 +38,8 @@ function createMainWindow() {
     show: false,
     backgroundColor: "#0b0d12",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    trafficLightPosition: process.platform === "darwin" ? { x: 18, y: 18 } : undefined,
+    trafficLightPosition:
+      process.platform === "darwin" ? { x: 18, y: 18 } : undefined,
     vibrancy: process.platform === "darwin" ? "under-window" : undefined,
     visualEffectState: process.platform === "darwin" ? "active" : undefined,
     webPreferences: {

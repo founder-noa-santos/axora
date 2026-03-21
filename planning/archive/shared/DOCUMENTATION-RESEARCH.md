@@ -24,7 +24,7 @@ Current documentation approaches fail for agents because:
 
 ### The Opportunity
 
-**AXORA can build the first agent-native documentation system** that:
+**OPENAKTA can build the first agent-native documentation system** that:
 - ✅ Lives with code (auto-updated when code changes)
 - ✅ Structured for agents (YAML/JSON schemas, not just prose)
 - ✅ Retrieved efficiently (specialized RAG for docs)
@@ -166,7 +166,7 @@ pub struct DocHealth {
    - Obsidian/Tana knowledge graphs
 
 3. **Design Recommendations** (1 hour)
-   - AXORA documentation architecture
+   - OPENAKTA documentation architecture
    - Agent-readable doc format
    - Living docs system
 

@@ -41,7 +41,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: |
-          for pkg in @axora/logger-core @axora/logger-otel @axora/logger-sentry @axora/logger-datadog @axora/logger-posthog; do
+          for pkg in @openakta/logger-core @openakta/logger-otel @openakta/logger-sentry @openakta/logger-datadog @openakta/logger-posthog; do
             pnpm --filter "$pkg" test
             pnpm --filter "$pkg" build
           done
@@ -88,13 +88,13 @@ jobs:
           dotnet-version: |
             6.0.x
             8.0.x
-      - run: dotnet test sdks/csharp/Axora.Logger.Tests/Axora.Logger.Tests.csproj --configuration Debug
+      - run: dotnet test sdks/csharp/Openakta.Logger.Tests/Openakta.Logger.Tests.csproj --configuration Debug
       - run: |
           for project in \
-            integrations/csharp/otel/Axora.Logger.Otel.csproj \
-            integrations/csharp/sentry/Axora.Logger.Sentry.csproj \
-            integrations/csharp/datadog/Axora.Logger.Datadog.csproj \
-            integrations/csharp/posthog/Axora.Logger.Posthog.csproj
+            integrations/csharp/otel/Openakta.Logger.Otel.csproj \
+            integrations/csharp/sentry/Openakta.Logger.Sentry.csproj \
+            integrations/csharp/datadog/Openakta.Logger.Datadog.csproj \
+            integrations/csharp/posthog/Openakta.Logger.Posthog.csproj
           do
             dotnet build "$project" --configuration Debug
           done

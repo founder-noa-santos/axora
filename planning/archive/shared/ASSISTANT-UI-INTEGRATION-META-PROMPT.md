@@ -1,14 +1,14 @@
-# Meta-Prompt: AXORA Chat UI Integration with assistant-ui
+# Meta-Prompt: OPENAKTA Chat UI Integration with assistant-ui
 
 ## Context
 
-You are an AI researcher tasked with analyzing the AXORA codebase and the **assistant-ui** library to provide integration guidance for building a production-ready chat interface.
+You are an AI researcher tasked with analyzing the OPENAKTA codebase and the **assistant-ui** library to provide integration guidance for building a production-ready chat interface.
 
 ---
 
 ## 📋 Your Mission
 
-Read and understand the AXORA codebase structure, then analyze how **assistant-ui** (https://www.assistant-ui.com/examples) can be integrated to replace/enhance the current chat UI implementation.
+Read and understand the OPENAKTA codebase structure, then analyze how **assistant-ui** (https://www.assistant-ui.com/examples) can be integrated to replace/enhance the current chat UI implementation.
 
 Your output will be a **detailed integration prompt** that another LLM (implementer) will use to:
 1. Install and configure assistant-ui components
@@ -18,17 +18,17 @@ Your output will be a **detailed integration prompt** that another LLM (implemen
 
 ---
 
-## 🏗️ AXORA Architecture Overview
+## 🏗️ OPENAKTA Architecture Overview
 
 ### Project Structure
 ```
-axora/
+openakta/
 ├── proto/              # Protocol Buffer schemas
 ├── crates/             # Rust workspace
-│   ├── axora-proto/    # Generated protobuf code
-│   ├── axora-storage/  # SQLite storage layer
-│   ├── axora-core/     # Core business logic
-│   └── axora-daemon/   # Main daemon executable
+│   ├── openakta-proto/    # Generated protobuf code
+│   ├── openakta-storage/  # SQLite storage layer
+│   ├── openakta-core/     # Core business logic
+│   └── openakta-daemon/   # Main daemon executable
 ├── apps/
 │   └── desktop/        # Tauri v2 desktop app (React + TypeScript)
 └── docs/               # Documentation
@@ -147,7 +147,7 @@ The project must be migrated from Tailwind CSS 3.4 to v4.x. Identify:
 Your output should be a **comprehensive integration prompt** in English with the following structure:
 
 ```markdown
-# AXORA Chat UI Integration Plan
+# OPENAKTA Chat UI Integration Plan
 
 ## Overview
 [Brief description of what will be implemented]
@@ -300,7 +300,7 @@ pnpm add [package-name]
 
 - **assistant-ui Docs:** https://www.assistant-ui.com
 - **Examples:** https://www.assistant-ui.com/examples
-- **AXORA Architecture:** See `AGENTS.md` and `docs/`
+- **OPENAKTA Architecture:** See `AGENTS.md` and `docs/`
 - **shadcn/ui:** https://ui.shadcn.com
 - **Tauri v2:** https://v2.tauri.app
 
@@ -320,7 +320,7 @@ Your integration prompt is successful if:
 
 ## 🚀 Next Steps After Your Analysis
 
-1. Read the AXORA codebase (focus on `apps/desktop/src/`)
+1. Read the OPENAKTA codebase (focus on `apps/desktop/src/`)
 2. Analyze assistant-ui components and examples
 3. Identify integration points
 4. Create the comprehensive integration prompt (format above)

@@ -1,4 +1,4 @@
-# AXORA Meta-Insight: Self-Orchestrating Agent System
+# OPENAKTA Meta-Insight: Self-Orchestrating Agent System
 
 **Date:** 2026-03-16  
 **Priority:** 🔴 CRITICAL (Core Differentiator)  
@@ -32,7 +32,7 @@ User Role: Babysitter + Pigeon Courier
 
 ---
 
-## ✨ Solution Vision: Self-Orchestrating AXORA
+## ✨ Solution Vision: Self-Orchestrating OPENAKTA
 
 **Desired Workflow (Automated Orchestration):**
 
@@ -273,7 +273,7 @@ User: "Y"
 
 ---
 
-## 🔗 Integration with Existing AXORA
+## 🔗 Integration with Existing OPENAKTA
 
 ### Uses Existing Components
 
@@ -316,7 +316,7 @@ User: "Y"
 - ✅ Auto-prompt-generation (all require manual prompt creation)
 - ✅ Single conversation UI (all require managing multiple sessions)
 
-**This is AXORA's killer feature:**
+**This is OPENAKTA's killer feature:**
 > "The only agent framework that manages itself — you talk to one agent, it manages the rest."
 
 ---
@@ -331,4 +331,4 @@ User: "Y"
 ---
 
 **This insight came from real user pain during Wave 1 execution.**
-**It should be a CORE feature of AXORA, not an afterthought.**
+**It should be a CORE feature of OPENAKTA, not an afterthought.**

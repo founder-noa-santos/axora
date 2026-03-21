@@ -8,10 +8,10 @@
 ## 🎯 Current Status
 
 **Completed:**
-- ✅ Sprint 1: Prefix Caching (axora-cache crate)
-- ✅ Sprint 2: Diff-Based Communication (axora-cache crate)
-- ✅ Sprint 3: Code Minification (axora-cache crate)
-- ✅ Sprint 6: Documentation Management (axora-docs crate)
+- ✅ Sprint 1: Prefix Caching (openakta-cache crate)
+- ✅ Sprint 2: Diff-Based Communication (openakta-cache crate)
+- ✅ Sprint 3: Code Minification (openakta-cache crate)
+- ✅ Sprint 6: Documentation Management (openakta-docs crate)
 - ✅ Sprint 9: Integration & Benchmarking
 - ✅ Sprint 11: Graph Workflow Design
 
@@ -51,10 +51,10 @@ Research validates mathematical approach to task decomposition:
 
 | Phase | Task | Owner | Files | Estimated Time |
 |-------|------|-------|-------|----------------|
-| **Phase 1** | Constraint Parsing | Agent C | `crates/axora-agents/src/constraint.rs` | 8 hours |
-| **Phase 2** | Treewidth Calculation | Agent C | `crates/axora-agents/src/treewidth.rs` | 8 hours |
-| **Phase 3** | AOP Validator | Agent C | `crates/axora-agents/src/aop_validator.rs` | 8 hours |
-| **Phase 4** | DAG Builder | Agent C | `crates/axora-agents/src/dag_builder.rs` | 8 hours |
+| **Phase 1** | Constraint Parsing | Agent C | `crates/openakta-agents/src/constraint.rs` | 8 hours |
+| **Phase 2** | Treewidth Calculation | Agent C | `crates/openakta-agents/src/treewidth.rs` | 8 hours |
+| **Phase 3** | AOP Validator | Agent C | `crates/openakta-agents/src/aop_validator.rs` | 8 hours |
+| **Phase 4** | DAG Builder | Agent C | `crates/openakta-agents/src/dag_builder.rs` | 8 hours |
 
 ### Documents
 - [`ACONIC-DECOMPOSITION-DESIGN.md`](./ACONIC-DECOMPOSITION-DESIGN.md) — Main design spec
@@ -67,17 +67,17 @@ Research validates mathematical approach to task decomposition:
 
 ### 3 Sprints That Can Run Concurrently NOW
 
-#### Track A: Token Optimization (axora-cache crate)
+#### Track A: Token Optimization (openakta-cache crate)
 
 **Sprint 3: Code Minification**
 - **Owner:** Agent A
-- **Files:** `crates/axora-cache/src/minifier.rs`
+- **Files:** `crates/openakta-cache/src/minifier.rs`
 - **Dependencies:** None (standalone utility)
 - **Risk:** Low (pure function, no state)
 
 **Sprint 5: TOON Serialization**
 - **Owner:** Agent B
-- **Files:** `crates/axora-cache/src/toon.rs`
+- **Files:** `crates/openakta-cache/src/toon.rs`
 - **Dependencies:** None (standalone serializer)
 - **Risk:** Low (pure function, no state)
 
@@ -90,16 +90,16 @@ Research validates mathematical approach to task decomposition:
 
 ---
 
-#### Track B: Agent Infrastructure (axora-agents crate)
+#### Track B: Agent Infrastructure (openakta-agents crate)
 
 **Sprint 3b: Heartbeat System**
 - **Owner:** Agent C
-- **Files:** `crates/axora-agents/src/heartbeat.rs`
+- **Files:** `crates/openakta-agents/src/heartbeat.rs`
 - **Dependencies:** State machine (already exists)
 - **Risk:** Medium (integrates with state machine)
 
 **Why concurrent with Track A:**
-- ✅ Different crate (axora-agents vs axora-cache)
+- ✅ Different crate (openakta-agents vs openakta-cache)
 - ✅ No shared code
 - ✅ Independent testing
 - ✅ Different concerns (orchestration vs optimization)
@@ -112,19 +112,19 @@ Research validates mathematical approach to task decomposition:
 
 **Sprint 6a: Doc Format & Schema**
 - **Owner:** Agent D
-- **Files:** `crates/axora-docs/src/format.rs`, `crates/axora-docs/src/schema.rs`
+- **Files:** `crates/openakta-docs/src/format.rs`, `crates/openakta-docs/src/schema.rs`
 - **Dependencies:** None (new crate)
 - **Risk:** Low (new crate, isolated)
 
 **Sprint 6b: Doc RAG & Retrieval**
 - **Owner:** Agent E
-- **Files:** `crates/axora-docs/src/retriever.rs`
+- **Files:** `crates/openakta-docs/src/retriever.rs`
 - **Dependencies:** Doc format (Sprint 6a must complete first)
 - **Risk:** Medium (depends on 6a)
 
 **Sprint 6c: Living Docs & Auto-Update**
 - **Owner:** Agent F
-- **Files:** `crates/axora-docs/src/living.rs`
+- **Files:** `crates/openakta-docs/src/living.rs`
 - **Dependencies:** Doc format + RAG (6a + 6b must complete)
 - **Risk:** High (complex integration)
 
@@ -140,12 +140,12 @@ Research validates mathematical approach to task decomposition:
 
 | Sprint | Crate | Files | Dependencies | Can Run With |
 |--------|-------|-------|--------------|--------------|
-| **3: Code Minification** | axora-cache | `minifier.rs` | None | 5, 3b |
-| **5: TOON Serialization** | axora-cache | `toon.rs` | None | 3, 3b |
-| **3b: Heartbeat** | axora-agents | `heartbeat.rs` | State machine | 3, 5 |
-| **6a: Doc Format** | axora-docs (new) | `format.rs`, `schema.rs` | None | 6b (after), 6c (after) |
-| **6b: Doc RAG** | axora-docs | `retriever.rs` | 6a | 6c (after) |
-| **6c: Living Docs** | axora-docs | `living.rs` | 6a, 6b | None (last) |
+| **3: Code Minification** | openakta-cache | `minifier.rs` | None | 5, 3b |
+| **5: TOON Serialization** | openakta-cache | `toon.rs` | None | 3, 3b |
+| **3b: Heartbeat** | openakta-agents | `heartbeat.rs` | State machine | 3, 5 |
+| **6a: Doc Format** | openakta-docs (new) | `format.rs`, `schema.rs` | None | 6b (after), 6c (after) |
+| **6b: Doc RAG** | openakta-docs | `retriever.rs` | 6a | 6c (after) |
+| **6c: Living Docs** | openakta-docs | `living.rs` | 6a, 6b | None (last) |
 
 ---
 
@@ -185,10 +185,10 @@ Research validates mathematical approach to task decomposition:
 **Coordination:** Requires Graph Workflow Design complete
 
 **Files:**
-- `crates/axora-agents/src/constraint.rs` — Constraint parsing
-- `crates/axora-agents/src/treewidth.rs` — Treewidth calculation
-- `crates/axora-agents/src/aop_validator.rs` — AOP validation
-- `crates/axora-agents/src/dag_builder.rs` — DAG construction
+- `crates/openakta-agents/src/constraint.rs` — Constraint parsing
+- `crates/openakta-agents/src/treewidth.rs` — Treewidth calculation
+- `crates/openakta-agents/src/aop_validator.rs` — AOP validation
+- `crates/openakta-agents/src/dag_builder.rs` — DAG construction
 
 ---
 
@@ -196,7 +196,7 @@ Research validates mathematical approach to task decomposition:
 
 ### File Boundaries
 
-**axora-cache crate:**
+**openakta-cache crate:**
 ```
 src/
 ├── l1_cache.rs      # Agent A (Sprint 3)
@@ -209,7 +209,7 @@ src/
 └── lib.rs           # Coordinate merges
 ```
 
-**axora-agents crate:**
+**openakta-agents crate:**
 ```
 src/
 ├── agent.rs              # Existing
@@ -222,7 +222,7 @@ src/
 └── lib.rs                # Coordinate merges
 ```
 
-**axora-docs crate (NEW):**
+**openakta-docs crate (NEW):**
 ```
 src/
 ├── format.rs      # Agent D (Sprint 6a) ← NEW
@@ -265,23 +265,23 @@ src/
 
 | Agent | Sprint | Crate | Files | Estimated Time |
 |-------|--------|-------|-------|----------------|
-| **Agent A** | 3 | axora-cache | `minifier.rs` | 8 hours |
-| **Agent B** | 5 | axora-cache | `toon.rs` | 8 hours |
-| **Agent C** | 3b | axora-agents | `heartbeat.rs` | 8 hours |
+| **Agent A** | 3 | openakta-cache | `minifier.rs` | 8 hours |
+| **Agent B** | 5 | openakta-cache | `toon.rs` | 8 hours |
+| **Agent C** | 3b | openakta-agents | `heartbeat.rs` | 8 hours |
 
 ### Wave 2 Agents (After Wave 1)
 
 | Agent | Sprint | Crate | Files | Estimated Time |
 |-------|--------|-------|-------|----------------|
-| **Agent D** | 6a | axora-docs | `format.rs`, `schema.rs` | 8 hours |
-| **Agent E** | 6b | axora-docs | `retriever.rs` | 8 hours |
-| **Agent F** | 6c | axora-docs | `living.rs` | 8 hours |
+| **Agent D** | 6a | openakta-docs | `format.rs`, `schema.rs` | 8 hours |
+| **Agent E** | 6b | openakta-docs | `retriever.rs` | 8 hours |
+| **Agent F** | 6c | openakta-docs | `living.rs` | 8 hours |
 
 ### Wave 3 Agent (ACONIC Implementation)
 
 | Agent | Sprint | Crate | Files | Estimated Time |
 |-------|--------|-------|-------|----------------|
-| **Agent C** | 7 | axora-agents | `constraint.rs`, `treewidth.rs`, `aop_validator.rs`, `dag_builder.rs` | 32 hours |
+| **Agent C** | 7 | openakta-agents | `constraint.rs`, `treewidth.rs`, `aop_validator.rs`, `dag_builder.rs` | 32 hours |
 
 ---
 

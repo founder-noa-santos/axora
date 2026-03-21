@@ -10,8 +10,8 @@
 ### Fix: Replace bi-encoder approximation with a local Candle cross-encoder
 
 **Files**
-- `/Users/noasantos/Fluri/axora/crates/axora-rag/src/reranker.rs`
-- `/Users/noasantos/Fluri/axora/crates/axora-rag/Cargo.toml`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-rag/src/reranker.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-rag/Cargo.toml`
 
 **Design**
 - `CandleCrossEncoder` is now a true local transformer reranker backed by:
@@ -20,8 +20,8 @@
   - `candle-transformers`
   - `tokenizers`
 - The reranker loads a BERT-style sequence-classification checkpoint from:
-  - `AXORA_CROSS_ENCODER_MODEL_ROOT`
-  - default fallback: `.axora/models/cross-encoder`
+  - `OPENAKTA_CROSS_ENCODER_MODEL_ROOT`
+  - default fallback: `.openakta/models/cross-encoder`
 - Expected local artifacts:
   - `config.json`
   - `tokenizer.json`
@@ -50,10 +50,10 @@
 ### Fix: Make async retrieval contracts `Send` across the gRPC boundary
 
 **Files**
-- `/Users/noasantos/Fluri/axora/crates/axora-rag/src/reranker.rs`
-- `/Users/noasantos/Fluri/axora/crates/axora-memory/src/procedural_store.rs`
-- `/Users/noasantos/Fluri/axora/crates/axora-rag/Cargo.toml`
-- `/Users/noasantos/Fluri/axora/crates/axora-memory/Cargo.toml`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-rag/src/reranker.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-memory/src/procedural_store.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-rag/Cargo.toml`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-memory/Cargo.toml`
 
 **Problem**
 - The typed gRPC integration test exposed that `async fn` in traits did not guarantee `Send` futures for:
@@ -62,7 +62,7 @@
 - That made generic `SkillRetrievalPipeline<I, R>` unusable behind the tonic service wrapper.
 
 **Resolution**
-- Added `async-trait = "0.1"` to `axora-rag` and `axora-memory`.
+- Added `async-trait = "0.1"` to `openakta-rag` and `openakta-memory`.
 - Annotated:
   - `CrossEncoderScorer`
   - `SkillIndexBackend`
@@ -72,8 +72,8 @@
 ### Fix: Replace per-request corpus rescans with incremental sync
 
 **Files**
-- `/Users/noasantos/Fluri/axora/crates/axora-memory/src/procedural_store.rs`
-- `/Users/noasantos/Fluri/axora/crates/axora-core/src/runtime_services.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-memory/src/procedural_store.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-core/src/runtime_services.rs`
 
 **Design**
 - Added a persisted file-state table:
@@ -120,7 +120,7 @@
 ### Fix: Make the MCP skill retriever lazy and reusable
 
 **File**
-- `/Users/noasantos/Fluri/axora/crates/axora-mcp-server/src/lib.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-mcp-server/src/lib.rs`
 
 **Design**
 - Added `SkillRetrieverService` trait to decouple the tonic service from concrete pipeline construction.
@@ -140,8 +140,8 @@
 ### Feat: Generic pipeline injection for deterministic retrieval tests
 
 **Files**
-- `/Users/noasantos/Fluri/axora/crates/axora-memory/src/procedural_store.rs`
-- `/Users/noasantos/Fluri/axora/crates/axora-mcp-server/src/lib.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-memory/src/procedural_store.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-mcp-server/src/lib.rs`
 
 **Design**
 - `SkillRetrievalPipeline` is now generic over:
@@ -157,7 +157,7 @@
 ### Feat: End-to-end typed gRPC integration coverage
 
 **File**
-- `/Users/noasantos/Fluri/axora/crates/axora-mcp-server/src/lib.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-mcp-server/src/lib.rs`
 
 **Test added**
 - `retrieve_skills_grpc_enforces_budget_and_filters_noise`
@@ -184,7 +184,7 @@
 ### Feat: Incremental-sync unit coverage
 
 **File**
-- `/Users/noasantos/Fluri/axora/crates/axora-memory/src/procedural_store.rs`
+- `/Users/noasantos/Fluri/openakta/crates/openakta-memory/src/procedural_store.rs`
 
 **Tests added**
 - `incremental_sync_only_indexes_changed_files`
@@ -216,11 +216,11 @@
   under full end-to-end execution.
 
 ### Remaining production gap
-- The local reranker is now a real Candle transformer path, but production deployment still requires shipping an actual quantized checkpoint into `.axora/models/cross-encoder` or `AXORA_CROSS_ENCODER_MODEL_ROOT`.
+- The local reranker is now a real Candle transformer path, but production deployment still requires shipping an actual quantized checkpoint into `.openakta/models/cross-encoder` or `OPENAKTA_CROSS_ENCODER_MODEL_ROOT`.
 - The runtime is ready; model packaging is the remaining operational step.
 
 ## Verification
-- `cargo check -q -p axora-rag -p axora-memory -p axora-mcp-server`
-- `cargo test -q -p axora-memory incremental_sync_only_indexes_changed_files`
-- `cargo test -q -p axora-memory pipeline_respects_token_budget_and_rejects_noise`
-- `cargo test -q -p axora-mcp-server retrieve_skills_grpc_enforces_budget_and_filters_noise`
+- `cargo check -q -p openakta-rag -p openakta-memory -p openakta-mcp-server`
+- `cargo test -q -p openakta-memory incremental_sync_only_indexes_changed_files`
+- `cargo test -q -p openakta-memory pipeline_respects_token_budget_and_rejects_noise`
+- `cargo test -q -p openakta-mcp-server retrieve_skills_grpc_enforces_budget_and_filters_noise`

@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.0.0",
+  "updated_at": "2026-03-20T12:00:00Z",
+  "providers": [
+    {
+      "id": "openai",
+      "vendor_slug": "openai",
+      "label": "OpenAI",
+      "description": "Official OpenAI API for GPT-4, GPT-3.5, and other models",
+      "status": "active",
+      "provider_type": "direct",
+      "documentation_url": "https://platform.openai.com/docs",
+      "homepage_url": "https://openai.com",
+      "api": {
+        "base_url": "https://api.openai.com/v1",
+        "compatibility": {
+          "family": "open_ai",
+          "surface": "chat_completions",
+          "strictness": "native"
+        },
+        "default_endpoint_path": "/chat/completions"
+      },
+      "authentication": {
+        "scheme": "bearer",
+        "header_name": "Authorization",
+        "env_var_hint": "OPENAI_API_KEY",
+        "client_exposure": "user_supplied"
+      },
+      "capabilities": {
+        "chat": true,
+        "streaming": true,
+        "embeddings": true,
+        "tool_calls": true
+      },
+      "supported_model_ids": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "o1",
+        "o3-mini",
+        "gpt-4-turbo"
+      ],
+      "default_model_id": "gpt-4o",
+      "rate_limits": {
+        "requests_per_minute": 500,
+        "tokens_per_minute": 150000
+      },
+      "pricing_tier": "paid"
+    },
+    {
+      "id": "anthropic",
+      "vendor_slug": "anthropic",
+      "label": "Anthropic",
+      "description": "Official Anthropic API for Claude models",
+      "status": "active",
+      "provider_type": "direct",
+      "documentation_url": "https://docs.anthropic.com",
+      "homepage_url": "https://anthropic.com",
+      "api": {
+        "base_url": "https://api.anthropic.com",
+        "compatibility": {
+          "family": "anthropic",
+          "surface": "messages",
+          "strictness": "native"
+        },
+        "default_endpoint_path": "/v1/messages"
+      },
+      "authentication": {
+        "scheme": "api_key_header",
+        "header_name": "x-api-key",
+        "env_var_hint": "ANTHROPIC_API_KEY",
+        "client_exposure": "user_supplied"
+      },
+      "capabilities": {
+        "chat": true,
+        "streaming": true,
+        "embeddings": false,
+        "tool_calls": true
+      },
+      "supported_model_ids": [
+        "claude-3-5-sonnet-latest",
+        "claude-3-opus-latest",
+        "claude-3-haiku-latest"
+      ],
+      "default_model_id": "claude-3-5-sonnet-latest",
+      "rate_limits": {
+        "requests_per_minute": 400,
+        "tokens_per_minute": 80000
+      },
+      "pricing_tier": "paid"
+    },
+    {
+      "id": "deepseek",
+      "vendor_slug": "deepseek",
+      "label": "DeepSeek",
+      "description": "DeepSeek API - OpenAI compatible",
+      "status": "active",
+      "provider_type": "direct",
+      "documentation_url": "https://platform.deepseek.com/docs",
+      "homepage_url": "https://deepseek.com",
+      "api": {
+        "base_url": "https://api.deepseek.com",
+        "compatibility": {
+          "family": "open_ai",
+          "surface": "chat_completions",
+          "strictness": "compatible"
+        },
+        "default_endpoint_path": "/chat/completions"
+      },
+      "authentication": {
+        "scheme": "bearer",
+        "header_name": "Authorization",
+        "env_var_hint": "DEEPSEEK_API_KEY",
+        "client_exposure": "user_supplied"
+      },
+      "capabilities": {
+        "chat": true,
+        "streaming": true,
+        "embeddings": false,
+        "tool_calls": true
+      },
+      "supported_model_ids": [
+        "deepseek-chat",
+        "deepseek-coder",
+        "deepseek-reasoner"
+      ],
+      "default_model_id": "deepseek-chat",
+      "rate_limits": {
+        "requests_per_minute": 100,
+        "tokens_per_minute": 50000
+      },
+      "pricing_tier": "paid"
+    },
+    {
+      "id": "ollama",
+      "vendor_slug": "ollama",
+      "label": "Ollama (Local)",
+      "description": "Local Ollama instance for running open-source models",
+      "status": "active",
+      "provider_type": "self_hosted",
+      "documentation_url": "https://github.com/ollama/ollama/blob/main/docs/api.md",
+      "homepage_url": "https://ollama.com",
+      "api": {
+        "base_url": "http://localhost:11434",
+        "compatibility": {
+          "family": "open_ai",
+          "surface": "chat_completions",
+          "strictness": "compatible"
+        },
+        "default_endpoint_path": "/api/chat",
+        "notes": "Uses OpenAI-compatible endpoint at /v1/chat/completions when available"
+      },
+      "authentication": {
+        "scheme": "none",
+        "client_exposure": "not_supported_in_client"
+      },
+      "capabilities": {
+        "chat": true,
+        "streaming": true,
+        "embeddings": true,
+        "tool_calls": false
+      },
+      "supported_model_ids": [
+        "llama3.2",
+        "qwen2.5-coder",
+        "codellama",
+        "mistral"
+      ],
+      "default_model_id": "llama3.2",
+      "pricing_tier": "free"
+    },
+    {
+      "id": "openrouter",
+      "vendor_slug": "openrouter",
+      "label": "OpenRouter",
+      "description": "Unified API for multiple AI models",
+      "status": "active",
+      "provider_type": "aggregator",
+      "documentation_url": "https://openrouter.ai/docs",
+      "homepage_url": "https://openrouter.ai",
+      "api": {
+        "base_url": "https://openrouter.ai/api/v1",
+        "compatibility": {
+          "family": "open_ai",
+          "surface": "chat_completions",
+          "strictness": "compatible"
+        },
+        "default_endpoint_path": "/chat/completions"
+      },
+      "authentication": {
+        "scheme": "bearer",
+        "header_name": "Authorization",
+        "env_var_hint": "OPENROUTER_API_KEY",
+        "client_exposure": "user_supplied"
+      },
+      "capabilities": {
+        "chat": true,
+        "streaming": true,
+        "embeddings": true,
+        "tool_calls": true
+      },
+      "supported_model_ids": [
+        "openrouter-auto",
+        "anthropic/claude-3.5-sonnet",
+        "google/gemini-pro",
+        "meta-llama/llama-3.2-70b"
+      ],
+      "default_model_id": "openrouter-auto",
+      "rate_limits": {
+        "requests_per_minute": 60,
+        "tokens_per_minute": 50000
+      },
+      "pricing_tier": "variable",
+      "notes": "Model availability depends on user's OpenRouter account"
+    }
+  ]
+}

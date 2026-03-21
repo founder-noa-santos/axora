@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 30 (Memory Architecture)  
-**File:** `crates/axora-memory/src/memgas_retriever.rs`  
+**File:** `crates/openakta-memory/src/memgas_retriever.rs`  
 **Priority:** HIGH (precise context curation)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ R-14 research provides CRITICAL implementation details:
 
 ### 1. Create memgas_retriever.rs
 
-**File:** `crates/axora-memory/src/memgas_retriever.rs`
+**File:** `crates/openakta-memory/src/memgas_retriever.rs`
 
 **Core Structure:**
 ```rust
@@ -121,15 +121,15 @@ pub enum Granularity {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-memory/src/memgas_retriever.rs` (NEW)
+- `crates/openakta-memory/src/memgas_retriever.rs` (NEW)
 
 **Update:**
-- `crates/axora-cache/src/context.rs` (integrate MemGAS)
+- `crates/openakta-cache/src/context.rs` (integrate MemGAS)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-indexing/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's other work)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's other work)
 
 ---
 

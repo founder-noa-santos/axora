@@ -1,7 +1,7 @@
 # Agent A — Sprint 6: Documentation Management System
 
 **Sprint:** 6 of Phase 2  
-**File:** `crates/axora-docs/src/lib.rs` (NEW CRATE)  
+**File:** `crates/openakta-docs/src/lib.rs` (NEW CRATE)  
 **Estimated Time:** 8 hours  
 
 ---
@@ -18,7 +18,7 @@ Criar sistema de documentação **agent-native** — documentação que agents p
 - ❌ Docs vivem em silos (README, docs/, inline comments)
 - ❌ Sem feedback loop (código muda → docs não atualizam)
 
-**Solução AXORA:**
+**Solução OPENAKTA:**
 - ✅ Docs estruturadas para agents (YAML/JSON schemas)
 - ✅ Auto-update quando código muda
 - ✅ Living documentation (sempre atualizada)
@@ -92,16 +92,16 @@ pub struct Adr {
 ## 📁 File Boundaries
 
 **Criar NOVO crate:**
-- `crates/axora-docs/Cargo.toml` (criar)
-- `crates/axora-docs/src/lib.rs` (criar)
-- `crates/axora-docs/src/schema.rs` (criar)
-- `crates/axora-docs/src/index.rs` (criar)
-- `crates/axora-docs/src/living.rs` (criar)
-- `crates/axora-docs/src/adr.rs` (criar)
+- `crates/openakta-docs/Cargo.toml` (criar)
+- `crates/openakta-docs/src/lib.rs` (criar)
+- `crates/openakta-docs/src/schema.rs` (criar)
+- `crates/openakta-docs/src/index.rs` (criar)
+- `crates/openakta-docs/src/living.rs` (criar)
+- `crates/openakta-docs/src/adr.rs` (criar)
 
 **NÃO editar:**
-- `crates/axora-cache/` (Agent B está trabalhando)
-- `crates/axora-agents/` (Agent C está trabalhando)
+- `crates/openakta-cache/` (Agent B está trabalhando)
+- `crates/openakta-agents/` (Agent C está trabalhando)
 
 ---
 
@@ -274,20 +274,20 @@ impl AdrLog {
 1. **Criar estrutura do crate:**
    ```bash
    cd crates
-   mkdir axora-docs
-   cd axora-docs
+   mkdir openakta-docs
+   cd openakta-docs
    mkdir src
    ```
 
 2. **Criar `Cargo.toml`:**
    ```toml
    [package]
-   name = "axora-docs"
+   name = "openakta-docs"
    version.workspace = true
    edition.workspace = true
    
    [dependencies]
-   axora-indexing.workspace = true
+   openakta-indexing.workspace = true
    serde.workspace = true
    serde_json.workspace = true
    tracing.workspace = true
@@ -304,11 +304,11 @@ impl AdrLog {
 
 5. **Rodar testes:**
    ```bash
-   cargo test -p axora-docs
+   cargo test -p openakta-docs
    ```
 
 6. **Atualizar workspace:**
-   - Adicionar `axora-docs` ao `Cargo.toml` root
+   - Adicionar `openakta-docs` ao `Cargo.toml` root
 
 ---
 
@@ -330,8 +330,8 @@ impl AdrLog {
 
 **Integração Futura:**
 - Este crate será usado pelo RAG pipeline para retriever docs
-- LivingDocs vai integrar com Merkle tree (axora-indexing)
-- ADRs vão integrar com audit logging (axora-agents)
+- LivingDocs vai integrar com Merkle tree (openakta-indexing)
+- ADRs vão integrar com audit logging (openakta-agents)
 
 ---
 

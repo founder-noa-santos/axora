@@ -6,13 +6,13 @@ Standardize key vocabulary so future docs and implementation discussions do not 
 
 ## Executive Summary
 
-AXORA’s current vocabulary should center on mission execution, typed orchestration, patch safety, and local context infrastructure. Many words that appear elsewhere in the repository, such as auth, payment, or subscription, are often example-domain terms rather than live AXORA business terms. This glossary prefers the implemented backend language.
+OPENAKTA’s current vocabulary should center on mission execution, typed orchestration, patch safety, and local context infrastructure. Many words that appear elsewhere in the repository, such as auth, payment, or subscription, are often example-domain terms rather than live OPENAKTA business terms. This glossary prefers the implemented backend language.
 
 ## Confirmed Current State
 
 | Term | Canonical meaning | Notes |
 | --- | --- | --- |
-| AXORA | Multi-agent coding backend/runtime platform | Current business-core term |
+| OPENAKTA | Multi-agent coding backend/runtime platform | Current business-core term |
 | Mission | High-level work request decomposed into tasks | Core orchestration term |
 | Task | Executable unit of work | Has type and status |
 | CoordinatorV2 | Primary current coordination runtime | Prefer over generic “coordinator” when precision matters |
@@ -52,17 +52,17 @@ AXORA’s current vocabulary should center on mission execution, typed orchestra
 ## Implementation Evidence
 
 - `proto/collective/v1/core.proto`
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-agents/src/patch_protocol.rs`
-- `crates/axora-agents/src/provider.rs`
-- `crates/axora-cache/src/toon.rs`
-- `crates/axora-cache/src/blackboard/v2.rs`
-- `crates/axora-indexing/src/merkle.rs`
-- `crates/axora-indexing/src/scip.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-agents/src/patch_protocol.rs`
+- `crates/openakta-agents/src/provider.rs`
+- `crates/openakta-cache/src/toon.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
+- `crates/openakta-indexing/src/merkle.rs`
+- `crates/openakta-indexing/src/scip.rs`
 
 ## Business Meaning
 
-Shared vocabulary is essential because the repository mixes implemented runtime language with example-domain language. This glossary reduces the risk of designing around synthetic examples instead of real AXORA concepts.
+Shared vocabulary is essential because the repository mixes implemented runtime language with example-domain language. This glossary reduces the risk of designing around synthetic examples instead of real OPENAKTA concepts.
 
 ## Open Ambiguities
 

@@ -11,13 +11,17 @@ import {
 
 const api: DesktopApi = {
   app: {
-    getInfo: () => ipcRenderer.invoke(ipcChannels.getAppInfo) as Promise<AppInfo>,
+    getInfo: () =>
+      ipcRenderer.invoke(ipcChannels.getAppInfo) as Promise<AppInfo>,
     getShellState: () =>
       ipcRenderer.invoke(ipcChannels.getShellState) as Promise<ShellState>,
     getFullscreenState: () =>
       ipcRenderer.invoke(ipcChannels.getFullscreenState) as Promise<boolean>,
     onFullscreenChange: (callback) => {
-      const handler = (_event: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen);
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        isFullscreen: boolean,
+      ) => callback(isFullscreen);
       ipcRenderer.on(ipcChannels.onFullscreenChange, handler);
       return () => {
         ipcRenderer.removeListener(ipcChannels.onFullscreenChange, handler);
@@ -26,7 +30,9 @@ const api: DesktopApi = {
   },
   preferences: {
     get: () =>
-      ipcRenderer.invoke(ipcChannels.getPreferences) as Promise<DesktopPreferences>,
+      ipcRenderer.invoke(
+        ipcChannels.getPreferences,
+      ) as Promise<DesktopPreferences>,
     update: (patch) =>
       ipcRenderer.invoke(
         ipcChannels.updatePreferences,
@@ -35,4 +41,4 @@ const api: DesktopApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("axoraDesktop", api);
+contextBridge.exposeInMainWorld("openaktaDesktop", api);

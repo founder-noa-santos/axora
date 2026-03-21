@@ -1,6 +1,6 @@
-# com.axora:logger-core
+# com.openakta:logger-core
 
-Canonical AXORA Wide Event SDK for Java.
+Canonical OPENAKTA Wide Event SDK for Java.
 
 ## Usage
 

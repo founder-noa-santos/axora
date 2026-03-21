@@ -1,10 +1,10 @@
 # Java Example
 
 ```java
-import com.axora.logger.Logger;
-import com.axora.logger.LoggerBuilder;
-import com.axora.logger.WideEvent;
-import com.axora.logger.sinks.ConsoleSink;
+import com.openakta.logger.Logger;
+import com.openakta.logger.LoggerBuilder;
+import com.openakta.logger.WideEvent;
+import com.openakta.logger.sinks.ConsoleSink;
 import java.util.Map;
 
 Logger logger = new LoggerBuilder()

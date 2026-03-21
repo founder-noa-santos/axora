@@ -36,7 +36,9 @@ export function NavigationSidebar() {
                   <span className="flex items-center gap-3">
                     <span
                       className={`flex h-8 w-8 items-center justify-center rounded-[12px] ${
-                        item.active ? "bg-white/10 text-foreground" : "bg-black/15"
+                        item.active
+                          ? "bg-white/10 text-foreground"
+                          : "bg-black/15"
                       }`}
                     >
                       <Icon
@@ -51,7 +53,9 @@ export function NavigationSidebar() {
                       </span>
                     </span>
                   </span>
-                  <span className="text-[12px] text-muted-foreground">{item.count}</span>
+                  <span className="text-[12px] text-muted-foreground">
+                    {item.count}
+                  </span>
                 </button>
               );
             })}
@@ -63,8 +67,8 @@ export function NavigationSidebar() {
               Renderer isolation is active
             </h3>
             <p className="mt-2 muted-copy">
-              React only sees a typed preload bridge. Future Rust features can land
-              behind the same IPC contract without UI churn.
+              React only sees a typed preload bridge. Future Rust features can
+              land behind the same IPC contract without UI churn.
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-# AXORA Technical Architecture: Context Management & RAG
+# OPENAKTA Technical Architecture: Context Management & RAG
 
 **Created:** 2026-03-16  
 **Status:** ✅ Approved  
@@ -8,7 +8,7 @@
 
 ## System Overview
 
-AXORA's context management system implements a **Modular RAG** architecture optimized for multi-agent code generation and retrieval.
+OPENAKTA's context management system implements a **Modular RAG** architecture optimized for multi-agent code generation and retrieval.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

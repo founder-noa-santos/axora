@@ -73,9 +73,9 @@
 7. [ ] Write integration tests (verify caching works)
 
 **Deliverables:**
-- `crates/axora-agents/src/api_client.rs` — Enhanced API client
-- `crates/axora-agents/src/cache_integration.rs` — Cache integration
-- `crates/axora-agents/src/metrics.rs` — Metrics tracking
+- `crates/openakta-agents/src/api_client.rs` — Enhanced API client
+- `crates/openakta-agents/src/cache_integration.rs` — Cache integration
+- `crates/openakta-agents/src/metrics.rs` — Metrics tracking
 
 **Success Criteria:**
 - [ ] 50-90% reduction in prompt tokens (static prefixes cached)
@@ -142,8 +142,8 @@ Agent C is ready when:
 
 **Today:**
 1. Read plan: `research/findings/multi-agent-optimization/IMPLEMENTATION-PLAN.md#sprint-c7`
-2. Update `crates/axora-agents/src/api_client.rs`
-3. Integrate with existing `PrefixCache` from `axora-cache`
+2. Update `crates/openakta-agents/src/api_client.rs`
+3. Integrate with existing `PrefixCache` from `openakta-cache`
 
 **This Week:**
 - Complete Sprint C7 (API Client + Prefix Caching)

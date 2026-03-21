@@ -10,9 +10,9 @@
 ### Phase 3 Sprints
 | Sprint | Title | File | Verified |
 |--------|-------|------|----------|
-| A1 | Context Compacting | `axora-cache/src/compactor.rs` | ✅ |
-| A2 | Blackboard v2 | `axora-cache/src/blackboard/v2.rs` | ✅ |
-| **A3** | **Progress Monitoring** | `axora-agents/src/monitor.rs` | ✅ |
+| A1 | Context Compacting | `openakta-cache/src/compactor.rs` | ✅ |
+| A2 | Blackboard v2 | `openakta-cache/src/blackboard/v2.rs` | ✅ |
+| **A3** | **Progress Monitoring** | `openakta-agents/src/monitor.rs` | ✅ |
 
 ### Phase 4 Sprints
 | Sprint | Title | File | Verified |
@@ -23,16 +23,16 @@
 ### Legacy Sprints
 | Sprint | Title | File | Verified |
 |--------|-------|------|----------|
-| 3 | Code Minification | `axora-cache/src/minifier.rs` | ✅ |
-| 6 | Documentation Management | `axora-docs/` | ✅ |
-| 9 | Integration & Benchmarking | `axora-cache/tests/` | ✅ |
+| 3 | Code Minification | `openakta-cache/src/minifier.rs` | ✅ |
+| 6 | Documentation Management | `openakta-docs/` | ✅ |
+| 9 | Integration & Benchmarking | `openakta-cache/tests/` | ✅ |
 | 11 | Documentation Pivot | `planning/shared/` | ✅ |
 | 12 | ACONIC Decomposition Docs | `planning/shared/` | ✅ |
 | 18 | Business Rule Documentation | `docs/business_rules/` | ✅ |
 | 25 | AGENTS.md Living Document | `AGENTS.md` | ✅ |
-| 26 | Semantic Memory Store | `axora-memory/src/semantic_store.rs` | ✅ |
-| 28 | Procedural Memory Store | `axora-memory/src/procedural_store.rs` | ✅ |
-| 31 | Memory Lifecycle | `axora-memory/src/lifecycle.rs` | ✅ |
+| 26 | Semantic Memory Store | `openakta-memory/src/semantic_store.rs` | ✅ |
+| 28 | Procedural Memory Store | `openakta-memory/src/procedural_store.rs` | ✅ |
+| 31 | Memory Lifecycle | `openakta-memory/src/lifecycle.rs` | ✅ |
 
 ---
 
@@ -86,7 +86,7 @@
 4. E2E testing
 
 **Files to Connect:**
-- Backend: `crates/axora-agents/src/monitor.rs`
+- Backend: `crates/openakta-agents/src/monitor.rs`
 - Frontend: `apps/desktop/src/panels/ProgressPanel.tsx`
 - WebSocket: `apps/desktop/src/api/progress-websocket.ts`
 

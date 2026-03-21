@@ -9,23 +9,23 @@
 
 | Crate | Warnings Before | Warnings After | Status |
 |-------|-----------------|----------------|--------|
-| **axora-proto** | 72 | 0 | ✅ Fixed |
-| **axora-storage** | 3 | 0 | ✅ Fixed |
-| **axora-core** | 3 | 0 | ✅ Fixed |
-| **axora-desktop** | 1 | 0 | ✅ Fixed |
+| **openakta-proto** | 72 | 0 | ✅ Fixed |
+| **openakta-storage** | 3 | 0 | ✅ Fixed |
+| **openakta-core** | 3 | 0 | ✅ Fixed |
+| **openakta-desktop** | 1 | 0 | ✅ Fixed |
 | **TOTAL** | **79** | **0** | ✅ **100% Clean** |
 
 ---
 
 ## 🛠️ Fixes Applied
 
-### 1. axora-proto (72 warnings)
+### 1. openakta-proto (72 warnings)
 
 **Problem:** Generated protobuf code doesn't have documentation
 
 **Solution:** Allow missing_docs for generated code
 
-**File:** `crates/axora-proto/src/lib.rs`
+**File:** `crates/openakta-proto/src/lib.rs`
 
 ```rust
 // Before
@@ -57,7 +57,7 @@ pub mod collective {
 
 ---
 
-### 2. axora-storage (3 warnings)
+### 2. openakta-storage (3 warnings)
 
 **Problems:**
 1. Unused import: `std::path::Path`
@@ -66,7 +66,7 @@ pub mod collective {
 
 **Solution:** Remove unused imports, prefix unused variable with `_`
 
-**File:** `crates/axora-storage/src/db.rs`
+**File:** `crates/openakta-storage/src/db.rs`
 
 ```rust
 // Before
@@ -83,7 +83,7 @@ pub fn migrate(&self, _conn: &mut Connection) -> Result<()> {
 
 ---
 
-### 3. axora-core (3 warnings)
+### 3. openakta-core (3 warnings)
 
 **Problems:**
 1. Unused import: `StreamExt`
@@ -92,27 +92,27 @@ pub fn migrate(&self, _conn: &mut Connection) -> Result<()> {
 
 **Solution:** Remove unused imports
 
-**File:** `crates/axora-core/src/server.rs`
+**File:** `crates/openakta-core/src/server.rs`
 
 ```rust
 // Before
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
-use axora_proto::collective::v1::{
+use openakta_proto::collective::v1::{
     ..., MessageType, ...
 };
 
 // After
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
-use axora_proto::collective::v1::{
+use openakta_proto::collective::v1::{
     ...,  // MessageType removed
 };
 ```
 
 ---
 
-### 4. axora-desktop (1 warning)
+### 4. openakta-desktop (1 warning)
 
 **Problem:** Unused import: `tauri::Manager`
 
@@ -136,7 +136,7 @@ After fixes, compile should show:
 
 ```
 Finished `dev` profile [unoptimized + debuginfo] target(s) in X.XXs
-Running `/Users/noasantos/Fluri/axora/target/debug/axora-desktop`
+Running `/Users/noasantos/Fluri/openakta/target/debug/openakta-desktop`
 ```
 
 **No warnings!**
@@ -165,16 +165,16 @@ Running `/Users/noasantos/Fluri/axora/target/debug/axora-desktop`
 
 ### Before
 ```
-warning: `axora-proto` (lib) generated 72 warnings
-warning: `axora-storage` (lib) generated 3 warnings
-warning: `axora-core` (lib) generated 3 warnings
-warning: `axora-desktop` (lib) generated 1 warning
+warning: `openakta-proto` (lib) generated 72 warnings
+warning: `openakta-storage` (lib) generated 3 warnings
+warning: `openakta-core` (lib) generated 3 warnings
+warning: `openakta-desktop` (lib) generated 1 warning
 ```
 
 ### After
 ```
 Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.91s
-Running `/Users/noasantos/Fluri/axora/target/debug/axora-desktop`
+Running `/Users/noasantos/Fluri/openakta/target/debug/openakta-desktop`
 ```
 
 **Clean build with no warnings!** ✅

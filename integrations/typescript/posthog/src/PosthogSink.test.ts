@@ -32,8 +32,8 @@ describe('PosthogSink', () => {
       properties: {
         user_id: 'usr_123',
         attempt: 2,
-        axora_event_id: '2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d',
-        axora_service: 'svc',
+        openakta_event_id: '2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d',
+        openakta_service: 'svc',
         status: 'ok',
         level: 'info',
         duration_ms: 500,

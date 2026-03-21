@@ -2,13 +2,13 @@
 
 ## Summary
 
-AXORA’s codebase is ahead of the prompt in several areas, but much of that progress is library-level or doc-level rather than runtime-integrated. The main pattern is: docs say “implemented,” Rust code often says “designed/scaffolded,” and the live coordinator still runs synthetic paths. Implement in this order to minimize rework: **Theme 3 (live providers) → Theme 2 (MCP boundary) → Theme 5 (true dual-thread runtime) → Theme 1 (MetaGlyph/C2C wire prep) → Theme 4 (memory integration) → Theme 6 (LivingDocs daemonization).**
+OPENAKTA’s codebase is ahead of the prompt in several areas, but much of that progress is library-level or doc-level rather than runtime-integrated. The main pattern is: docs say “implemented,” Rust code often says “designed/scaffolded,” and the live coordinator still runs synthetic paths. Implement in this order to minimize rework: **Theme 3 (live providers) → Theme 2 (MCP boundary) → Theme 5 (true dual-thread runtime) → Theme 1 (MetaGlyph/C2C wire prep) → Theme 4 (memory integration) → Theme 6 (LivingDocs daemonization).**
 
 ## Important Interface Changes
 
 - Extend the collective protobufs with a **canonical compressed context envelope**.
-- Add a new **MCP gRPC surface** in `axora-proto`.
-- Introduce a provider runtime abstraction in `axora-agents`.
+- Add a new **MCP gRPC surface** in `openakta-proto`.
+- Introduce a provider runtime abstraction in `openakta-agents`.
 - Introduce daemon-managed services for memory, docs, MCP, and ReAct runtime.
 
 ## Themes

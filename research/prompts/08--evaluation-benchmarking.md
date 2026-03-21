@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Evaluation & Benchmarking for Multi-Agent AI Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system. We need to measure if our system works well - both during development and in production. We need SCIENTIFIC-LEVEL understanding of evaluation methodologies for multi-agent AI systems. This research must be production-grade.
+I'm building OPENAKTA, a multi-agent AI coding system. We need to measure if our system works well - both during development and in production. We need SCIENTIFIC-LEVEL understanding of evaluation methodologies for multi-agent AI systems. This research must be production-grade.
 
 ## Core Research Questions
 
@@ -196,9 +196,9 @@ b) **Metrics to Collect**
    - Qualitative feedback
 
 c) **Comparative Studies**
-   - AXORA vs baseline (no AI)
-   - AXORA vs Copilot
-   - AXORA vs Cursor
+   - OPENAKTA vs baseline (no AI)
+   - OPENAKTA vs Copilot
+   - OPENAKTA vs Cursor
    - How to run fairly?
 
 ### 8. Competitive Benchmarking

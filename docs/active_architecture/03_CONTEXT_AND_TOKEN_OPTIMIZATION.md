@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-AXORA achieves **90-95% token cost reduction** through multiple optimization layers:
+OPENAKTA achieves **90-95% token cost reduction** through multiple optimization layers:
 - **Prefix caching** — 50-90% savings on input tokens
 - **Diff-based communication** — 89-98% savings on output tokens
 - **Context pruning** — 95-99% savings via influence graph
@@ -104,7 +104,7 @@ headers.insert("X-Cache-TTL", "3600".parse()?); // 1 hour
 | Token Savings | 50-90% on input |
 | Latency Reduction | 30-50% (Time-to-First-Token) |
 
-**Location:** `crates/axora-cache/src/prefix_cache.rs`
+**Location:** `crates/openakta-cache/src/prefix_cache.rs`
 
 ---
 
@@ -194,7 +194,7 @@ impl DiffEnforcer {
 }
 ```
 
-**Location:** `crates/axora-cache/src/diff.rs`
+**Location:** `crates/openakta-cache/src/diff.rs`
 
 ---
 
@@ -252,7 +252,7 @@ We use **SCIP (Sourcegraph Code Intelligence Protocol)** for language-agnostic i
 
 **Token Reduction:** 95-99% (50K → 500-2.5K tokens)
 
-**Location:** `crates/axora-indexing/src/influence.rs`
+**Location:** `crates/openakta-indexing/src/influence.rs`
 
 ---
 
@@ -385,16 +385,16 @@ let context = receiver.cache.retrieve(embedding_ref);
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Prefix Caching | ✅ Implemented | `crates/axora-cache/src/prefix_cache.rs` |
-| Diff Communication | ✅ Implemented | `crates/axora-cache/src/diff.rs` |
-| Influence Graph | ✅ Implemented | `crates/axora-indexing/src/influence.rs` |
+| Prefix Caching | ✅ Implemented | `crates/openakta-cache/src/prefix_cache.rs` |
+| Diff Communication | ✅ Implemented | `crates/openakta-cache/src/diff.rs` |
+| Influence Graph | ✅ Implemented | `crates/openakta-indexing/src/influence.rs` |
 | SCIP Indexing | 📋 Planned | Next sprint |
 | MetaGlyph | 📋 Designed | Research complete |
 | Q-Codes | 📋 Designed | Research complete |
 
 ---
 
-**This is the Single Source of Truth for AXORA token and context optimization.**
+**This is the Single Source of Truth for OPENAKTA token and context optimization.**
 
 **Last Reviewed:** 2026-03-18  
 **Next Review:** After MVP launch

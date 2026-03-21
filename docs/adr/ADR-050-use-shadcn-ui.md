@@ -9,7 +9,7 @@ The desktop frontend was reset. We still need an in-repo component foundation th
 
 ## Decision
 
-Use shadcn/ui-style local components inside [apps/desktop/components/ui](/Users/noasantos/Fluri/axora/apps/desktop/components/ui).
+Use shadcn/ui-style local components inside [apps/desktop/components/ui](/Users/noasantos/Fluri/openakta/apps/desktop/components/ui).
 
 ## Why
 

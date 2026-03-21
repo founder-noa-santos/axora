@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Local LLM Model Optimization for AI Coding Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system that must run locally on developer machines. We need to understand what LLMs can run locally with acceptable performance and quality. This research must be production-grade with specific benchmarks and implementation details.
+I'm building OPENAKTA, a multi-agent AI coding system that must run locally on developer machines. We need to understand what LLMs can run locally with acceptable performance and quality. This research must be production-grade with specific benchmarks and implementation details.
 
 ## Core Research Questions
 
@@ -179,7 +179,7 @@ c) **Minimum Viable Hardware**
    - Acceptable speed (>10 tokens/sec?)
    - Acceptable memory usage?
 
-### 5. Model Selection for AXORA
+### 5. Model Selection for OPENAKTA
 
 a) **Use Case Analysis**
    What do our agents need to do?

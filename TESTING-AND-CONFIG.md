@@ -1,4 +1,4 @@
-# 🧪 AXORA — Testes e Configuração
+# 🧪 OPENAKTA — Testes e Configuração
 
 **Data:** 2026-03-17
 
@@ -17,21 +17,21 @@
 
 ### 📁 Arquivo de Configuração
 
-**Local:** `~/.config/axora/axora.toml`
+**Local:** `~/.config/openakta/openakta.toml`
 
-**Template:** `axora.example.toml` (na raiz do projeto)
+**Template:** `openakta.example.toml` (na raiz do projeto)
 
 ### 🔧 Como Usar
 
 ```bash
 # 1. Criar diretório de configuração
-mkdir -p ~/.config/axora
+mkdir -p ~/.config/openakta
 
 # 2. Copiar template
-cp axora.example.toml ~/.config/axora/axora.toml
+cp openakta.example.toml ~/.config/openakta/openakta.toml
 
 # 3. Editar configuração
-nano ~/.config/axora/axora.toml
+nano ~/.config/openakta/openakta.toml
 ```
 
 ### 📝 Exemplo de Configuração
@@ -42,7 +42,7 @@ bind_address = "127.0.0.1"
 port = 50051
 
 [database]
-path = "~/.local/share/axora/axora.db"
+path = "~/.local/share/openakta/openakta.db"
 
 [agents]
 max_concurrent_agents = 10
@@ -77,8 +77,8 @@ pub struct UserConfig {
 pub fn load_config() -> Result<UserConfig, String> {
     let config_path = dirs::config_dir()
         .unwrap()
-        .join("axora")
-        .join("axora.toml");
+        .join("openakta")
+        .join("openakta.toml");
     
     let content = std::fs::read_to_string(&config_path)
         .map_err(|e| e.to_string())?;
@@ -105,14 +105,14 @@ export const useSettingsStore = create(async (set) => {
 
 ### 🧪 Opção 1: Testes de Integração (Rust)
 
-**Arquivo:** `crates/axora-core/tests/integration.rs`
+**Arquivo:** `crates/openakta-core/tests/integration.rs`
 
 ```bash
 # Rodar testes de integração
-cargo test -p axora-core --test integration
+cargo test -p openakta-core --test integration
 
 # Rodar com output
-cargo test -p axora-core --test integration -- --nocapture
+cargo test -p openakta-core --test integration -- --nocapture
 ```
 
 **Exemplo de Teste:**
@@ -206,13 +206,13 @@ grpcurl -plaintext localhost:50051 collective.CollectiveService/ListAgents
 
 ```bash
 # Rodar daemon com config
-cargo run -p axora-daemon -- --config ~/.config/axora/axora.toml
+cargo run -p openakta-daemon -- --config ~/.config/openakta/openakta.toml
 
 # Rodar daemon com debug
-cargo run -p axora-daemon -- --debug
+cargo run -p openakta-daemon -- --debug
 
 # Ver ajuda
-cargo run -p axora-daemon -- --help
+cargo run -p openakta-daemon -- --help
 ```
 
 ---
@@ -223,21 +223,21 @@ cargo run -p axora-daemon -- --help
 
 | Componente | Status | Como Testar |
 |------------|--------|-------------|
-| **gRPC Server** | ✅ | `cargo run -p axora-daemon` |
+| **gRPC Server** | ✅ | `cargo run -p openakta-daemon` |
 | **Task Submission** | ✅ | `grpcurl SubmitTask` |
 | **Agent Registration** | ✅ | Testes unitários |
 | **Message Streaming** | ✅ | Testes unitários |
 | **Database (SQLite)** | ✅ | Testes unitários |
-| **Config (TOML)** | ✅ | `--config axora.toml` |
+| **Config (TOML)** | ✅ | `--config openakta.toml` |
 
 ### ✅ Agentes (100%)
 
 | Componente | Status | Testes |
 |------------|--------|--------|
-| **Heartbeat** | ✅ | `cargo test -p axora-agents` |
-| **Graph Workflow** | ✅ | `cargo test -p axora-agents` |
-| **Task Decomposition** | ✅ | `cargo test -p axora-agents` |
-| **ReAct Agent** | ✅ | `cargo test -p axora-agents` |
+| **Heartbeat** | ✅ | `cargo test -p openakta-agents` |
+| **Graph Workflow** | ✅ | `cargo test -p openakta-agents` |
+| **Task Decomposition** | ✅ | `cargo test -p openakta-agents` |
+| **ReAct Agent** | ✅ | `cargo test -p openakta-agents` |
 
 ### ✅ Frontend UI (100%)
 
@@ -304,8 +304,8 @@ ws.onmessage = (event) => {
 fn load_config() -> UserConfig {
     let path = dirs::config_dir()
         .unwrap()
-        .join("axora")
-        .join("axora.toml");
+        .join("openakta")
+        .join("openakta.toml");
     
     let content = fs::read_to_string(&path).unwrap();
     toml::from_str(&content).unwrap()
@@ -339,13 +339,13 @@ set({ settings: config });
 
 ```bash
 # 1. Iniciar daemon
-cargo run -p axora-daemon
+cargo run -p openakta-daemon
 
 # 2. Testar com grpcurl
 grpcurl -plaintext localhost:50051 list
 
 # 3. Rodar testes
-cargo test -p axora-core --test integration
+cargo test -p openakta-core --test integration
 ```
 
 ### Testar Frontend
@@ -363,20 +363,20 @@ pnpm tauri dev
 
 ```bash
 # 1. Criar config
-mkdir -p ~/.config/axora
-cp axora.example.toml ~/.config/axora/axora.toml
+mkdir -p ~/.config/openakta
+cp openakta.example.toml ~/.config/openakta/openakta.toml
 
 # 2. Editar config
-nano ~/.config/axora/axora.toml
+nano ~/.config/openakta/openakta.toml
 
 # 3. Rodar com config
-cargo run -p axora-daemon -- --config ~/.config/axora/axora.toml
+cargo run -p openakta-daemon -- --config ~/.config/openakta/openakta.toml
 ```
 
 ---
 
 **Documentação completa:** `PROJECT-STATUS-COMPLETE.md`
 
-**Template de config:** `axora.example.toml`
+**Template de config:** `openakta.example.toml`
 
-**Testes:** `crates/axora-core/tests/integration.rs`, `tests/test_backend.py`
+**Testes:** `crates/openakta-core/tests/integration.rs`, `tests/test_backend.py`

@@ -1,4 +1,4 @@
-# AXORA Documentation Index
+# OPENAKTA Documentation Index
 
 **Last Updated:** 2026-03-18  
 **Status:** ✅ Active & Enforced  
@@ -24,7 +24,7 @@
 ## 📁 Key Folders
 
 ```
-axora/
+openakta/
 ├── docs/active_architecture/     ← 📖 START HERE (Single Source of Truth)
 │   ├── 01_CORE_ARCHITECTURE.md
 │   ├── 02_LOCAL_RAG_AND_MEMORY.md
@@ -54,10 +54,10 @@ axora/
 │   └── OUTDATED/                 ← Deprecated (archived)
 │
 └── crates/                       ← Implementation
-    ├── axora-cache/              ← Blackboard, PrefixCache, Diff
-    ├── axora-indexing/           ← Influence Graph, AST Chunking
-    ├── axora-rag/                ← RAG pipeline
-    └── axora-agents/             ← Worker agents, Coordinator
+    ├── openakta-cache/              ← Blackboard, PrefixCache, Diff
+    ├── openakta-indexing/           ← Influence Graph, AST Chunking
+    ├── openakta-rag/                ← RAG pipeline
+    └── openakta-agents/             ← Worker agents, Coordinator
 ```
 
 ---
@@ -102,10 +102,10 @@ axora/
 | Component | Status | Location |
 |-----------|--------|----------|
 | Theme System | ✅ Complete | `apps/desktop/` |
-| Blackboard v2 | ✅ Complete | `crates/axora-cache/src/blackboard/v2.rs` |
-| PrefixCache | ✅ Complete | `crates/axora-cache/src/prefix_cache.rs` |
-| Diff | ✅ Complete | `crates/axora-cache/src/diff.rs` |
-| InfluenceGraph | ✅ Complete | `crates/axora-indexing/src/influence.rs` |
+| Blackboard v2 | ✅ Complete | `crates/openakta-cache/src/blackboard/v2.rs` |
+| PrefixCache | ✅ Complete | `crates/openakta-cache/src/prefix_cache.rs` |
+| Diff | ✅ Complete | `crates/openakta-cache/src/diff.rs` |
+| InfluenceGraph | ✅ Complete | `crates/openakta-indexing/src/influence.rs` |
 
 ---
 
@@ -194,7 +194,7 @@ The following concepts have been **deprecated** and moved to [`research/OUTDATED
 
 ---
 
-**Welcome to AXORA! Start with `docs/active_architecture/README.md`.** 🚀
+**Welcome to OPENAKTA! Start with `docs/active_architecture/README.md`.** 🚀
 
 **Last Reviewed:** 2026-03-18  
 **Maintained By:** Architect Agent

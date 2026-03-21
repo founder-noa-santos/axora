@@ -1,6 +1,6 @@
-# Meta-Prompt: AXORA Theme System Implementation
+# Meta-Prompt: OPENAKTA Theme System Implementation
 
-**Context:** You are an AI researcher tasked with analyzing the AXORA codebase and implementing a proper theme system following shadcn/ui patterns for light/dark mode that automatically follows macOS system preferences.
+**Context:** You are an AI researcher tasked with analyzing the OPENAKTA codebase and implementing a proper theme system following shadcn/ui patterns for light/dark mode that automatically follows macOS system preferences.
 
 ---
 

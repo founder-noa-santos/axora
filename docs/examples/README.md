@@ -1,6 +1,6 @@
 # SDK Examples
 
-This folder contains consumer-facing usage snippets for the AXORA Wide Event SDKs.
+This folder contains consumer-facing usage snippets for the OPENAKTA Wide Event SDKs.
 
 ## Included Examples
 

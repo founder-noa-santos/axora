@@ -1,7 +1,7 @@
 # Agent C — Sprint 7: Task Decomposition & Concurrency
 
 **Sprint:** 7 of Phase 2  
-**File:** `crates/axora-agents/src/decomposer.rs` (NOVO)  
+**File:** `crates/openakta-agents/src/decomposer.rs` (NOVO)  
 **Estimated Time:** 8 horas  
 
 ---
@@ -18,7 +18,7 @@ Implementar sistema de **decomposição automática de missões** em tarefas con
 - ❌ Contexto enche rápido
 - ❌ Não escala
 
-**Solução AXORA:**
+**Solução OPENAKTA:**
 - ✅ Missão → decomposta em tarefas independentes
 - ✅ Múltiplos agents trabalham **concorrentemente**
 - ✅ Cada agent tem **contexto mínimo** necessário
@@ -32,7 +32,7 @@ Implementar sistema de **decomposição automática de missões** em tarefas con
 
 ```rust
 pub struct MissionDecomposer {
-    llm: LLM, // futuro: integrar com axora-agents
+    llm: LLM, // futuro: integrar com openakta-agents
     rules: Vec<DecompositionRule>,
 }
 
@@ -78,13 +78,13 @@ impl ConcurrentExecutor {
 ## 📁 File Boundaries
 
 **Criar:**
-- `crates/axora-agents/src/decomposer.rs` (NOVO)
-- `crates/axora-agents/src/executor.rs` (NOVO)
-- Atualizar `crates/axora-agents/src/lib.rs` (exports)
+- `crates/openakta-agents/src/decomposer.rs` (NOVO)
+- `crates/openakta-agents/src/executor.rs` (NOVO)
+- Atualizar `crates/openakta-agents/src/lib.rs` (exports)
 
 **NÃO editar:**
-- `crates/axora-cache/` (Agent B está aqui)
-- `crates/axora-docs/` (Agent A está aqui)
+- `crates/openakta-cache/` (Agent B está aqui)
+- `crates/openakta-docs/` (Agent A está aqui)
 
 ---
 
@@ -201,7 +201,7 @@ pub struct MissionResult {
 
 4. **Rodar testes:**
    ```bash
-   cargo test -p axora-agents
+   cargo test -p openakta-agents
    ```
 
 5. **Atualizar `lib.rs`:**
@@ -263,4 +263,4 @@ let result = executor.execute_all(&decomposed).await;
 
 **Comece AGORA. Foque em decomposição e execução concorrente.**
 
-**Este sprint é CRÍTICO para o diferencial do AXORA (concorrência real).**
+**Este sprint é CRÍTICO para o diferencial do OPENAKTA (concorrência real).**

@@ -1,0 +1,3 @@
+# OPENAKTA — rustfmt (stable defaults + cross-platform consistency)
+# Edition and most style come from workspace Cargo.toml; keep overrides minimal.
+newline_style = "Unix"

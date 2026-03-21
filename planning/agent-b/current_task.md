@@ -65,15 +65,15 @@
 **Tasks:**
 1. [ ] Download Jina Code v2 weights from HuggingFace
 2. [ ] Convert model to Candle Safetensors format
-3. [ ] Implement `JinaEmbedder` struct in `axora-embeddings`
+3. [ ] Implement `JinaEmbedder` struct in `openakta-embeddings`
 4. [ ] Add CPU-only inference (AVX2 acceleration)
 5. [ ] Implement embedding normalization
 6. [ ] Add embedding cache (disk-based, avoid re-computation)
 7. [ ] Write benchmarks (target: <25ms per block)
 
 **Deliverables:**
-- `crates/axora-embeddings/src/jina.rs` — Jina model wrapper
-- `crates/axora-embeddings/src/cache.rs` — Embedding cache
+- `crates/openakta-embeddings/src/jina.rs` — Jina model wrapper
+- `crates/openakta-embeddings/src/cache.rs` — Embedding cache
 - `benches/embed_bench.rs` — Performance benchmarks
 
 **Success Criteria:**
@@ -134,7 +134,7 @@ Agent B is ready when:
 **Today:**
 1. Read plan: `research/findings/local-first-rag/IMPLEMENTATION-PLAN.md#sprint-1`
 2. Download Jina Code v2 model from HuggingFace
-3. Start implementing in `crates/axora-embeddings/src/jina.rs`
+3. Start implementing in `crates/openakta-embeddings/src/jina.rs`
 
 **This Week:**
 - Complete Sprint B5 (Jina Embeddings)

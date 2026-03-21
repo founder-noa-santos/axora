@@ -11,7 +11,7 @@
 
 R-03 research on **Token Efficiency & Compression** is complete. Seven architectural decisions have been made (ADR-021 through ADR-027) defining a comprehensive token optimization strategy.
 
-**Key Outcome:** AXORA will achieve **90% cost reduction** through multi-layer optimization:
+**Key Outcome:** OPENAKTA will achieve **90% cost reduction** through multi-layer optimization:
 - Prefix Prompt Caching (50-90% savings)
 - Diff-Based Code Communication (89-98% savings)
 - Code Minification (24-42% savings)
@@ -65,7 +65,7 @@ R-03 research on **Token Efficiency & Compression** is complete. Seven architect
   patch = "0.5"
   ```
 
-- [ ] Create `crates/axora-cache/` crate structure
+- [ ] Create `crates/openakta-cache/` crate structure
 - [ ] Implement basic L1 cache with DashMap:
   ```rust
   pub struct L1Cache {
@@ -127,7 +127,7 @@ R-03 research on **Token Efficiency & Compression** is complete. Seven architect
 - [ ] Implement fallback for failed diffs (full file review)
 - [ ] Integrate with agent communication protocol
 
-**Deliverable:** `axora-diff` crate with working diff pipeline
+**Deliverable:** `openakta-diff` crate with working diff pipeline
 
 **Success Criteria:**
 - Diff generation: <50ms per file
@@ -167,7 +167,7 @@ R-03 research on **Token Efficiency & Compression** is complete. Seven architect
 - [ ] Add language-specific minifiers (Rust, TypeScript, Python, etc.)
 - [ ] Test quality impact (Fill-in-the-Middle benchmarks)
 
-**Deliverable:** `axora-minifier` crate with working minification
+**Deliverable:** `openakta-minifier` crate with working minification
 
 **Success Criteria:**
 - Minification latency: <10ms per file
@@ -204,7 +204,7 @@ R-03 research on **Token Efficiency & Compression** is complete. Seven architect
 - [ ] Integrate with MCP tool outputs
 - [ ] Benchmark token savings vs JSON
 
-**Deliverable:** `axora-toon` crate with serialization
+**Deliverable:** `openakta-toon` crate with serialization
 
 **Success Criteria:**
 - Token savings: 50-60% vs JSON
@@ -361,7 +361,7 @@ R-03 research on **Token Efficiency & Compression** is complete. Seven architect
 - [ ] Test model fidelity (GPT-5.2, Claude 3.7, Kimi K2)
 - [ ] Rewrite agent system prompts using MetaGlyph
 
-**Deliverable:** `axora-metaglyph` crate with parser
+**Deliverable:** `openakta-metaglyph` crate with parser
 
 **Success Criteria:**
 - Model fidelity: >90% accuracy

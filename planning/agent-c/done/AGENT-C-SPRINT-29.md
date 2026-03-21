@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 29 (Memory Architecture)  
-**File:** `crates/axora-memory/src/consolidation.rs`  
+**File:** `crates/openakta-memory/src/consolidation.rs`  
 **Priority:** CRITICAL (enables learning from experience)  
 **Estimated Tokens:** ~120K output  
 
@@ -28,7 +28,7 @@ R-14 research provides CRITICAL implementation details:
 
 ### 1. Create consolidation.rs
 
-**File:** `crates/axora-memory/src/consolidation.rs`
+**File:** `crates/openakta-memory/src/consolidation.rs`
 
 **Core Structure:**
 ```rust
@@ -179,7 +179,7 @@ pub enum ValidationMode {
 
 ### 2. Background Consolidation Worker
 
-**File:** `crates/axora-memory/src/consolidation.rs` (add to existing)
+**File:** `crates/openakta-memory/src/consolidation.rs` (add to existing)
 
 ```rust
 /// Background consolidation worker
@@ -230,15 +230,15 @@ impl ConsolidationWorker {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-memory/src/consolidation.rs` (NEW)
+- `crates/openakta-memory/src/consolidation.rs` (NEW)
 
 **Update:**
 - None (new module)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-indexing/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's other work)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's other work)
 
 ---
 

@@ -61,7 +61,7 @@ See: [`PHASE-2-PIVOT-GRAPH-WORKFLOW.md`](./PHASE-2-PIVOT-GRAPH-WORKFLOW.md)
 ## Overview
 - What: State machine with deterministic nodes
 - Why: O(N) coordination (not O(N²)), <10% token overhead
-- Who: Individual developers (AXORA's target)
+- Who: Individual developers (OPENAKTA's target)
 
 ## Architecture
 

@@ -1,10 +1,30 @@
 # Context Compacting Implementation Plan
 
 **Date:** 2026-03-18  
-**Status:** Ready for Implementation  
+**Status:** Partially implemented — see [Audit vs codebase](#audit-vs-codebase-2026-03-20) (last reviewed 2026-03-20)  
 **Priority:** 🔴 CRITICAL  
 **Estimated Duration:** 4 weeks (12 sprints)  
 **Owner:** Agent B (Storage/Context Specialist)  
+
+---
+
+## Audit vs codebase (2026-03-20)
+
+Cross-check against the repository; file paths are the source of truth.
+
+| Sprint | Plan deliverable | In repo? | Notes |
+|--------|------------------|----------|-------|
+| **CC1** | `yrs` + `CRDTBlackboard` | **No** | No `yrs` dependency; no `crdt_blackboard.rs`. **Related:** `BlackboardV2` (`crates/openakta-cache/src/blackboard/v2.rs`) gives versioned keys, optimistic concurrency, and subscriber notifications — **not** a CRDT / multi-replica SEC merge. |
+| **CC2** | `json-patch` + NATS `EventBus` + `diff_generator.rs` | **No** | No `json-patch` usage in crates. `async-nats` is in the workspace `Cargo.toml` and `openakta-agents` deps but **not referenced** in Rust sources (only mentioned in docs). Blackboard v2 publishes compact `Update.diff` as `serde_json::Value`, not RFC 6902 patches over a distributed bus. |
+| **CC3** | `HierarchicalMemory` in `openakta-agents` + `memory_budget.rs` | **Partial** | Implemented as **`crates/openakta-cache/src/compactor/hierarchical_memory.rs`** (three-tier recent / mid / old). No separate `memory_budget.rs`; token budget is enforced by **`ContextCompactor`** in `compactor.rs` + `CompactorConfig::max_tokens`. No JSON Patch `apply_patch` on working context (plan sketch differs). |
+| **CC4** | `toon/schema.rs`, encoder, decoder | **Yes (different layout)** | **`crates/openakta-cache/src/toon.rs`** — `Schema`, `ToonSerializer`, encode/decode, docs in `docs/TOON.md`. |
+| **CC5** | `rolling_summary.rs` + `pressure_monitor.rs` in `openakta-agents` | **Partial** | **`crates/openakta-cache/src/compactor/rolling_summary.rs`** — rolling window + textual collapse of older turns. No standalone `pressure_monitor.rs`; pressure is implicit via compactor budget / tests. |
+| **CC6** | `semantic_memory.rs` + `fact_extractor.rs` + Qdrant | **Partial** | **`SemanticMemory`** and stores live in **`crates/openakta-memory/src/semantic_store.rs`** (in-memory + Qdrant-oriented paths per module docs). **No** `fact_extractor.rs` / `extract_facts` pipeline as specified. |
+| **CC7** | ICAE `LatentCompiler` | **No** | **`latent_context.rs`** only stores opaque `Vec<u8>` blobs in **`LatentContextStore`** — not compile/decompile or ICAE. |
+| **CC8** | ACON `guidelines` / `distiller` | **No** | No `crates/openakta-agents/src/acon/` tree. |
+| **CC9** | `benches/context_compacting_bench.rs` + `docs/CONTEXT-COMPACTING-VALIDATION.md` | **Partial** | Token / compaction covered by **`crates/openakta-cache/benches/token_savings.rs`** and **`crates/openakta-cache/tests/context_compactor.rs`**. The **named** benchmark file and validation doc from the plan are **missing**. |
+
+**Summary:** Core **local** context compaction (hierarchical memory + rolling summary + TOON + `ContextCompactor` + tests) is present under **`openakta-cache`**. **Not built** as specified: CRDT blackboard, JSON Patch + distributed event bus, ACON, ICAE latent compiler, dedicated fact extractor, and the plan’s benchmark/validation deliverables. **Blackboard v2** partially overlaps the *intent* of CC1/CC2 for a **single-process** coordinator but must not be counted as CRDT or Nats JetStream.
 
 ---
 
@@ -20,10 +40,13 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 
 | Component | Status | Location | Gap |
 |-----------|--------|----------|-----|
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` | Not CRDT-based (no parallel writes) |
-| PrefixCache | ✅ Implemented | `crates/axora-cache/src/prefix_cache.rs` | Static prefixes only |
-| Diff | ✅ Implemented | `crates/axora-cache/src/diff.rs` | File diffs only (not state diffs) |
-| Worker Agents | ✅ Implemented | `crates/axora-agents/src/worker_pool.rs` | No hierarchical memory |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` | Versioned KV + in-proc pub/sub + per-update `diff` JSON; **not** CRDT / `yrs` |
+| Context compactor | ✅ Implemented | `crates/openakta-cache/src/compactor*.rs` | Rolling summary + hierarchical memory + importance scoring + budget |
+| TOON | ✅ Implemented | `crates/openakta-cache/src/toon.rs` | Token-oriented serialization (see `docs/TOON.md`) |
+| Latent context store | ✅ Implemented (minimal) | `crates/openakta-cache/src/latent_context.rs` | Opaque blob handles only — **not** CC7 ICAE |
+| PrefixCache | ✅ Implemented | `crates/openakta-cache/src/prefix_cache.rs` | Static prefixes only |
+| Diff (unified) | ✅ Implemented | `crates/openakta-cache/src/diff.rs` | File-oriented unified diff utilities (not RFC 6902 state patches) |
+| Worker Agents | ✅ Implemented | `crates/openakta-agents/src/worker_pool.rs` | No hierarchical memory |
 
 ### What We Need to Build
 
@@ -82,8 +105,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 6. [ ] Write tests (concurrent write scenarios)
 
 **Deliverables:**
-- `crates/axora-cache/src/crdt_blackboard.rs` — CRDT implementation
-- `crates/axora-cache/tests/crdt_concurrency_test.rs` — Concurrency tests
+- `crates/openakta-cache/src/crdt_blackboard.rs` — CRDT implementation
+- `crates/openakta-cache/tests/crdt_concurrency_test.rs` — Concurrency tests
 
 **Success Criteria:**
 - [ ] Multiple agents can write concurrently without locks
@@ -128,8 +151,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 6. [ ] Write tests (diff generation, pub/sub)
 
 **Deliverables:**
-- `crates/axora-cache/src/diff_generator.rs` — Diff generation
-- `crates/axora-cache/src/event_bus.rs` — Pub/sub integration
+- `crates/openakta-cache/src/diff_generator.rs` — Diff generation
+- `crates/openakta-cache/src/event_bus.rs` — Pub/sub integration
 
 **Success Criteria:**
 - [ ] 89-98% reduction in state update tokens
@@ -175,8 +198,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 6. [ ] Write tests (budget enforcement, eviction)
 
 **Deliverables:**
-- `crates/axora-agents/src/hierarchical_memory.rs` — Memory structure
-- `crates/axora-agents/src/memory_budget.rs` — Token budget enforcement
+- `crates/openakta-agents/src/hierarchical_memory.rs` — Memory structure
+- `crates/openakta-agents/src/memory_budget.rs` — Token budget enforcement
 
 **Success Criteria:**
 - [ ] Context window stays bounded (<8K tokens)
@@ -229,9 +252,9 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 6. [ ] Write tests (encoding/decoding round-trip)
 
 **Deliverables:**
-- `crates/axora-cache/src/toon/schema.rs` — Schema definition
-- `crates/axora-cache/src/toon/encoder.rs` — JSON → TOON
-- `crates/axora-cache/src/toon/decoder.rs` — TOON → JSON
+- `crates/openakta-cache/src/toon/schema.rs` — Schema definition
+- `crates/openakta-cache/src/toon/encoder.rs` — JSON → TOON
+- `crates/openakta-cache/src/toon/decoder.rs` — TOON → JSON
 
 **Success Criteria:**
 - [ ] 80% token reduction for repetitive data structures
@@ -276,8 +299,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 5. [ ] Write tests (pressure monitoring, summarization)
 
 **Deliverables:**
-- `crates/axora-agents/src/rolling_summary.rs` — Summary manager
-- `crates/axora-agents/src/pressure_monitor.rs` — Token pressure monitoring
+- `crates/openakta-agents/src/rolling_summary.rs` — Summary manager
+- `crates/openakta-agents/src/pressure_monitor.rs` — Token pressure monitoring
 
 **Success Criteria:**
 - [ ] Automatic summarization when context approaches saturation
@@ -318,8 +341,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 6. [ ] Write tests (fact extraction, retrieval relevance)
 
 **Deliverables:**
-- `crates/axora-memory/src/semantic_memory.rs` — Semantic memory
-- `crates/axora-memory/src/fact_extractor.rs` — Fact extraction
+- `crates/openakta-memory/src/semantic_memory.rs` — Semantic memory
+- `crates/openakta-memory/src/fact_extractor.rs` — Fact extraction
 
 **Success Criteria:**
 - [ ] Facts extracted accurately from interactions
@@ -367,8 +390,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 7. [ ] Write tests (compilation/decompilation accuracy)
 
 **Deliverables:**
-- `crates/axora-cache/src/latent_compiler.rs` — Latent compilation
-- `crates/axora-cache/src/ic ae_model.rs` — ICAE model wrapper
+- `crates/openakta-cache/src/latent_compiler.rs` — Latent compilation
+- `crates/openakta-cache/src/ic ae_model.rs` — ICAE model wrapper
 
 **Success Criteria:**
 - [ ] 16x-32x compression ratio achieved
@@ -404,8 +427,8 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 6. [ ] Write tests (distillation accuracy, drift prevention)
 
 **Deliverables:**
-- `crates/axora-agents/src/acon/guidelines.rs` — ACON guidelines
-- `crates/axora-agents/src/acon/distiller.rs` — History distillation
+- `crates/openakta-agents/src/acon/guidelines.rs` — ACON guidelines
+- `crates/openakta-agents/src/acon/distiller.rs` — History distillation
 
 **Success Criteria:**
 - [ ] 26%-54% peak token reduction
@@ -482,31 +505,31 @@ Implement context compacting infrastructure to enable **long-running multi-agent
 
 | Dependency | Purpose | Status |
 |------------|---------|--------|
-| `yrs` crate | Yjs Rust port | ✅ Available |
-| `json-patch` crate | RFC 6902 implementation | ✅ Available |
-| `async-nats` crate | NATS JetStream client | ✅ Available |
-| Qdrant Embedded | Vector store for semantic memory | 🔄 In Progress (Sprint B6) |
+| `yrs` crate | Yjs Rust port | Listed in plan; **not added** to workspace / unused |
+| `json-patch` crate | RFC 6902 implementation | **Not in use** in crates |
+| `async-nats` crate | NATS JetStream client | In workspace `Cargo.toml`; **no Rust usage** found in `crates/` (only docs) |
+| Qdrant | Vector store for semantic / indexing | **Used** via `qdrant-client` / `openakta-indexing` paths (see `openakta-memory`, `procedural_store`); not identical to “Qdrant Embedded” wording in plan |
 
 ---
 
 ## 📅 Timeline
 
 ### Week 1-2: Foundation
-- CC1: CRDT Blackboard ✅
-- CC2: Diff-Based Event Bus ✅
-- CC3: Hierarchical Memory Structure ✅
+- CC1: CRDT Blackboard — **not done** (Blackboard v2 exists instead; different design)
+- CC2: Diff-Based Event Bus — **not done** (`json-patch` + NATS bus not wired in code)
+- CC3: Hierarchical Memory Structure — **done** (`openakta-cache` compactor; paths differ from plan)
 
 ### Week 2-3: Compaction Engines
-- CC4: TOON Serializer ✅
-- CC5: Rolling Summary ✅
-- CC6: Semantic Memory ✅
+- CC4: TOON Serializer — **done** (`openakta-cache/src/toon.rs`)
+- CC5: Rolling Summary — **done** (`openakta-cache/src/compactor/rolling_summary.rs`)
+- CC6: Semantic Memory — **partial** (`openakta-memory` semantic store; no dedicated fact extractor)
 
 ### Week 3-4: Advanced Optimization
-- CC7: Latent Compilation ✅
-- CC8: ACON Integration ✅
-- CC9: Performance Benchmarking ✅
+- CC7: Latent Compilation — **not done** as specified (only `LatentContextStore` blob cache)
+- CC8: ACON Integration — **not done**
+- CC9: Performance Benchmarking — **partial** (`token_savings` bench + `context_compactor` tests; plan-named artifacts missing)
 
-**Total Duration:** 4 weeks (9 sprints)
+**Total Duration:** 4 weeks (9 sprints) — **~4/9 sprints substantially done**, **3 partial**, **several critical items (CC1, CC2, CC7, CC8) not started**
 
 ---
 
@@ -522,4 +545,6 @@ Phase is complete when:
 
 ---
 
-**Ready to execute. This plan enables long-running multi-agent systems with 60-80% cost reduction.**
+**Next steps for alignment:** Either (a) implement the missing sprints (CC1, CC2, CC6 completion, CC7–CC9) as originally scoped, or (b) **revise the plan** to treat Blackboard v2 + in-process compaction as the intentional architecture and drop CRDT/NATS unless multi-replica sync is required.
+
+This document remains the target architecture for **60–80% cost reduction** on long runs once the remaining items are built or explicitly descoped.

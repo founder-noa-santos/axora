@@ -22,7 +22,7 @@ Implement Blackboard v2 with versioned context, subscribe/notify pattern, and at
 
 ### Subagent 1: Versioning System
 **Task:** Implement versioned context with atomic updates
-**File:** `crates/axora-cache/src/blackboard/v2_versioning.rs`
+**File:** `crates/openakta-cache/src/blackboard/v2_versioning.rs`
 **Deliverables:**
 - `VersionedContext` struct
 - `version()` returns current version
@@ -32,7 +32,7 @@ Implement Blackboard v2 with versioned context, subscribe/notify pattern, and at
 
 ### Subagent 2: Subscribe/Notify Pattern
 **Task:** Implement subscribe/notify for real-time updates
-**File:** `crates/axora-cache/src/blackboard/v2_pubsub.rs`
+**File:** `crates/openakta-cache/src/blackboard/v2_pubsub.rs`
 **Deliverables:**
 - `Subscriber` trait
 - `subscribe(key)` → `SubscriptionId`
@@ -52,7 +52,7 @@ Implement Blackboard v2 with versioned context, subscribe/notify pattern, and at
    - Ensure no race conditions
 
 2. **Integrate Components:**
-   - Create `crates/axora-cache/src/blackboard/v2.rs` (main module)
+   - Create `crates/openakta-cache/src/blackboard/v2.rs` (main module)
    - Combine versioning + pubsub
    - Export unified `BlackboardV2` struct
 
@@ -67,7 +67,7 @@ Implement Blackboard v2 with versioned context, subscribe/notify pattern, and at
    - Test subscriber notifications (all notified)
 
 5. **Update Documentation:**
-   - Update `crates/axora-cache/src/lib.rs`
+   - Update `crates/openakta-cache/src/lib.rs`
    - Add Blackboard v2 examples
 
 ---

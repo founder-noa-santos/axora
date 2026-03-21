@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Agent Architecture & Orchestration for Multi-Agent AI Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system. I need to understand the optimal architecture for coordinating multiple LLM agents working together on software development tasks. This research must cover both academic foundations and production implementations.
+I'm building OPENAKTA, a multi-agent AI coding system. I need to understand the optimal architecture for coordinating multiple LLM agents working together on software development tasks. This research must cover both academic foundations and production implementations.
 
 ## Core Research Questions
 
@@ -319,7 +319,7 @@ Deep-dive into AutoGen's architecture:
 3. **Code Example**
    Show working AutoGen example for coding task
 
-4. **Lessons for AXORA**
+4. **Lessons for OPENAKTA**
    What to adopt?
    What to improve?
 ```

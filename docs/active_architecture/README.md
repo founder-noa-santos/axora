@@ -8,7 +8,7 @@
 
 ## 🎯 Purpose
 
-This folder contains the **Single Source of Truth** for AXORA architecture.
+This folder contains the **Single Source of Truth** for OPENAKTA architecture.
 
 All documents here are:
 - ✅ **Aligned with strategic pivot** (Cloud APIs + Local RAG)
@@ -42,9 +42,9 @@ active_architecture/
 - State Machine Orchestration (deterministic execution)
 
 **Key Components:**
-- `crates/axora-cache/src/blackboard/v2.rs`
-- `crates/axora-indexing/src/influence.rs`
-- `crates/axora-agents/src/worker.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
+- `crates/openakta-indexing/src/influence.rs`
+- `crates/openakta-agents/src/worker.rs`
 
 ---
 
@@ -58,10 +58,10 @@ active_architecture/
 - Merkle Trees for incremental indexing
 
 **Key Components:**
-- `crates/axora-embeddings/src/jina.rs`
-- `crates/axora-rag/src/vector_store.rs`
-- `crates/axora-indexing/src/chunker.rs`
-- `crates/axora-indexing/src/merkle.rs`
+- `crates/openakta-embeddings/src/jina.rs`
+- `crates/openakta-rag/src/vector_store.rs`
+- `crates/openakta-indexing/src/chunker.rs`
+- `crates/openakta-indexing/src/merkle.rs`
 
 ---
 
@@ -76,9 +76,9 @@ active_architecture/
 - Cache-to-Cache / Latent Semantic Communication
 
 **Key Components:**
-- `crates/axora-cache/src/prefix_cache.rs`
-- `crates/axora-cache/src/diff.rs`
-- `crates/axora-rag/src/graph_retriever.rs`
+- `crates/openakta-cache/src/prefix_cache.rs`
+- `crates/openakta-cache/src/diff.rs`
+- `crates/openakta-rag/src/graph_retriever.rs`
 
 ---
 
@@ -187,7 +187,7 @@ The following concepts have been **deprecated** and moved to `research/OUTDATED/
 
 ---
 
-**This folder is the Single Source of Truth for AXORA architecture.**
+**This folder is the Single Source of Truth for OPENAKTA architecture.**
 
 **Last Reviewed:** 2026-03-18  
 **Next Review:** After MVP launch

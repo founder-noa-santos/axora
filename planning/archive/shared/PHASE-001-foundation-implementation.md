@@ -21,7 +21,7 @@ This phase implements the core infrastructure that all other features build upon
 
 ## Goals
 
-By the end of this phase, AXORA will have:
+By the end of this phase, OPENAKTA will have:
 1. ✅ Working RAG pipeline with hybrid retrieval
 2. ✅ Local codebase indexing with Tree-sitter chunking
 3. ✅ Vector search with Qdrant embedded
@@ -52,29 +52,29 @@ By the end of this phase, AXORA will have:
 #### 1.1 Create New Crates
 ```bash
 # Create crate structure
-cargo new crates/axora-rag --lib
-cargo new crates/axora-indexing --lib
-cargo new crates/axora-embeddings --lib
-cargo new crates/axora-agents --lib
-cargo new crates/axora-cache --lib
+cargo new crates/openakta-rag --lib
+cargo new crates/openakta-indexing --lib
+cargo new crates/openakta-embeddings --lib
+cargo new crates/openakta-agents --lib
+cargo new crates/openakta-cache --lib
 ```
 
 #### 1.2 Update Workspace Cargo.toml
-Add to `/Users/noasantos/Downloads/axora/Cargo.toml`:
+Add to `/Users/noasantos/Downloads/openakta/Cargo.toml`:
 ```toml
 [workspace]
 resolver = "2"
 members = [
-    "crates/axora-proto",
-    "crates/axora-storage",
-    "crates/axora-core",
-    "crates/axora-daemon",
+    "crates/openakta-proto",
+    "crates/openakta-storage",
+    "crates/openakta-core",
+    "crates/openakta-daemon",
     # New crates for Phase 1
-    "crates/axora-rag",
-    "crates/axora-indexing",
-    "crates/axora-embeddings",
-    "crates/axora-agents",
-    "crates/axora-cache",
+    "crates/openakta-rag",
+    "crates/openakta-indexing",
+    "crates/openakta-embeddings",
+    "crates/openakta-agents",
+    "crates/openakta-cache",
 ]
 
 [workspace.dependencies]
@@ -146,9 +146,9 @@ cargo test --workspace
 
 **Tasks:**
 
-#### 2.1 Implement Embedding Engine (`axora-embeddings`)
+#### 2.1 Implement Embedding Engine (`openakta-embeddings`)
 ```rust
-// crates/axora-embeddings/src/lib.rs
+// crates/openakta-embeddings/src/lib.rs
 use candle_core::{Device, Tensor};
 use candle_transformers::models::jina_code::JinaCodeModel;
 
@@ -176,9 +176,9 @@ impl EmbeddingEngine {
 }
 ```
 
-#### 2.2 Set Up Qdrant Embedded (`axora-indexing`)
+#### 2.2 Set Up Qdrant Embedded (`openakta-indexing`)
 ```rust
-// crates/axora-indexing/src/vector_store.rs
+// crates/openakta-indexing/src/vector_store.rs
 use qdrant_client::{Qdrant, QdrantConfig};
 use qdrant_client::qdrant::{
     CreateCollection, Distance, HnswConfigDiff, VectorParams,
@@ -226,7 +226,7 @@ impl VectorStore {
 
 #### 2.3 Benchmark Performance
 ```rust
-// crates/axora-embeddings/benches/embed_bench.rs
+// crates/openakta-embeddings/benches/embed_bench.rs
 use criterion::{criterion_group, criterion_main, Criterion};
 
 fn bench_embedding(c: &mut Criterion) {
@@ -274,9 +274,9 @@ criterion_main!(benches);
 
 **Tasks:**
 
-#### 3.1 Implement AST Chunking (`axora-indexing`)
+#### 3.1 Implement AST Chunking (`openakta-indexing`)
 ```rust
-// crates/axora-indexing/src/chunker.rs
+// crates/openakta-indexing/src/chunker.rs
 use tree_sitter::{Parser, Query, QueryCursor};
 
 pub struct Chunker {
@@ -319,9 +319,9 @@ impl Chunker {
 }
 ```
 
-#### 3.2 Implement Merkle Tree Sync (`axora-indexing`)
+#### 3.2 Implement Merkle Tree Sync (`openakta-indexing`)
 ```rust
-// crates/axora-indexing/src/merkle.rs
+// crates/openakta-indexing/src/merkle.rs
 use blake3::Hash;
 
 pub struct MerkleTree {
@@ -358,7 +358,7 @@ impl MerkleTree {
 
 #### 3.3 Implement Incremental Indexer
 ```rust
-// crates/axora-indexing/src/indexer.rs
+// crates/openakta-indexing/src/indexer.rs
 pub struct IncrementalIndexer {
     chunker: Chunker,
     embedder: EmbeddingEngine,
@@ -417,9 +417,9 @@ impl IncrementalIndexer {
 
 **Tasks:**
 
-#### 4.1 Implement Hybrid Retriever (`axora-rag`)
+#### 4.1 Implement Hybrid Retriever (`openakta-rag`)
 ```rust
-// crates/axora-rag/src/retriever.rs
+// crates/openakta-rag/src/retriever.rs
 use tantivy::Index as TantivyIndex;
 
 pub struct HybridRetriever {
@@ -486,7 +486,7 @@ impl HybridRetriever {
 
 #### 4.2 Implement Cross-Encoder Re-ranker
 ```rust
-// crates/axora-rag/src/reranker.rs
+// crates/openakta-rag/src/reranker.rs
 use candle_core::{Device, Tensor};
 use candle_transformers::models::minilm::MiniLM;
 
@@ -523,7 +523,7 @@ impl CrossEncoder {
 
 #### 4.3 Implement Context Reordering
 ```rust
-// crates/axora-rag/src/context.rs
+// crates/openakta-rag/src/context.rs
 pub struct ContextBuilder {
     max_tokens: usize,
 }
@@ -585,8 +585,8 @@ impl ContextBuilder {
 
 #### 4.4 End-to-End Integration Test
 ```rust
-// crates/axora-rag/tests/integration.rs
-use axora_rag::{RAGPipeline, RAGConfig};
+// crates/openakta-rag/tests/integration.rs
+use openakta_rag::{RAGPipeline, RAGConfig};
 
 #[tokio::test]
 async fn test_full_rag_pipeline() {

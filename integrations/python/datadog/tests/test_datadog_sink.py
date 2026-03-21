@@ -4,7 +4,7 @@ import asyncio
 from io import StringIO
 from unittest.mock import patch
 
-from axora_logger_datadog import DatadogSink
+from openakta_logger_datadog import DatadogSink
 
 
 def test_datadog_sink_writes_json_line() -> None:
@@ -30,4 +30,4 @@ def test_datadog_sink_writes_json_line() -> None:
             )
         )
 
-    assert '"dd.axora_event_id":"2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d"' in buffer.getvalue()
+    assert '"dd.openakta_event_id":"2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d"' in buffer.getvalue()

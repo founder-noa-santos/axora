@@ -1,6 +1,6 @@
-using Axora.Logger.Sinks;
+using Openakta.Logger.Sinks;
 
-namespace Axora.Logger.Sentry;
+namespace Openakta.Logger.Sentry;
 
 public interface ISentryScopeBridge
 {
@@ -34,7 +34,7 @@ public sealed class SentrySink : ISink
                 scope.SetTag("service", @event.Service);
                 scope.SetTag("environment", @event.Environment);
                 scope.SetTag("operation", @event.Operation);
-                scope.SetTag("axora.event_id", @event.EventId);
+                scope.SetTag("openakta.event_id", @event.EventId);
                 scope.SetExtras(@event.Context);
                 scope.SetLevel(@event.Level == "fatal" ? "fatal" : @event.Level);
             });
@@ -47,7 +47,7 @@ public sealed class SentrySink : ISink
         var data = new Dictionary<string, object?>(@event.Context)
         {
             ["duration_ms"] = @event.DurationMs,
-            ["axora_event_id"] = @event.EventId,
+            ["openakta_event_id"] = @event.EventId,
         };
 
         _bridge.AddBreadcrumb(

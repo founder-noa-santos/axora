@@ -1,10 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  type ChangeEvent,
+  type InputHTMLAttributes,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Settings,
   FolderOpen,
   ChevronDown,
+  ChevronRight,
   Gamepad2,
   FileText,
   PencilRuler,
@@ -17,7 +25,6 @@ import {
   Clock,
   LayoutGrid,
   SquarePen,
-  MoreHorizontal,
   ArrowLeft,
   Palette,
   Wrench,
@@ -29,7 +36,6 @@ import {
   FolderGit,
   Archive,
   Check,
-  ChevronRight,
   Globe,
   Gauge,
   LogOut,
@@ -37,9 +43,12 @@ import {
   AtSign,
   Briefcase,
   Search,
+  FolderPlus,
+  MessageSquareText,
 } from "lucide-react";
 
 import type { DesktopPreferences } from "@/shared/contracts/desktop";
+import { defaultPreferences } from "@/shared/contracts/desktop";
 import { desktopService } from "@/lib/services/desktop-service";
 import { cn } from "@/lib/utils";
 import {
@@ -48,37 +57,29 @@ import {
   SidebarFooter,
   SidebarProvider,
   SidebarGroup,
+  SidebarGroupAction,
   SidebarGroupLabel,
   SidebarGroupContent,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuAction,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarInset,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeModeToggle } from "@/components/theme-mode-toggle";
 import { AppProvider, useAppState } from "@/lib/app-state";
-import { ChatInterface } from "@/components/chat-interface";
+import { ChatView } from "@/components/chat";
+import { SettingsMainPanel } from "@/components/settings/settings-main-panel";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 
 import "./globals.css";
 
@@ -140,7 +141,7 @@ function SidebarToggle() {
         "flex items-center justify-center rounded-[6px]",
         "text-muted-foreground hover:text-foreground hover:bg-accent",
         "w-[28px] h-[28px]",
-        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        "transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
       )}
       aria-label={open ? "Close sidebar" : "Open sidebar"}
       title={open ? "Close sidebar" : "Open sidebar"}
@@ -175,11 +176,17 @@ function SidebarToggle() {
 }
 
 // ============ SETTINGS DROPDOWN MENU ============
-function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void }) {
+function SettingsDropdownMenu({
+  onOpenSettings,
+}: {
+  onOpenSettings?: () => void;
+}) {
   const [currentLanguage, setCurrentLanguage] = useState("auto");
   const [languageSearch, setLanguageSearch] = useState("");
   const [open, setOpen] = useState(false);
-  const [activeSubmenu, setActiveSubmenu] = useState<"language" | "rateLimits" | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<
+    "language" | "rateLimits" | null
+  >(null);
 
   const filteredLanguages = LANGUAGES.filter((lang) => {
     const searchTerm = languageSearch.toLowerCase();
@@ -193,7 +200,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
   });
 
   const currentLangLabel = LANGUAGES.find(
-    (l) => l.code === currentLanguage
+    (l) => l.code === currentLanguage,
   )?.label;
 
   const handleLanguageSelect = (code: string) => {
@@ -216,7 +223,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
             "text-foreground/80 hover:text-foreground",
             "hover:bg-accent",
             "transition-all",
-            "data-[state=open]:bg-accent/50"
+            "data-[state=open]:bg-accent/50",
           )}
         >
           <Settings
@@ -234,7 +241,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
           "w-[calc(var(--sidebar-width)-16px)] p-1.5 rounded-[12px]",
           "bg-popover border border-border/50",
           "shadow-lg",
-          "animate-in fade-in-0 zoom-in-95 data-[side=top]:slide-in-from-bottom-2"
+          "animate-in fade-in-0 zoom-in-95 data-[side=top]:slide-in-from-bottom-2",
         )}
       >
         {activeSubmenu === null ? (
@@ -243,7 +250,10 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
             {/* Account Row */}
             <div className="flex items-center gap-2.5 px-2 py-2 mb-1">
               <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center">
-                <AtSign className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+                <AtSign
+                  className="w-3.5 h-3.5 text-muted-foreground"
+                  strokeWidth={1.5}
+                />
               </div>
               <div className="flex flex-col min-w-0">
                 <span className="text-[12px] font-medium text-foreground truncate">
@@ -263,7 +273,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <Briefcase
@@ -286,7 +296,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <Settings
@@ -304,7 +314,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <Globe
@@ -315,7 +325,10 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
               <span className="text-[11px] text-muted-foreground mr-1">
                 {currentLangLabel}
               </span>
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+              <ChevronRight
+                className="w-3.5 h-3.5 text-muted-foreground"
+                strokeWidth={1.5}
+              />
             </button>
 
             {/* Rate Limits */}
@@ -326,7 +339,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <Gauge
@@ -339,7 +352,10 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
               <span className="text-[11px] text-muted-foreground mr-1">
                 {RATE_LIMITS.shortTerm.percentage}%
               </span>
-              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+              <ChevronRight
+                className="w-3.5 h-3.5 text-muted-foreground"
+                strokeWidth={1.5}
+              />
             </button>
 
             <DropdownMenuSeparator className="my-1.5 h-px bg-border/50" />
@@ -352,7 +368,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-destructive",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <LogOut
@@ -373,10 +389,13 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground rotate-90" strokeWidth={1.5} />
+              <ChevronDown
+                className="w-3.5 h-3.5 text-muted-foreground rotate-90"
+                strokeWidth={1.5}
+              />
               <span className="text-[12px] font-medium">Language</span>
             </button>
 
@@ -397,7 +416,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                     "bg-accent/50 border-0 rounded-[6px]",
                     "placeholder:text-muted-foreground/60",
                     "focus:outline-none focus:ring-0",
-                    "text-foreground"
+                    "text-foreground",
                   )}
                 />
               </div>
@@ -421,7 +440,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                       "hover:bg-accent",
                       "transition-colors",
                       "text-left",
-                      isSelected && "bg-accent/30"
+                      isSelected && "bg-accent/30",
                     )}
                   >
                     <span className="text-[12px]">{displayLabel}</span>
@@ -447,11 +466,16 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground rotate-90" strokeWidth={1.5} />
-              <span className="text-[12px] font-medium">Rate limits remaining</span>
+              <ChevronDown
+                className="w-3.5 h-3.5 text-muted-foreground rotate-90"
+                strokeWidth={1.5}
+              />
+              <span className="text-[12px] font-medium">
+                Rate limits remaining
+              </span>
             </button>
 
             {/* Short Term */}
@@ -494,7 +518,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <span className="text-[12px]">Upgrade to Pro</span>
@@ -512,7 +536,7 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
                 "text-foreground/80 hover:text-foreground",
                 "hover:bg-accent",
                 "transition-colors",
-                "text-left"
+                "text-left",
               )}
             >
               <span className="text-[12px]">Learn more</span>
@@ -529,41 +553,144 @@ function SettingsDropdownMenu({ onOpenSettings }: { onOpenSettings?: () => void 
 }
 
 // ============ HOME SIDEBAR ============
-function HomeSidebar({ 
-  onOpenSettings,
-  onNewThread,
-  onProjectClick,
-  currentThreadId,
-  threads,
-}: { 
-  onOpenSettings: () => void;
-  onNewThread: () => void;
-  onProjectClick: (projectId: string, threadId?: string) => void;
-  currentThreadId: string | null;
-  threads: import("@/lib/app-state").Thread[];
-}) {
-  // Mock project data - same as before
-  const projects = [
-    { id: "proj-1", name: "axora", threadId: "thread-1" },
-    { id: "proj-2", name: "nexus-social", threadId: "thread-2" },
-    { id: "proj-3", name: "fluri-v0", threadId: "thread-3" },
-  ];
+function HomeSidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const {
+    threads,
+    projects,
+    currentThreadId,
+    currentProjectId,
+    createThread,
+    selectThread,
+    addProject,
+  } = useAppState();
+  const [userOpenProjectIds, setUserOpenProjectIds] = useState<string[]>([]);
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+
+  const activeProjectId = useMemo(() => {
+    if (currentThreadId) {
+      return (
+        threads.find((thread) => thread.id === currentThreadId)?.projectId ??
+        null
+      );
+    }
+    return currentProjectId;
+  }, [currentProjectId, currentThreadId, threads]);
+
+  const projectsWithThreads = useMemo(
+    () =>
+      projects.map((project) => ({
+        project,
+        threads: threads
+          .filter((thread) => thread.projectId === project.id)
+          .sort((a, b) => b.updatedAt - a.updatedAt),
+      })),
+    [projects, threads],
+  );
+
+  /** Ensures the active project row is expanded without syncing via an effect (see react-hooks/set-state-in-effect). */
+  const openProjectIds = useMemo(() => {
+    if (!activeProjectId) return userOpenProjectIds;
+    if (userOpenProjectIds.includes(activeProjectId)) return userOpenProjectIds;
+    return [activeProjectId, ...userOpenProjectIds].slice(0, 4);
+  }, [activeProjectId, userOpenProjectIds]);
+
+  const openProject = (projectId: string) => {
+    setUserOpenProjectIds((prev) =>
+      prev.includes(projectId) ? prev : [projectId, ...prev].slice(0, 4),
+    );
+  };
+
+  const toggleProject = (projectId: string) => {
+    setUserOpenProjectIds((prev) =>
+      prev.includes(projectId)
+        ? prev.filter((id) => id !== projectId)
+        : [projectId, ...prev].slice(0, 4),
+    );
+  };
+
+  const handleCreateThread = (projectId: string) => {
+    createThread(projectId);
+    openProject(projectId);
+  };
+
+  const handleSelectThread = (projectId: string, threadId: string) => {
+    selectThread(threadId);
+    openProject(projectId);
+  };
+
+  const handleAddProject = async () => {
+    const picker = (
+      window as Window & {
+        showDirectoryPicker?: () => Promise<{ name: string }>;
+      }
+    ).showDirectoryPicker;
+    if (picker) {
+      try {
+        const handle = await picker();
+        const projectName = handle.name?.trim() || "New project";
+        const projectId = addProject({
+          name: projectName,
+          path: `~/Projects/${projectName}`,
+          icon: "folder",
+        });
+        openProject(projectId);
+        return;
+      } catch {
+        // User cancelled the picker.
+      }
+    }
+
+    folderInputRef.current?.click();
+  };
+
+  const handleFolderInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const relativePath = file.webkitRelativePath || file.name;
+    const projectName =
+      relativePath.split("/")[0] || file.name || "New project";
+    const projectPath =
+      (file as File & { path?: string }).path ?? `~/Projects/${projectName}`;
+    const projectId = addProject({
+      name: projectName,
+      path: projectPath,
+      icon: "folder",
+    });
+
+    openProject(projectId);
+    event.currentTarget.value = "";
+  };
 
   return (
     <>
+      <input
+        ref={folderInputRef}
+        type="file"
+        className="fixed left-0 top-0 size-px opacity-0 pointer-events-none"
+        onChange={handleFolderInputChange}
+        {...({
+          webkitdirectory: "",
+          directory: "",
+        } as InputHTMLAttributes<HTMLInputElement>)}
+      />
+
       <SidebarContent className="px-3 pt-14">
         <SidebarGroup className="p-0 mb-1">
-          <SidebarGroupLabel className="px-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            Quick Actions
+          <SidebarGroupLabel className="px-2.5 text-xs font-semibold text-muted-foreground/60 tracking-wide mb-1">
+            Quick actions
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-0">
               <SidebarMenuItem>
-                <SidebarMenuButton 
-                  onClick={onNewThread}
+                <SidebarMenuButton
+                  onClick={() => createThread()}
                   className="h-[28px] px-2.5 rounded-[8px] hover:bg-accent text-foreground transition-all"
                 >
-                  <SquarePen className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  <SquarePen
+                    className="w-3.5 h-3.5 text-muted-foreground"
+                    strokeWidth={1.5}
+                  />
                   <span className="text-[12px] font-medium">New thread</span>
                   <span className="ml-auto text-[10px] bg-muted-foreground/20 px-1.5 py-0.5 rounded text-muted-foreground border border-border/50">
                     ⌘N
@@ -572,13 +699,19 @@ function HomeSidebar({
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton className="h-[28px] px-2.5 rounded-[8px] hover:bg-accent text-foreground/80 hover:text-foreground transition-all">
-                  <Clock className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  <Clock
+                    className="w-3.5 h-3.5 text-muted-foreground"
+                    strokeWidth={1.5}
+                  />
                   <span className="text-[12px] font-medium">Automations</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton className="h-[28px] px-2.5 rounded-[8px] hover:bg-accent text-foreground/80 hover:text-foreground transition-all">
-                  <LayoutGrid className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  <LayoutGrid
+                    className="w-3.5 h-3.5 text-muted-foreground"
+                    strokeWidth={1.5}
+                  />
                   <span className="text-[12px] font-medium">Skills</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -587,30 +720,128 @@ function HomeSidebar({
         </SidebarGroup>
 
         <SidebarGroup className="p-0 mt-3">
-          <SidebarGroupLabel className="px-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-            Threads
-          </SidebarGroupLabel>
+          <div className="mb-1 flex items-center justify-between px-2.5">
+            <SidebarGroupLabel className="h-auto px-0 text-xs font-semibold tracking-wide text-muted-foreground/60">
+              Threads
+            </SidebarGroupLabel>
+            <SidebarGroupAction
+              type="button"
+              aria-label="Add project"
+              title="Add project"
+              className="static right-auto top-auto size-6 rounded-[6px] text-muted-foreground/60"
+              onClick={handleAddProject}
+            >
+              <FolderPlus className="size-4" />
+            </SidebarGroupAction>
+          </div>
+
           <SidebarGroupContent>
             <SidebarMenu className="gap-0">
-              {projects.map((project, index) => {
-                const isActive = currentThreadId === project.threadId;
-                return (
-                  <SidebarMenuItem key={project.id}>
-                    <SidebarMenuButton
-                      onClick={() => onProjectClick(project.id, project.threadId)}
-                      className={cn(
-                        "h-[28px] px-2.5 rounded-[8px] hover:bg-accent transition-all",
-                        isActive 
-                          ? "text-foreground bg-accent/30" 
-                          : "text-foreground/80 hover:text-foreground"
-                      )}
-                    >
-                      <FolderOpen className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
-                      <span className="text-[12px] font-medium truncate">{project.name}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {projectsWithThreads.map(
+                ({ project, threads: projectThreads }) => {
+                  const isExpanded = openProjectIds.includes(project.id);
+                  const isActive =
+                    activeProjectId === project.id && !isExpanded;
+
+                  return (
+                    <SidebarMenuItem key={project.id} suppressHoverGroup>
+                      <div className="group/project-row relative">
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => toggleProject(project.id)}
+                          className={cn(
+                            "h-[28px] px-2.5 rounded-[8px] hover:bg-accent group-hover/project-row:bg-accent transition-all group-has-[[data-sidebar=menu-action]]/project-row:pr-8",
+                            isActive
+                              ? "text-foreground bg-accent/30"
+                              : "text-foreground/80 hover:text-foreground",
+                          )}
+                        >
+                          <span className="flex size-3.5 items-center justify-center">
+                            <FolderOpen className="size-3.5 text-muted-foreground group-hover/project-row:hidden" />
+                            {isExpanded ? (
+                              <ChevronDown className="hidden size-3.5 text-muted-foreground group-hover/project-row:block" />
+                            ) : (
+                              <ChevronRight className="hidden size-3.5 text-muted-foreground group-hover/project-row:block" />
+                            )}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                            {project.name}
+                          </span>
+                        </SidebarMenuButton>
+
+                        <SidebarMenuAction
+                          showOnHover
+                          hoverScope="project-row"
+                          type="button"
+                          aria-label={`New thread in ${project.name}`}
+                          title={`New thread in ${project.name}`}
+                          className="!top-1/2 !-translate-y-1/2"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleCreateThread(project.id);
+                          }}
+                        >
+                          <SquarePen className="size-3.5" strokeWidth={1.75} />
+                        </SidebarMenuAction>
+                      </div>
+
+                      {isExpanded ? (
+                        <SidebarMenuSub className="mx-0 mt-1 border-l-0 px-0 py-0">
+                          {projectThreads.length === 0 ? (
+                            <li className="px-2.5 py-1.5 text-[11px] text-muted-foreground/60">
+                              No threads yet
+                            </li>
+                          ) : (
+                            projectThreads.map((thread) => {
+                              const isThreadActive =
+                                currentThreadId === thread.id;
+                              const threadLabel =
+                                thread.messages.length > 0
+                                  ? `${thread.messages.length} messages`
+                                  : "Empty thread";
+
+                              return (
+                                <SidebarMenuSubItem key={thread.id}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={isThreadActive}
+                                    size="sm"
+                                    className={cn(
+                                      "h-[28px] px-2.5 rounded-[8px] hover:bg-accent transition-all",
+                                      isThreadActive
+                                        ? "text-foreground bg-accent/30"
+                                        : "text-foreground/80 hover:text-foreground",
+                                    )}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleSelectThread(
+                                          project.id,
+                                          thread.id,
+                                        )
+                                      }
+                                      className="flex w-full items-center gap-2 text-left"
+                                    >
+                                      <MessageSquareText className="size-3.5 shrink-0 text-muted-foreground" />
+                                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium">
+                                        {thread.title}
+                                      </span>
+                                      <span className="shrink-0 text-[10px] text-muted-foreground/60">
+                                        {threadLabel}
+                                      </span>
+                                    </button>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })
+                          )}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  );
+                },
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -631,7 +862,7 @@ function HomeSidebar({
 function SettingsSidebar({
   activeTab,
   onChangeTab,
-  onBack
+  onBack,
 }: {
   activeTab: string;
   onChangeTab: (tab: string) => void;
@@ -641,7 +872,7 @@ function SettingsSidebar({
     <>
       <SidebarContent className="px-3 pt-14">
         <SidebarGroup className="p-0 mb-1">
-          <SidebarGroupLabel className="px-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+          <SidebarGroupLabel className="px-2.5 text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider mb-1">
             Settings
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -649,20 +880,25 @@ function SettingsSidebar({
               {settingsNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
-                
+
                 return (
                   <SidebarMenuItem key={item.id}>
                     <SidebarMenuButton
                       onClick={() => onChangeTab(item.id)}
                       className={cn(
                         "h-[28px] px-2.5 rounded-[8px] hover:bg-accent transition-all",
-                        isActive 
-                          ? "text-foreground bg-accent/30" 
-                          : "text-foreground/80 hover:text-foreground"
+                        isActive
+                          ? "text-foreground bg-accent/30"
+                          : "text-foreground/80 hover:text-foreground",
                       )}
                     >
-                      <Icon className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
-                      <span className="text-[12px] font-medium">{item.label}</span>
+                      <Icon
+                        className="w-3.5 h-3.5 text-muted-foreground"
+                        strokeWidth={1.5}
+                      />
+                      <span className="text-[12px] font-medium">
+                        {item.label}
+                      </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
@@ -672,7 +908,7 @@ function SettingsSidebar({
         </SidebarGroup>
 
         <SidebarGroup className="p-0 mt-3">
-          <SidebarGroupLabel className="px-2.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+          <SidebarGroupLabel className="px-2.5 text-xs font-semibold text-muted-foreground/60 uppercase tracking-wider mb-1">
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -682,7 +918,10 @@ function SettingsSidebar({
                   onClick={onBack}
                   className="h-[28px] px-2.5 rounded-[8px] hover:bg-accent text-foreground/80 hover:text-foreground transition-all"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  <ArrowLeft
+                    className="w-3.5 h-3.5 text-muted-foreground"
+                    strokeWidth={1.5}
+                  />
                   <span className="text-[12px] font-medium">Back to app</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -700,33 +939,16 @@ function AppSidebar({
   onOpenSettings,
   onChangeSettingsTab,
   onBackToHome,
-  onNewThread,
-  onProjectClick,
-  currentThreadId,
-  threads,
 }: {
   view: ViewState;
   onOpenSettings: () => void;
   onChangeSettingsTab: (tab: string) => void;
   onBackToHome: () => void;
-  onNewThread: () => void;
-  onProjectClick: (projectId: string, threadId?: string) => void;
-  currentThreadId: string | null;
-  threads: import("@/lib/app-state").Thread[];
 }) {
   return (
-    <Sidebar
-      collapsible="offcanvas"
-      className="bg-sidebar"
-    >
+    <Sidebar collapsible="offcanvas" className="bg-sidebar">
       {view.type === "home" ? (
-        <HomeSidebar 
-          onOpenSettings={onOpenSettings}
-          onNewThread={onNewThread}
-          onProjectClick={onProjectClick}
-          currentThreadId={currentThreadId}
-          threads={threads}
-        />
+        <HomeSidebar onOpenSettings={onOpenSettings} />
       ) : (
         <SettingsSidebar
           activeTab={view.tab}
@@ -739,7 +961,13 @@ function AppSidebar({
 }
 
 // ============ TOP CONTROLS ============
-function TopControls({ isFullscreen, sidebarOpen }: { isFullscreen: boolean; sidebarOpen: boolean }) {
+function TopControls({
+  isFullscreen,
+  sidebarOpen,
+}: {
+  isFullscreen: boolean;
+  sidebarOpen: boolean;
+}) {
   // Windowed + collapsed: position to avoid traffic lights and align with them
   // Windowed + open: keep current correct placement inside content area
   // Fullscreen: no adjustment needed (traffic lights hidden)
@@ -760,7 +988,18 @@ function TopControls({ isFullscreen, sidebarOpen }: { isFullscreen: boolean; sid
             aria-label="New thread"
             title="New thread"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-square-pen">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="lucide lucide-square-pen"
+            >
               <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
               <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"></path>
             </svg>
@@ -787,21 +1026,41 @@ function TopControls({ isFullscreen, sidebarOpen }: { isFullscreen: boolean; sid
 function HomeContent() {
   return (
     <>
-      <div className="flex-1 overflow-y-auto pb-64 custom-scrollbar" data-no-drag="true">
+      <div
+        className="flex-1 overflow-y-auto pb-64 custom-scrollbar"
+        data-no-drag="true"
+      >
         <div className="w-full flex flex-col items-center text-center px-6 pt-32">
           <div className="w-full max-w-3xl">
             <div className="w-12 h-12 mb-6 mx-auto">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full text-foreground">
-                <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2 4"/>
-                <path d="M8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12Z" fill="currentColor"/>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-full h-full text-foreground"
+              >
+                <path
+                  d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2Z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="2 4"
+                />
+                <path
+                  d="M8 12C8 9.79086 9.79086 8 12 8C14.2091 8 16 9.79086 16 12C16 14.2091 14.2091 16 12 16C9.79086 16 8 14.2091 8 12Z"
+                  fill="currentColor"
+                />
               </svg>
             </div>
-            <h2 className="text-[28px] font-semibold tracking-tight mb-2 text-foreground">Let&apos;s build</h2>
+            <h2 className="text-[28px] font-semibold tracking-tight mb-2 text-foreground">
+              Let&apos;s build
+            </h2>
 
             <div className="relative inline-block mb-12">
               <select className="appearance-none bg-transparent hover:bg-accent/50 text-muted-foreground py-1.5 pl-3 pr-8 rounded-lg focus:outline-none focus:ring-0 text-sm font-medium cursor-pointer transition-all">
                 <option>Project Nexus</option>
-                <option>Axora App</option>
+                <option>Openakta App</option>
                 <option>Snake Game</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground">
@@ -814,24 +1073,37 @@ function HomeContent() {
                 <div className="w-8 h-8 rounded-lg bg-muted/80 flex items-center justify-center mb-3 transition-colors group-hover:bg-accent">
                   <Gamepad2 className="w-4 h-4 text-foreground/70" />
                 </div>
-                <h3 className="text-[13px] font-medium text-foreground/90 mb-1">Build a classic Snake game</h3>
-                <p className="text-[12px] text-muted-foreground leading-relaxed group-hover:text-foreground/70 max-w-[90%]">Start a new Python project using Pygame for a retro experience.</p>
+                <h3 className="text-[13px] font-medium text-foreground/90 mb-1">
+                  Build a classic Snake game
+                </h3>
+                <p className="text-[12px] text-muted-foreground leading-relaxed group-hover:text-foreground/70 max-w-[90%]">
+                  Start a new Python project using Pygame for a retro
+                  experience.
+                </p>
               </div>
 
               <div className="bg-muted/40 hover:bg-accent/80 border border-transparent p-4 rounded-2xl text-left cursor-pointer transition-all group">
                 <div className="w-8 h-8 rounded-lg bg-muted/80 flex items-center justify-center mb-3 transition-colors group-hover:bg-accent">
                   <FileText className="w-4 h-4 text-[#ff8e8b]" />
                 </div>
-                <h3 className="text-[13px] font-medium text-foreground/90 mb-1">Create a one-page PDF</h3>
-                <p className="text-[12px] text-muted-foreground leading-relaxed group-hover:text-foreground/70 max-w-[90%]">Generate a clean document layout using React and Tailwind CSS.</p>
+                <h3 className="text-[13px] font-medium text-foreground/90 mb-1">
+                  Create a one-page PDF
+                </h3>
+                <p className="text-[12px] text-muted-foreground leading-relaxed group-hover:text-foreground/70 max-w-[90%]">
+                  Generate a clean document layout using React and Tailwind CSS.
+                </p>
               </div>
 
               <div className="bg-muted/40 hover:bg-accent/80 border border-transparent p-4 rounded-2xl text-left cursor-pointer transition-all group">
                 <div className="w-8 h-8 rounded-lg bg-muted/80 flex items-center justify-center mb-3 transition-colors group-hover:bg-accent">
                   <PencilRuler className="w-4 h-4 text-[#ffd166]" />
                 </div>
-                <h3 className="text-[13px] font-medium text-foreground/90 mb-1">Create a plan to...</h3>
-                <p className="text-[12px] text-muted-foreground leading-relaxed group-hover:text-foreground/70 max-w-[90%]">Map out a microservices architecture for your next big idea.</p>
+                <h3 className="text-[13px] font-medium text-foreground/90 mb-1">
+                  Create a plan to...
+                </h3>
+                <p className="text-[12px] text-muted-foreground leading-relaxed group-hover:text-foreground/70 max-w-[90%]">
+                  Map out a microservices architecture for your next big idea.
+                </p>
               </div>
             </div>
           </div>
@@ -843,7 +1115,7 @@ function HomeContent() {
           <div className="bg-panel/95 backdrop-blur-xl border border-border shadow-lg rounded-[20px] p-2.5 focus-within:border-border/80 transition-all">
             <textarea
               className="w-full bg-transparent border-none focus:outline-none focus:ring-0 text-foreground/90 placeholder-muted-foreground/70 text-[15px] resize-none min-h-[44px] p-2 custom-scrollbar"
-              placeholder="Ask Axora anything, @ to add files, / for commands"
+              placeholder="Ask Openakta anything, @ to add files, / for commands"
               rows={1}
             ></textarea>
 
@@ -880,7 +1152,9 @@ function HomeContent() {
                 <ChevronDown className="w-3 h-3 opacity-50" />
               </span>
               <span className="flex items-center gap-1.5 text-[#ff8e8b] cursor-pointer hover:text-[#ff9f9c] transition-colors">
-                <div className="w-3.5 h-3.5 flex items-center justify-center rounded border border-[#ff8e8b] text-[8px] leading-none pb-[1px]">!</div>
+                <div className="w-3.5 h-3.5 flex items-center justify-center rounded border border-[#ff8e8b] text-[8px] leading-none pb-[1px]">
+                  !
+                </div>
                 Full access
                 <ChevronDown className="w-3 h-3 opacity-50" />
               </span>
@@ -897,219 +1171,6 @@ function HomeContent() {
   );
 }
 
-// ============ SETTINGS CONTENT ============
-function SettingRow({
-  label,
-  description,
-  control,
-}: {
-  label: string;
-  description: string;
-  control: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between px-5 py-4">
-      <div className="flex flex-col gap-0.5 pr-4">
-        <span className="text-[14px] text-foreground">{label}</span>
-        <span className="text-[13px] text-muted-foreground leading-relaxed">{description}</span>
-      </div>
-      <div className="flex items-center shrink-0">
-        {control}
-      </div>
-    </div>
-  );
-}
-
-function SettingsContent({
-  activeTab,
-  preferences,
-  onToggle,
-}: {
-  activeTab: string;
-  preferences: DesktopPreferences | null;
-  onToggle: (key: keyof Omit<DesktopPreferences, "themeMode">, value: boolean) => void;
-}) {
-  const current = preferences ?? {
-    themeMode: "dark",
-    compactSidebar: true,
-    reduceMotion: false,
-    commandCenterPinned: true,
-    launchAtLogin: false,
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar bg-background">
-      <div className="max-w-[720px] mx-auto px-8 py-10">
-        <h1 className="text-[22px] font-semibold text-foreground mb-8">
-          {settingsNavItems.find(i => i.id === activeTab)?.label}
-        </h1>
-
-        {activeTab === "general" ? (
-          <div className="space-y-8">
-            <div className="bg-muted/50 rounded-xl border border-border overflow-hidden">
-              <SettingRow
-                label="Default open destination"
-                description="Where files and folders open by default"
-                control={
-                  <Select defaultValue="cursor">
-                    <SelectTrigger className="w-[180px] h-9 text-[13px] bg-accent border-none text-foreground focus:ring-0 focus:ring-offset-0 rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-accent border-border text-foreground rounded-lg">
-                      <SelectItem value="cursor" className="text-[13px]">Cursor</SelectItem>
-                      <SelectItem value="vscode" className="text-[13px]">VS Code</SelectItem>
-                      <SelectItem value="intellij" className="text-[13px]">IntelliJ IDEA</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-              />
-              <div className="h-px bg-border" />
-              <SettingRow
-                label="Language"
-                description="Language for the app UI"
-                control={
-                  <Select defaultValue="auto">
-                    <SelectTrigger className="w-[180px] h-9 text-[13px] bg-accent border-none text-foreground focus:ring-0 focus:ring-offset-0 rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-accent border-border text-foreground rounded-lg">
-                      <SelectItem value="auto" className="text-[13px]">Auto Detect</SelectItem>
-                      <SelectItem value="en" className="text-[13px]">English</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-              />
-              <div className="h-px bg-border" />
-              <SettingRow
-                label="Thread detail"
-                description="Choose how much command output to show in threads"
-                control={
-                  <Select defaultValue="steps">
-                    <SelectTrigger className="w-[200px] h-9 text-[13px] bg-accent border-none text-foreground focus:ring-0 focus:ring-offset-0 rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-accent border-border text-foreground rounded-lg">
-                      <SelectItem value="steps" className="text-[13px]">Steps with code commands</SelectItem>
-                      <SelectItem value="minimal" className="text-[13px]">Minimal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-              />
-              <div className="h-px bg-border" />
-              <SettingRow
-                label="Prevent sleep while running"
-                description="Keep your computer awake while Codex is running a thread."
-                control={
-                  <Switch
-                    checked={current.launchAtLogin}
-                    onCheckedChange={(v) => onToggle("launchAtLogin", v)}
-                    className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/30"
-                  />
-                }
-              />
-              <div className="h-px bg-border" />
-              <SettingRow
-                label="Require ⌘ + enter to send long prompts"
-                description="When enabled, multiline prompts require ⌘ + enter to send."
-                control={
-                  <Switch
-                    checked={current.reduceMotion}
-                    onCheckedChange={(v) => onToggle("reduceMotion", v)}
-                    className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted-foreground/30"
-                  />
-                }
-              />
-              <div className="h-px bg-border" />
-              <SettingRow
-                label="Speed"
-                description="Choose how quickly inference runs across threads, subagents, and compaction. Fast uses 2x plan usage."
-                control={
-                  <Select defaultValue="standard">
-                    <SelectTrigger className="w-[180px] h-9 text-[13px] bg-accent border-none text-foreground focus:ring-0 focus:ring-offset-0 rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-accent border-border text-foreground rounded-lg">
-                      <SelectItem value="standard" className="text-[13px]">Standard</SelectItem>
-                      <SelectItem value="fast" className="text-[13px]">Fast</SelectItem>
-                    </SelectContent>
-                  </Select>
-                }
-              />
-              <div className="h-px bg-border" />
-              <SettingRow
-                label="Follow-up behavior"
-                description="Queue follow-ups while Codex runs or steer the current run. Press ⇧⌘Enter to do the opposite for one message."
-                control={
-                  <div className="flex items-center gap-2 bg-accent rounded-lg p-1">
-                    <button className="px-3 py-1.5 text-[13px] rounded-md bg-muted text-foreground">
-                      Queue
-                    </button>
-                    <button className="px-3 py-1.5 text-[13px] rounded-md text-muted-foreground hover:text-foreground">
-                      Steer
-                    </button>
-                  </div>
-                }
-              />
-            </div>
-
-            <div>
-              <h2 className="text-[16px] font-medium text-foreground mb-4">Notifications</h2>
-              <div className="bg-muted/50 rounded-xl border border-border overflow-hidden">
-                <SettingRow
-                  label="Turn completion notifications"
-                  description="Set when Codex alerts you that it's finished"
-                  control={
-                    <Select defaultValue="unfocused">
-                      <SelectTrigger className="w-[180px] h-9 text-[13px] bg-accent border-none text-foreground focus:ring-0 focus:ring-offset-0 rounded-lg">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-accent border-border text-foreground rounded-lg">
-                        <SelectItem value="unfocused" className="text-[13px]">Only when unfocused</SelectItem>
-                        <SelectItem value="always" className="text-[13px]">Always</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  }
-                />
-                <div className="h-px bg-border" />
-                <SettingRow
-                  label="Enable permission notifications"
-                  description="Show alerts when notification permissions are required"
-                  control={
-                    <div className="w-5 h-5 rounded-full bg-muted-foreground/60 flex items-center justify-center">
-                      <svg className="w-3 h-3 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        ) : activeTab === "appearance" ? (
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-[16px] font-medium text-foreground mb-4">Theme</h2>
-              <div className="bg-muted/50 rounded-xl border border-border p-6">
-                <p className="text-[13px] text-muted-foreground mb-4">
-                  Choose how AXORA looks across the application.
-                </p>
-                <ThemeModeToggle />
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground space-y-3">
-            <Settings className="w-12 h-12 opacity-30" />
-            <p className="text-[14px]">
-              {settingsNavItems.find(i => i.id === activeTab)?.label} settings coming soon
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ============ MAIN CONTENT ============
 function MainContent({
   view,
@@ -1119,7 +1180,10 @@ function MainContent({
 }: {
   view: ViewState;
   preferences: DesktopPreferences | null;
-  onToggle: (key: keyof Omit<DesktopPreferences, "themeMode">, value: boolean) => void;
+  onToggle: (
+    key: keyof Omit<DesktopPreferences, "themeMode">,
+    value: boolean,
+  ) => void;
   isFullscreen: boolean;
 }) {
   const { open } = useSidebar();
@@ -1129,16 +1193,13 @@ function MainContent({
     <SidebarInset className="relative h-full">
       <TopControls isFullscreen={isFullscreen} sidebarOpen={open} />
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-background rounded-l-[16px]">
-        {currentThreadId && isChatOpen ? (
-          <ChatInterface />
-        ) : (
-          <HomeContent />
-        )}
+        {currentThreadId && isChatOpen ? <ChatView /> : <HomeContent />}
         {view.type === "settings" && (
-          <SettingsContent
+          <SettingsMainPanel
             activeTab={view.tab}
             preferences={preferences}
             onToggle={onToggle}
+            settingsNavItems={settingsNavItems}
           />
         )}
       </div>
@@ -1148,20 +1209,24 @@ function MainContent({
 
 // ============ APP CONTENT ============
 export function AppContent() {
-  const [preferences, setPreferences] = useState<DesktopPreferences | null>(null);
+  const [preferences, setPreferences] = useState<DesktopPreferences | null>(
+    null,
+  );
   const [view, setView] = useState<ViewState>({ type: "home" });
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const { createThread, selectThread, selectProject, currentThreadId, threads } = useAppState();
 
   useEffect(() => {
-    // Get initial fullscreen state
+    desktopService
+      .getPreferences()
+      .then((p) => setPreferences(p ?? defaultPreferences))
+      .catch(() => setPreferences(defaultPreferences));
+
     desktopService.getFullscreenState().then((state) => {
       if (state !== null) {
         setIsFullscreen(state);
       }
     });
 
-    // Listen for fullscreen changes
     const unsubscribe = desktopService.onFullscreenChange((fullscreen) => {
       setIsFullscreen(fullscreen);
     });
@@ -1191,20 +1256,6 @@ export function AppContent() {
     setView({ type: "settings", tab });
   };
 
-  // Handler for "New thread" button
-  const handleNewThread = () => {
-    createThread();
-  };
-
-  // Handler for project/thread clicks
-  const handleProjectClick = (projectId: string, threadId?: string) => {
-    if (threadId) {
-      selectThread(threadId);
-    } else {
-      selectProject(projectId);
-    }
-  };
-
   return (
     <>
       <AppSidebar
@@ -1212,10 +1263,6 @@ export function AppContent() {
         onOpenSettings={handleOpenSettings}
         onChangeSettingsTab={handleChangeSettingsTab}
         onBackToHome={handleBackToHome}
-        onNewThread={handleNewThread}
-        onProjectClick={handleProjectClick}
-        currentThreadId={currentThreadId}
-        threads={threads}
       />
       <MainContent
         view={view}

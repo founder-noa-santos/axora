@@ -6,7 +6,7 @@ Document the actual actors and role semantics currently implemented in the backe
 
 ## Executive Summary
 
-AXORA currently implements system and agent roles, not a mature end-user permission model. The primary actors in code are coordinator, workers, planner/executor/reviewer/resolver-style task roles, daemon operators, and gRPC clients. Permission logic is mostly capability- and task-type-oriented rather than tenant- or customer-role-oriented. There is no implemented RLS, org membership, or account-based authorization system in the backend.
+OPENAKTA currently implements system and agent roles, not a mature end-user permission model. The primary actors in code are coordinator, workers, planner/executor/reviewer/resolver-style task roles, daemon operators, and gRPC clients. Permission logic is mostly capability- and task-type-oriented rather than tenant- or customer-role-oriented. There is no implemented RLS, org membership, or account-based authorization system in the backend.
 
 ## Confirmed Current State
 
@@ -61,12 +61,12 @@ The real enforced permissions today are closer to protocol guards than product e
 ## Implementation Evidence
 
 - `proto/collective/v1/core.proto`
-- `crates/axora-agents/src/agent.rs`
-- `crates/axora-agents/src/decomposer.rs`
-- `crates/axora-agents/src/graph.rs`
-- `crates/axora-agents/src/communication.rs`
-- `crates/axora-agents/src/result_contract.rs`
-- `crates/axora-indexing/src/task_queue.rs`
+- `crates/openakta-agents/src/agent.rs`
+- `crates/openakta-agents/src/decomposer.rs`
+- `crates/openakta-agents/src/graph.rs`
+- `crates/openakta-agents/src/communication.rs`
+- `crates/openakta-agents/src/result_contract.rs`
+- `crates/openakta-indexing/src/task_queue.rs`
 
 ## Business Meaning
 

@@ -1,3 +1,3 @@
-# com.axora:logger-posthog
+# com.openakta:logger-posthog
 
-PostHog adapter boundary for AXORA Wide Events.
+PostHog adapter boundary for OPENAKTA Wide Events.

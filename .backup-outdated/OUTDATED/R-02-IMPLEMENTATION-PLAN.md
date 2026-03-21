@@ -11,7 +11,7 @@
 
 R-02 research on **Inter-Agent Communication** is complete. Six architectural decisions have been made (ADR-009, ADR-016, ADR-017, ADR-018, ADR-019, ADR-020) defining a production-grade communication system for multi-agent coordination.
 
-**Key Outcome:** AXORA will implement a **hybrid architecture** with:
+**Key Outcome:** OPENAKTA will implement a **hybrid architecture** with:
 - NATS JetStream (transport layer)
 - Protocol Buffers (message serialization)
 - Hierarchical state machine (orchestration)
@@ -57,7 +57,7 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
   jsonwebtoken = "9.3"
   ```
 
-- [ ] Create `crates/axora-communication/` crate structure
+- [ ] Create `crates/openakta-communication/` crate structure
 - [ ] Define Protobuf schemas (`proto/agent_message.proto`):
   ```protobuf
   syntax = "proto3";
@@ -114,8 +114,8 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
 - [ ] Configure JetStream streams:
   ```rust
   let stream_config = stream::Config {
-      name: "AXORA_TASKS".to_string(),
-      subjects: vec!["axora.*".to_string()],
+      name: "OPENAKTA_TASKS".to_string(),
+      subjects: vec!["openakta.*".to_string()],
       retention: stream::Retention::WorkQueue,
       storage: stream::Storage::File,
       replicas: 1,
@@ -124,17 +124,17 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
   ```
 
 - [ ] Implement subject hierarchy:
-  - `axora.orchestrator.lead`
-  - `axora.team.frontend.worker`
-  - `axora.team.backend.worker`
-  - `axora.team.qa.worker`
-  - `axora.utility.linter`
-  - `axora.dlq`
+  - `openakta.orchestrator.lead`
+  - `openakta.team.frontend.worker`
+  - `openakta.team.backend.worker`
+  - `openakta.team.qa.worker`
+  - `openakta.utility.linter`
+  - `openakta.dlq`
 
 - [ ] Implement queue groups for horizontal scaling
 - [ ] Benchmark: message latency, throughput
 
-**Deliverable:** `axora-transport` crate with NATS integration
+**Deliverable:** `openakta-transport` crate with NATS integration
 
 **Success Criteria:**
 - Message latency (p50): <1ms
@@ -174,7 +174,7 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
 - [ ] Implement TTL for message expiration
 - [ ] Benchmark: serialization/deserialization latency
 
-**Deliverable:** `axora-message` crate with Protobuf + signing
+**Deliverable:** `openakta-message` crate with Protobuf + signing
 
 **Success Criteria:**
 - Serialization latency: <100μs
@@ -233,7 +233,7 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
 - [ ] Implement error handlers and retry edges
 - [ ] Write unit tests for state transitions
 
-**Deliverable:** `axora-orchestrator` crate with state machine
+**Deliverable:** `openakta-orchestrator` crate with state machine
 
 **Success Criteria:**
 - State transition latency: <10ms
@@ -277,7 +277,7 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
 - [ ] Implement abbreviation protocol for common phrases
 - [ ] Measure token savings vs naive NL
 
-**Deliverable:** `axora-compression` crate with token optimization
+**Deliverable:** `openakta-compression` crate with token optimization
 
 **Success Criteria:**
 - State delta encoding: 88% token reduction
@@ -322,7 +322,7 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
 - [ ] Implement message signature verification
 - [ ] Write security tests (unauthorized access attempts)
 
-**Deliverable:** `axora-security` crate with capability-based auth
+**Deliverable:** `openakta-security` crate with capability-based auth
 
 **Success Criteria:**
 - Unauthorized access blocked: 100%
@@ -366,7 +366,7 @@ R-02 research on **Inter-Agent Communication** is complete. Six architectural de
 - [ ] Implement capability validation for each tool
 - [ ] Write integration tests for tool execution
 
-**Deliverable:** `axora-mcp` crate with MCP server
+**Deliverable:** `openakta-mcp` crate with MCP server
 
 **Success Criteria:**
 - Tool execution latency: <100ms (excluding LLM)

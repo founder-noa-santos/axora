@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 16 (Implementation)  
-**File:** `crates/axora-indexing/src/scip.rs`  
+**File:** `crates/openakta-indexing/src/scip.rs`  
 **Priority:** HIGH (foundation for Influence Graph)  
 **Estimated Tokens:** ~120K output  
 
@@ -27,7 +27,7 @@ Research validates our Influence Graph approach and provides CRITICAL implementa
 
 ### 1. Create scip.rs (SCIP Index)
 
-**File:** `crates/axora-indexing/src/scip.rs`
+**File:** `crates/openakta-indexing/src/scip.rs`
 
 **Core Structure:**
 ```rust
@@ -142,7 +142,7 @@ pub enum SymbolKind {
 
 ### 2. Implement Language-Specific Parsers
 
-**File:** `crates/axora-indexing/src/scip.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/scip.rs` (add to existing)
 
 ```rust
 /// Language-specific parser trait
@@ -191,7 +191,7 @@ impl ParserRegistry {
 
 ### 3. Implement Rust Parser (rust-analyzer)
 
-**File:** `crates/axora-indexing/src/scip.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/scip.rs` (add to existing)
 
 ```rust
 /// Rust parser (uses rust-analyzer SCIP)
@@ -246,7 +246,7 @@ impl CodeParser for RustParser {
 
 ### 4. Implement TypeScript Parser (ts-morph + scip-typescript)
 
-**File:** `crates/axora-indexing/src/scip.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/scip.rs` (add to existing)
 
 ```rust
 /// TypeScript parser (uses ts-morph + scip-typescript)
@@ -302,7 +302,7 @@ impl CodeParser for TypeScriptParser {
 
 ### 5. Implement Python Parser (pyan3 + scip-python)
 
-**File:** `crates/axora-indexing/src/scip.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/scip.rs` (add to existing)
 
 ```rust
 /// Python parser (uses pyan3 + scip-python)
@@ -365,7 +365,7 @@ impl CodeParser for PythonParser {
 
 ### 6. Implement Go Parser (go/ast + godepgraph)
 
-**File:** `crates/axora-indexing/src/scip.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/scip.rs` (add to existing)
 
 ```rust
 /// Go parser (uses go/ast + godepgraph)
@@ -424,16 +424,16 @@ impl CodeParser for GoParser {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-indexing/src/scip.rs` (NEW)
+- `crates/openakta-indexing/src/scip.rs` (NEW)
 
 **Update:**
-- `crates/axora-indexing/src/lib.rs` (add module export)
-- `crates/axora-indexing/Cargo.toml` (add prost, toml, serde_json deps)
+- `crates/openakta-indexing/src/lib.rs` (add module export)
+- `crates/openakta-indexing/Cargo.toml` (add prost, toml, serde_json deps)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-cache/` (Agent B's other work)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-cache/` (Agent B's other work)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

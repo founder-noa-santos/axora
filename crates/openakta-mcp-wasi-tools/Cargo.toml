@@ -1,0 +1,16 @@
+[package]
+name = "openakta-mcp-wasi-tools"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Deterministic helpers for MCP WASI execution"
+
+[lints]
+workspace = true
+
+[dependencies]
+openakta-cache.workspace = true
+serde.workspace = true

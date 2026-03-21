@@ -8,7 +8,7 @@
 
 ## Overview
 
-Successfully implemented a complete light/dark theme system with system preference detection for the AXORA desktop application. The `themeMode` preference that existed in the data model is now fully functional.
+Successfully implemented a complete light/dark theme system with system preference detection for the OPENAKTA desktop application. The `themeMode` preference that existed in the data model is now fully functional.
 
 ---
 
@@ -17,17 +17,20 @@ Successfully implemented a complete light/dark theme system with system preferen
 ### 1. Dependencies
 
 **Installed:**
+
 - `next-themes@0.4.6` - Theme management library with system preference detection
 
 ### 2. Files Created
 
 #### `components/theme-provider.tsx`
+
 - Wrapper around `next-themes` ThemeProvider
 - Configured for Electron environment (no SSR concerns)
 - Default theme: "system"
 - Enables system theme detection
 
 #### `hooks/use-theme.ts`
+
 - Custom hook integrating next-themes with DesktopPreferences
 - Provides:
   - `themeMode`: Current user preference ("dark" | "system" | "light")
@@ -39,6 +42,7 @@ Successfully implemented a complete light/dark theme system with system preferen
 - Handles system preference changes when `themeMode === "system"`
 
 #### `components/theme-mode-toggle.tsx`
+
 - **ThemeModeToggle**: Full-featured theme selector for settings
   - Three buttons: Light, Dark, System
   - Visual feedback for active selection
@@ -52,8 +56,10 @@ Successfully implemented a complete light/dark theme system with system preferen
 ### 3. Files Modified
 
 #### `styles/tokens.css`
+
 **Before:** Only dark mode variables in `:root`  
-**After:** 
+**After:**
+
 - Light mode variables in `:root` (default)
 - Dark mode variables in `.dark` class
 - Complete color palette for both themes:
@@ -67,13 +73,16 @@ Successfully implemented a complete light/dark theme system with system preferen
   - Sidebar colors (sidebar, sidebar-foreground)
 
 **Light Mode Design:**
+
 - Clean, bright background (oklch 0.98)
 - High contrast text (oklch 0.22)
 - Subtle panel surfaces with transparency
 - Maintains premium feel of dark mode
 
 #### `globals.css`
+
 **Changes:**
+
 - Removed hardcoded `color-scheme: dark`
 - Added dynamic `color-scheme` based on theme
 - Made background gradient theme-aware:
@@ -86,7 +95,9 @@ Successfully implemented a complete light/dark theme system with system preferen
 - Added theme-aware custom scrollbar styling
 
 #### `layout.tsx`
+
 **Changes:**
+
 - Added `ThemeProvider` wrapper with `suppressHydrationWarning`
 - Replaced all hardcoded colors with semantic classes:
   - `bg-[#171717]` → `bg-sidebar`
@@ -107,12 +118,16 @@ Successfully implemented a complete light/dark theme system with system preferen
 - Exported `AppContent` for testing
 
 #### `lib/services/desktop-service.ts`
+
 **Added:**
+
 - `getPreferences()` method for direct preference fetching
 - Used by `use-theme` hook for initial load
 
 #### `tests/desktop-shell.test.tsx`
+
 **Updated:**
+
 - Fixed mock to include new `getPreferences` method
 - Added `next-themes` mock
 - Added sidebar context mocks
@@ -125,21 +140,21 @@ Successfully implemented a complete light/dark theme system with system preferen
 
 ### Hardcoded → Semantic Mapping
 
-| Hardcoded Value | Semantic Class | Usage |
-|----------------|----------------|-------|
-| `bg-[#171717]` | `bg-sidebar` | Main sidebar background |
-| `bg-[#121212]` | `bg-background` | Main content background |
-| `bg-[#1c1c1c]` | `bg-muted/50` | Card backgrounds |
-| `bg-[#262626]` | `bg-accent` | Active states, hover |
-| `bg-[#2a2a2a]` | `bg-muted` | Secondary backgrounds |
-| `bg-[#1e1e1e]` | `bg-panel` | Panel surfaces |
-| `text-neutral-100` | `text-foreground` | Primary text |
-| `text-neutral-200` | `text-foreground/90` | Slightly muted text |
-| `text-neutral-300` | `text-foreground/70` | Muted text |
-| `text-neutral-400` | `text-muted-foreground` | Secondary text |
-| `text-neutral-500` | `text-muted-foreground` | Tertiary text |
-| `border-[#333333]` | `border-border` | Borders |
-| `border-[#2a2a2a]` | `border-border` | Subtle borders |
+| Hardcoded Value    | Semantic Class          | Usage                   |
+| ------------------ | ----------------------- | ----------------------- |
+| `bg-[#171717]`     | `bg-sidebar`            | Main sidebar background |
+| `bg-[#121212]`     | `bg-background`         | Main content background |
+| `bg-[#1c1c1c]`     | `bg-muted/50`           | Card backgrounds        |
+| `bg-[#262626]`     | `bg-accent`             | Active states, hover    |
+| `bg-[#2a2a2a]`     | `bg-muted`              | Secondary backgrounds   |
+| `bg-[#1e1e1e]`     | `bg-panel`              | Panel surfaces          |
+| `text-neutral-100` | `text-foreground`       | Primary text            |
+| `text-neutral-200` | `text-foreground/90`    | Slightly muted text     |
+| `text-neutral-300` | `text-foreground/70`    | Muted text              |
+| `text-neutral-400` | `text-muted-foreground` | Secondary text          |
+| `text-neutral-500` | `text-muted-foreground` | Tertiary text           |
+| `border-[#333333]` | `border-border`         | Borders                 |
+| `border-[#2a2a2a]` | `border-border`         | Subtle borders          |
 
 ---
 
@@ -148,6 +163,7 @@ Successfully implemented a complete light/dark theme system with system preferen
 ### In Settings (Appearance Tab)
 
 Users can access the theme toggle via:
+
 1. Click "Settings" in sidebar
 2. Navigate to "Appearance" tab
 3. Select theme mode:
@@ -162,7 +178,7 @@ import { useTheme } from "@/hooks/use-theme";
 
 function MyComponent() {
   const { themeMode, resolvedTheme, setThemeMode, toggleTheme } = useTheme();
-  
+
   return (
     <div>
       <p>Current mode: {themeMode}</p>
@@ -271,12 +287,14 @@ pnpm test
 ## Files Summary
 
 ### Created (4 files)
+
 - `components/theme-provider.tsx`
 - `components/theme-mode-toggle.tsx`
 - `hooks/use-theme.ts`
 - `THEME-IMPLEMENTATION-SUMMARY.md` (this file)
 
 ### Modified (6 files)
+
 - `styles/tokens.css`
 - `app/globals.css`
 - `app/layout.tsx`
@@ -291,7 +309,7 @@ pnpm test
 **TypeScript:** ✅ No errors  
 **Build:** ✅ Successful  
 **Tests:** ✅ 6/6 passing  
-**Lint:** ✅ No issues  
+**Lint:** ✅ No issues
 
 ---
 

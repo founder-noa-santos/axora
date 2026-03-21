@@ -151,7 +151,7 @@
 | CrewAI | ❌ No (role-based, not domain) |
 | LangGraph | ❌ No |
 | Paperclip | ⚠️ Partial (company structure) |
-| **AXORA (proposed)** | ✅ **YES — First to combine DDD + agents** |
+| **OPENAKTA (proposed)** | ✅ **YES — First to combine DDD + agents** |
 
 **Why innovative:**
 1. First framework to apply DDD bounded contexts to agent teams
@@ -190,6 +190,6 @@
 
 ---
 
-**Conclusion:** User feedback was **correct and valuable**. Heartbeat is a standard pattern worth adopting. DDD Agent Teams are a **key innovation** that differentiates AXORA from all competing frameworks.
+**Conclusion:** User feedback was **correct and valuable**. Heartbeat is a standard pattern worth adopting. DDD Agent Teams are a **key innovation** that differentiates OPENAKTA from all competing frameworks.
 
 **Phase 2 revised plan is now stronger, more innovative, and more scalable.**

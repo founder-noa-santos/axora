@@ -117,7 +117,7 @@
 **Recommended Priority:**
 1. **Coordinator Agent** (Self-Orchestration)
    - Solves manual coordination problem
-   - Key differentiator for AXORA
+   - Key differentiator for OPENAKTA
    - 6-8 sprints (~2-3 weeks)
 
 2. **Desktop App** (Tauri v2 + React)

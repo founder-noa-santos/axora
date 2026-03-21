@@ -23,7 +23,7 @@ Documentation is becoming a **critical pain point** in AI agent systems. Unlike 
 - ❌ Has no feedback loop (agents can't update docs)
 - ❌ Gets lost in "documentation chaos"
 
-**AXORA opportunity:** Build documentation management as a **first-class feature**, not an afterthought.
+**OPENAKTA opportunity:** Build documentation management as a **first-class feature**, not an afterthought.
 
 ---
 
@@ -312,7 +312,7 @@ impl DocHealth {
 - [ ] Review Obsidian/Tana knowledge graphs
 
 ### Phase 3: Design Recommendations (1 hour)
-- [ ] Define AXORA documentation architecture
+- [ ] Define OPENAKTA documentation architecture
 - [ ] Specify agent-readable doc format
 - [ ] Design living docs system
 - [ ] Define health metrics

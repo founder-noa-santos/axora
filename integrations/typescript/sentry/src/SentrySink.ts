@@ -1,4 +1,4 @@
-import type { Sink, WideEventPayload } from '@axora/logger-core';
+import type { Sink, WideEventPayload } from '@openakta/logger-core';
 import * as Sentry from '@sentry/node';
 
 function severityLevel(level: WideEventPayload['level']): Sentry.SeverityLevel {
@@ -14,12 +14,12 @@ export class SentrySink implements Sink {
         scope.setTag('service', event.service);
         scope.setTag('environment', event.environment);
         scope.setTag('operation', event.operation);
-        scope.setTag('axora.event_id', event.event_id);
+        scope.setTag('openakta.event_id', event.event_id);
         scope.setExtras(event.context);
         scope.setLevel(event.level === 'fatal' ? 'fatal' : severityLevel(event.level));
 
         const error = new Error(event.error.message ?? event.operation);
-        error.name = event.error.type ?? 'AxoraError';
+        error.name = event.error.type ?? 'OpenaktaError';
         if (event.error.stack) {
           error.stack = event.error.stack;
         }
@@ -36,7 +36,7 @@ export class SentrySink implements Sink {
       data: {
         ...event.context,
         duration_ms: event.duration_ms,
-        axora_event_id: event.event_id,
+        openakta_event_id: event.event_id,
       },
       timestamp: Date.parse(event.timestamp_start) / 1000,
     });

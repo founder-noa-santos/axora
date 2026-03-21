@@ -11,7 +11,7 @@ There is no meaningful billing or plan-enforcement backend implemented today. Th
 ## Confirmed Current State
 
 - No active Stripe, Paddle, or equivalent billing integration exists in the backend crates.
-- No subscription, plan, entitlement, or seat tables are defined in the actual SQLite schema used by `axora-storage`.
+- No subscription, plan, entitlement, or seat tables are defined in the actual SQLite schema used by `openakta-storage`.
 - No billing-aware middleware, service layer, or route protection exists in the backend runtime.
 - Payment and billing references found in the repository are primarily:
   - business-rule Markdown documents
@@ -49,10 +49,10 @@ These are strategic signals, not implemented commercial enforcement.
 
 ## Implementation Evidence
 
-- `crates/axora-storage/migrations/0001_init.sql`
-- `crates/axora-core/src/server.rs`
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-agents/`
+- `crates/openakta-storage/migrations/0001_init.sql`
+- `crates/openakta-core/src/server.rs`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-agents/`
 - `docs/business_rules/PAY-001.md`
 - `docs/business_rules/PAY-002.md`
 - repository-wide search showing billing/payment terms concentrated in docs and sample content rather than runtime crates

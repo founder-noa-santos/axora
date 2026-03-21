@@ -53,7 +53,7 @@ N agents → N(N-1)/2 communication paths
 
 ## 🔄 New Architecture: Graph-Based Workflow
 
-Instead of DDD Agent Teams, AXORA now uses:
+Instead of DDD Agent Teams, OPENAKTA now uses:
 
 ```
 User Request → Deterministic Graph → Generalist Agents + Domain RAG → Output
@@ -73,12 +73,12 @@ User Request → Deterministic Graph → Generalist Agents + Domain RAG → Outp
 
 ---
 
-## 🔍 Current AXORA Agent Structure
+## 🔍 Current OPENAKTA Agent Structure
 
 **Current model:** Flat specialization
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              AXORA Agent Pool                            │
+│              OPENAKTA Agent Pool                            │
 ├─────────────────────────────────────────────────────────┤
 │  Architect │ Coder │ Reviewer │ Tester │ Debugger │ ... │
 └─────────────────────────────────────────────────────────┘
@@ -96,7 +96,7 @@ You proposed organizing agents by **domain** (DDD) or **test** (TDD):
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              AXORA Domain Teams                          │
+│              OPENAKTA Domain Teams                          │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  ┌───────────────┐  ┌───────────────┐  ┌─────────────┐ │
@@ -121,7 +121,7 @@ You proposed organizing agents by **domain** (DDD) or **test** (TDD):
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              AXORA Test-Driven Teams                     │
+│              OPENAKTA Test-Driven Teams                     │
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  ┌───────────────┐  ┌───────────────┐  ┌─────────────┐ │
@@ -164,7 +164,7 @@ Payment Team → Specialists in payments, PCI compliance, fraud
 API Team → Specialists in REST, GraphQL, versioning
 ```
 
-**AXORA DDD teams:** Same structure, but AI agents.
+**OPENAKTA DDD teams:** Same structure, but AI agents.
 
 **Benefit:** Users already understand this model. No learning curve.
 
@@ -206,7 +206,7 @@ API Team → Specialists in REST, GraphQL, versioning
 
 **DDD principle:** Bounded contexts prevent leakage between domains.
 
-**AXORA application:**
+**OPENAKTA application:**
 - Auth team doesn't touch payment code
 - Payment team doesn't touch API code
 - Clear boundaries, no accidental coupling
@@ -215,7 +215,7 @@ API Team → Specialists in REST, GraphQL, versioning
 
 ---
 
-## 📊 Proposed AXORA DDD Structure
+## 📊 Proposed OPENAKTA DDD Structure
 
 ### Default Domain Teams (Pre-configured)
 
@@ -291,8 +291,8 @@ impl DomainTeam {
 
 ```rust
 // Domain-specific channels
-let auth_subject = "axora.team.auth.tasks";
-let payment_subject = "axora.team.payment.tasks";
+let auth_subject = "openakta.team.auth.tasks";
+let payment_subject = "openakta.team.payment.tasks";
 
 // Agents subscribe to their domain channel
 nats.subscribe(auth_subject, |msg| {
@@ -317,7 +317,7 @@ nats.subscribe(auth_subject, |msg| {
 | CrewAI | ❌ No | Role-based, not domain-based |
 | LangGraph | ❌ No | State machine, no domains |
 | Paperclip | ⚠️ Partial | Company structure, not DDD |
-| **AXORA (proposed)** | ✅ **YES** | **First to combine DDD + agents** |
+| **OPENAKTA (proposed)** | ✅ **YES** | **First to combine DDD + agents** |
 
 **Why this is innovative:**
 1. **First framework** to apply DDD bounded contexts to agent teams
@@ -385,4 +385,4 @@ nats.subscribe(auth_subject, |msg| {
 
 ---
 
-**Conclusion:** DDD Agent Teams are **innovative, valuable, and feasible**. This is a **key differentiator** for AXORA. Adopt in Phase 2, Sprint 4.
+**Conclusion:** DDD Agent Teams are **innovative, valuable, and feasible**. This is a **key differentiator** for OPENAKTA. Adopt in Phase 2, Sprint 4.

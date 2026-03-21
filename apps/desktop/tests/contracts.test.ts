@@ -8,7 +8,9 @@ import {
 
 describe("desktop contracts", () => {
   it("accepts the default preferences", () => {
-    expect(preferencesSchema.parse(defaultPreferences)).toEqual(defaultPreferences);
+    expect(preferencesSchema.parse(defaultPreferences)).toEqual(
+      defaultPreferences,
+    );
   });
 
   it("rejects invalid preference patches", () => {

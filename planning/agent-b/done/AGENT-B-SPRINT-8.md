@@ -1,7 +1,7 @@
 # Agent B — Sprint 8: Context Distribution System
 
 **Sprint:** 8 of Phase 2  
-**File:** `crates/axora-cache/src/context.rs` (NOVO)  
+**File:** `crates/openakta-cache/src/context.rs` (NOVO)  
 **Estimated Time:** 8 horas  
 
 ---
@@ -18,7 +18,7 @@ Implementar sistema de **distribuição inteligente de contexto** para agents �
 - ❌ Agents se perdem em informação irrelevante
 - ❌ Custo desnecessário
 
-**Solução AXORA:**
+**Solução OPENAKTA:**
 - ✅ Contexto **mínimo necessário** por task
 - ✅ Contexto **compartilhado** apenas quando necessário
 - ✅ Contexto **sob demanda** (pull-based)
@@ -77,12 +77,12 @@ impl TaskContext {
 ## 📁 File Boundaries
 
 **Criar:**
-- `crates/axora-cache/src/context.rs` (NOVO)
-- Atualizar `crates/axora-cache/src/lib.rs` (exports)
+- `crates/openakta-cache/src/context.rs` (NOVO)
+- Atualizar `crates/openakta-cache/src/lib.rs` (exports)
 
 **NÃO editar:**
-- `crates/axora-agents/` (Agent C está aqui)
-- `crates/axora-docs/` (Agent A está aqui)
+- `crates/openakta-agents/` (Agent C está aqui)
+- `crates/openakta-docs/` (Agent A está aqui)
 
 ---
 
@@ -185,7 +185,7 @@ impl TaskContext {
 
 3. **Rodar testes:**
    ```bash
-   cargo test -p axora-cache
+   cargo test -p openakta-cache
    ```
 
 4. **Atualizar `lib.rs`:**

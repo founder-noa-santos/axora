@@ -8,6 +8,8 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: "bg-white/8 text-muted-foreground",
+        secondary:
+          "border border-white/10 bg-transparent text-muted-foreground",
         success: "bg-success/18 text-success",
         warning: "bg-warning/18 text-warning",
       },
@@ -23,7 +25,9 @@ function Badge({
   variant,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof badgeVariants>) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />;
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+  );
 }
 
 export { Badge };

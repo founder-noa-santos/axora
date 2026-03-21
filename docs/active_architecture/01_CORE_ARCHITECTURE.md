@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-AXORA uses a **hybrid architecture**:
+OPENAKTA uses a **hybrid architecture**:
 - **Cloud APIs** for reasoning (Anthropic, OpenAI) — No local LLM inference
 - **Local infrastructure** for indexing, RAG, and memory — Zero cloud costs for embeddings
 - **Deterministic orchestration** — State machines, not conversational swarms
@@ -21,7 +21,7 @@ AXORA uses a **hybrid architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    AXORA Blackboard                              │
+│                    OPENAKTA Blackboard                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐   │
@@ -69,7 +69,7 @@ impl Blackboard {
 }
 ```
 
-**Location:** `crates/axora-cache/src/blackboard/v2.rs`
+**Location:** `crates/openakta-cache/src/blackboard/v2.rs`
 
 ---
 
@@ -135,7 +135,7 @@ impl WorkerAgent {
 }
 ```
 
-**Location:** `crates/axora-agents/src/worker.rs`
+**Location:** `crates/openakta-agents/src/worker.rs`
 
 ---
 
@@ -186,7 +186,7 @@ We use **SCIP (Sourcegraph Code Intelligence Protocol)** for language-agnostic i
 - **Human-readable identifiers** — Not opaque numeric IDs
 - **Package ownership** — (manager, name, version, symbol)
 
-**Location:** `crates/axora-indexing/src/influence.rs`
+**Location:** `crates/openakta-indexing/src/influence.rs`
 
 ---
 
@@ -288,15 +288,15 @@ impl StateMachine {
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` |
-| Influence Graph | ✅ Implemented | `crates/axora-indexing/src/influence.rs` |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` |
+| Influence Graph | ✅ Implemented | `crates/openakta-indexing/src/influence.rs` |
 | Dual-Thread ReAct | ✅ Designed | Research complete |
 | NATS + Protobuf | 📋 Planned | Next sprint |
 | State Machine | ✅ Designed | Graph workflow |
 
 ---
 
-**This is the Single Source of Truth for AXORA core architecture.**
+**This is the Single Source of Truth for OPENAKTA core architecture.**
 
 **Last Reviewed:** 2026-03-18  
 **Next Review:** After MVP launch

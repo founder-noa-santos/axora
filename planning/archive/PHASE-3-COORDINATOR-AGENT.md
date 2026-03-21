@@ -35,7 +35,7 @@ User → "Done. Here's what I built."
 ## 📋 Sprint Breakdown
 
 ### Sprint 1: Coordinator Core Structure
-**File:** `crates/axora-agents/src/coordinator/v2.rs`
+**File:** `crates/openakta-agents/src/coordinator/v2.rs`
 - Coordinator agent struct
 - Worker registry
 - Task queue management
@@ -52,7 +52,7 @@ User → "Done. Here's what I built."
 ---
 
 ### Sprint 2: Task Decomposition Engine
-**File:** `crates/axora-agents/src/decomposer/v2.rs`
+**File:** `crates/openakta-agents/src/decomposer/v2.rs`
 - LLM-based mission decomposition
 - Dependency graph construction
 - Parallel group identification
@@ -69,7 +69,7 @@ User → "Done. Here's what I built."
 ---
 
 ### Sprint 3: Worker Agent Pool
-**File:** `crates/axora-agents/src/worker_pool.rs`
+**File:** `crates/openakta-agents/src/worker_pool.rs`
 - Dynamic worker spawning
 - Worker lifecycle management
 - Health monitoring
@@ -86,7 +86,7 @@ User → "Done. Here's what I built."
 ---
 
 ### Sprint 4: Blackboard (Shared State)
-**File:** `crates/axora-cache/src/blackboard/v2.rs`
+**File:** `crates/openakta-cache/src/blackboard/v2.rs`
 - Shared state for all agents
 - Versioned context (prevents conflicts)
 - Subscribe/notify pattern
@@ -103,7 +103,7 @@ User → "Done. Here's what I built."
 ---
 
 ### Sprint 5: Context Compacting
-**File:** `crates/axora-cache/src/compactor.rs`
+**File:** `crates/openakta-cache/src/compactor.rs`
 - Rolling summary (last N turns)
 - Hierarchical memory (recent full, old summarized)
 - Importance scoring (prune low-importance)
@@ -120,7 +120,7 @@ User → "Done. Here's what I built."
 ---
 
 ### Sprint 6: Progress Monitoring & Reporting
-**File:** `crates/axora-agents/src/monitor.rs`
+**File:** `crates/openakta-agents/src/monitor.rs`
 - Real-time progress tracking
 - ETA calculation
 - Blocker detection

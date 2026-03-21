@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 20 (Implementation)  
-**File:** `crates/axora-cache/src/context_pruning.rs`  
+**File:** `crates/openakta-cache/src/context_pruning.rs`  
 **Priority:** HIGH (depends on Sprint 17)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ Research provides CRITICAL implementation details:
 
 ### 1. Create context_pruning.rs
 
-**File:** `crates/axora-cache/src/context_pruning.rs`
+**File:** `crates/openakta-cache/src/context_pruning.rs`
 
 **Core Structure:**
 ```rust
@@ -106,7 +106,7 @@ impl ContextManager {
 
 ### 2. Implement Deterministic Graph Traversal
 
-**File:** `crates/axora-cache/src/context_pruning.rs` (add to existing)
+**File:** `crates/openakta-cache/src/context_pruning.rs` (add to existing)
 
 ```rust
 impl ContextManager {
@@ -168,7 +168,7 @@ impl ContextManager {
 
 ### 3. Implement TaskContext
 
-**File:** `crates/axora-cache/src/context_pruning.rs` (add to existing)
+**File:** `crates/openakta-cache/src/context_pruning.rs` (add to existing)
 
 ```rust
 /// Task Context (pruned, minimal)
@@ -241,7 +241,7 @@ pub struct BusinessRule {
 
 ### 4. Add Token Reduction Benchmarking
 
-**File:** `crates/axora-cache/src/context_pruning.rs` (add to existing)
+**File:** `crates/openakta-cache/src/context_pruning.rs` (add to existing)
 
 ```rust
 /// Token reduction benchmark
@@ -300,7 +300,7 @@ impl ContextManager {
 
 ### 5. Integrate with Existing Context Manager
 
-**File:** `crates/axora-cache/src/context.rs` (UPDATE from Sprint 11)
+**File:** `crates/openakta-cache/src/context.rs` (UPDATE from Sprint 11)
 
 ```rust
 // Add to existing ContextManager
@@ -327,15 +327,15 @@ impl ContextManager {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-cache/src/context_pruning.rs` (NEW)
+- `crates/openakta-cache/src/context_pruning.rs` (NEW)
 
 **Update:**
-- `crates/axora-cache/src/lib.rs` (add module export)
-- `crates/axora-cache/src/context.rs` (integrate pruning)
+- `crates/openakta-cache/src/lib.rs` (add module export)
+- `crates/openakta-cache/src/context.rs` (integrate pruning)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 **Dependencies:**
 - Sprint 17 (Influence Vector Calculation) — must complete first

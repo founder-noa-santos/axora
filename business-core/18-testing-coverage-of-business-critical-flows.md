@@ -24,11 +24,11 @@ The repository has meaningful tests around orchestration, patch validation, blac
 
 | Area | Evidence |
 | --- | --- |
-| Mission execution | `crates/axora-agents/tests/coordinator_v2.rs` |
-| Diff-only enforcement | `crates/axora-agents/src/result_contract.rs` tests |
-| Server startup and basic RPCs | `crates/axora-core/tests/integration.rs` |
-| Blackboard V2 | `crates/axora-cache/src/blackboard/v2.rs` tests, `crates/axora-cache/tests/blackboard_v2.rs` |
-| Atomic checkout queue | `crates/axora-indexing/src/task_queue.rs` tests |
+| Mission execution | `crates/openakta-agents/tests/coordinator_v2.rs` |
+| Diff-only enforcement | `crates/openakta-agents/src/result_contract.rs` tests |
+| Server startup and basic RPCs | `crates/openakta-core/tests/integration.rs` |
+| Blackboard V2 | `crates/openakta-cache/src/blackboard/v2.rs` tests, `crates/openakta-cache/tests/blackboard_v2.rs` |
+| Atomic checkout queue | `crates/openakta-indexing/src/task_queue.rs` tests |
 
 ### Weak or absent areas
 
@@ -42,15 +42,15 @@ The repository has meaningful tests around orchestration, patch validation, blac
 
 ## Implementation Evidence
 
-- `crates/axora-agents/tests/coordinator_v2.rs`
-- `crates/axora-core/tests/integration.rs`
-- `crates/axora-cache/tests/blackboard_v2.rs`
-- `crates/axora-indexing/src/task_queue.rs`
-- `crates/axora-cache/benches/token_savings.rs`
+- `crates/openakta-agents/tests/coordinator_v2.rs`
+- `crates/openakta-core/tests/integration.rs`
+- `crates/openakta-cache/tests/blackboard_v2.rs`
+- `crates/openakta-indexing/src/task_queue.rs`
+- `crates/openakta-cache/benches/token_savings.rs`
 
 ## Business Meaning
 
-The test suite aligns with AXORA’s real business core: execution safety, coordination, transport, and context optimization. It does not support the illusion that customer/business SaaS flows are production-ready.
+The test suite aligns with OPENAKTA’s real business core: execution safety, coordination, transport, and context optimization. It does not support the illusion that customer/business SaaS flows are production-ready.
 
 ## Open Ambiguities
 

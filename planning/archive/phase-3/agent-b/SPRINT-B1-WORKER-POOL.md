@@ -24,7 +24,7 @@ Implement dynamic worker agent pool with lifecycle management, health monitoring
 
 ### Subagent 1: Lifecycle Manager
 **Task:** Implement worker lifecycle (spawn, terminate, restart)
-**File:** `crates/axora-agents/src/worker_pool/lifecycle.rs`
+**File:** `crates/openakta-agents/src/worker_pool/lifecycle.rs`
 **Deliverables:**
 - `WorkerLifecycle` enum (Spawning, Ready, Busy, Failed, Terminated)
 - `spawn_worker()` creates new worker
@@ -34,7 +34,7 @@ Implement dynamic worker agent pool with lifecycle management, health monitoring
 
 ### Subagent 2: Health Monitor
 **Task:** Implement health monitoring with heartbeat
-**File:** `crates/axora-agents/src/worker_pool/health_monitor.rs`
+**File:** `crates/openakta-agents/src/worker_pool/health_monitor.rs`
 **Deliverables:**
 - `HealthMonitor` struct
 - `check_health(worker_id)` returns status
@@ -44,7 +44,7 @@ Implement dynamic worker agent pool with lifecycle management, health monitoring
 
 ### Subagent 3: Worker Spawner
 **Task:** Implement dynamic spawning with resource limits
-**File:** `crates/axora-agents/src/worker_pool/spawner.rs`
+**File:** `crates/openakta-agents/src/worker_pool/spawner.rs`
 **Deliverables:**
 - `WorkerSpawner` struct
 - `spawn_if_capacity()` respects max_workers limit
@@ -54,7 +54,7 @@ Implement dynamic worker agent pool with lifecycle management, health monitoring
 
 ### Subagent 4: Task Dispatcher
 **Task:** Implement task dispatch to workers
-**File:** `crates/axora-agents/src/worker_pool/dispatcher.rs`
+**File:** `crates/openakta-agents/src/worker_pool/dispatcher.rs`
 **Deliverables:**
 - `TaskDispatcher` struct
 - `dispatch(task_id, worker_id)` sends task
@@ -74,7 +74,7 @@ Implement dynamic worker agent pool with lifecycle management, health monitoring
    - Resolve conflicts (e.g., lifecycle vs health state)
 
 2. **Integrate Components:**
-   - Create `crates/axora-agents/src/worker_pool.rs` (main module)
+   - Create `crates/openakta-agents/src/worker_pool.rs` (main module)
    - Combine all 4 components
    - Export unified `WorkerPool` struct
 
@@ -90,7 +90,7 @@ Implement dynamic worker agent pool with lifecycle management, health monitoring
    - Test resource limits (max_workers enforced)
 
 5. **Update Documentation:**
-   - Add module to `crates/axora-agents/src/lib.rs`
+   - Add module to `crates/openakta-agents/src/lib.rs`
    - Add worker pool examples
 
 ---

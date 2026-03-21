@@ -10,12 +10,12 @@
 
 **This idea was adopted enthusiastically without proper validation.** That was a mistake.
 
-**Current claim:** "DDD Agent Teams are innovative and valuable for AXORA"
+**Current claim:** "DDD Agent Teams are innovative and valuable for OPENAKTA"
 
 **What we need:** **Skeptical, evidence-based validation** — not confirmation bias.
 
 **Key question:** Is organizing agents by domain (DDD bounded contexts) actually better than:
-- Flat specialization (current AXORA model)?
+- Flat specialization (current OPENAKTA model)?
 - Role-based teams (CrewAI model)?
 - Task-based dynamic teams?
 
@@ -68,7 +68,7 @@
 
 **Questions:**
 - At what scale does DDD become **necessary** vs **optional**?
-- Is DDD beneficial for **individual developers** (AXORA's target)?
+- Is DDD beneficial for **individual developers** (OPENAKTA's target)?
 - Or is DDD only valuable for **enterprise/team** deployments?
 
 **Skeptical sub-questions:**
@@ -95,7 +95,7 @@
 ### 5. User Value Proposition
 
 **Questions:**
-- Would **individual developers** (AXORA's target) actually value this?
+- Would **individual developers** (OPENAKTA's target) actually value this?
 - Or is this a **solution in search of a problem**?
 - What **user pain point** does DDD solve?
 

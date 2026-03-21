@@ -1,7 +1,7 @@
 {
-  "name": "@axora/logger-otel",
+  "name": "@openakta/logger-otel",
   "version": "0.1.0",
-  "description": "AXORA Wide Event OpenTelemetry adapter",
+  "description": "OPENAKTA Wide Event OpenTelemetry adapter",
   "type": "module",
   "exports": {
     ".": {
@@ -25,14 +25,14 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@axora/logger-core": "workspace:*"
+    "@openakta/logger-core": "workspace:*"
   },
   "peerDependencies": {
     "@opentelemetry/api-logs": "^0.52.0",
     "@opentelemetry/sdk-logs": "^0.52.0"
   },
   "devDependencies": {
-    "@axora/logger-core": "workspace:*",
+    "@openakta/logger-core": "workspace:*",
     "@opentelemetry/api-logs": "^0.52.0",
     "@opentelemetry/sdk-logs": "^0.52.0",
     "@types/node": "^20.10.0",

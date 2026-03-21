@@ -405,7 +405,7 @@ impl MerkleIndex {
 - [ ] Connect embedder → chunker → vector store
 - [ ] Implement `retrieve_relevant_context(query, k=10)`
 - [ ] Add reranking (cross-encoder for precision)
-- [ ] Integrate with existing `axora-rag` crate
+- [ ] Integrate with existing `openakta-rag` crate
 - [ ] Add retrieval metrics (latency, precision)
 
 **Sprint 6: Performance Optimization**
@@ -452,9 +452,9 @@ impl MerkleIndex {
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| `axora-embeddings` | ✅ Exists (placeholder) | `crates/axora-embeddings/` |
-| `axora-rag` | ✅ Exists (BM25 only) | `crates/axora-rag/` |
-| `axora-indexing` | ✅ Exists (file watching) | `crates/axora-indexing/` |
+| `openakta-embeddings` | ✅ Exists (placeholder) | `crates/openakta-embeddings/` |
+| `openakta-rag` | ✅ Exists (BM25 only) | `crates/openakta-rag/` |
+| `openakta-indexing` | ✅ Exists (file watching) | `crates/openakta-indexing/` |
 | `tree-sitter` | ✅ In workspace deps | `Cargo.toml` |
 | `candle-*` | ✅ In workspace deps | `Cargo.toml` |
 | `qdrant-client` | ✅ In workspace deps | `Cargo.toml` |
@@ -464,18 +464,18 @@ impl MerkleIndex {
 
 | Component | Current State | Target State |
 |-----------|---------------|--------------|
-| `axora-embeddings` | Pseudo-embeddings (hash-based) | Real Jina Code v2 via Candle |
-| `axora-rag` | BM25 only | Hybrid (BM25 + vectors) |
-| `axora-indexing` | File hashing only | AST chunking + Merkle trees |
+| `openakta-embeddings` | Pseudo-embeddings (hash-based) | Real Jina Code v2 via Candle |
+| `openakta-rag` | BM25 only | Hybrid (BM25 + vectors) |
+| `openakta-indexing` | File hashing only | AST chunking + Merkle trees |
 | Vector DB | Not implemented | Qdrant Embedded |
 
 ### Migration Path
 
 1. **Keep existing crate structure** (no breaking changes)
 2. **Replace pseudo-embedder** with real Candle-based embedder
-3. **Add Qdrant client** to `axora-rag` crate
-4. **Enhance chunker** in `axora-indexing` with AST support
-5. **Add Merkle index** as new module in `axora-indexing`
+3. **Add Qdrant client** to `openakta-rag` crate
+4. **Enhance chunker** in `openakta-indexing` with AST support
+5. **Add Merkle index** as new module in `openakta-indexing`
 
 ---
 

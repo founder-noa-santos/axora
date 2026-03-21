@@ -1,7 +1,7 @@
 {
-  "name": "@axora/logger-datadog",
+  "name": "@openakta/logger-datadog",
   "version": "0.1.0",
-  "description": "AXORA Wide Event Datadog adapter",
+  "description": "OPENAKTA Wide Event Datadog adapter",
   "type": "module",
   "exports": {
     ".": {
@@ -25,13 +25,13 @@
     "format": "prettier --check ."
   },
   "dependencies": {
-    "@axora/logger-core": "workspace:*"
+    "@openakta/logger-core": "workspace:*"
   },
   "peerDependencies": {
     "dd-trace": "^5.0.0"
   },
   "devDependencies": {
-    "@axora/logger-core": "workspace:*",
+    "@openakta/logger-core": "workspace:*",
     "@types/node": "^20.10.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",

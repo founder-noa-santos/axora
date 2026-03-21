@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Token Efficiency & Compression for LLM Agent Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system. Token usage is a CRITICAL cost and latency factor. When agents communicate, share context, and process code, token costs multiply quickly. We need SCIENTIFIC-LEVEL understanding of token optimization. This research must be production-grade with quantitative data.
+I'm building OPENAKTA, a multi-agent AI coding system. Token usage is a CRITICAL cost and latency factor. When agents communicate, share context, and process code, token costs multiply quickly. We need SCIENTIFIC-LEVEL understanding of token optimization. This research must be production-grade with quantitative data.
 
 ## Core Research Questions
 

@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Axora.Logger.Sinks;
+using Openakta.Logger.Sinks;
 
-namespace Axora.Logger.Datadog;
+namespace Openakta.Logger.Datadog;
 
 public sealed class DatadogSink : ISink
 {
@@ -14,7 +14,7 @@ public sealed class DatadogSink : ISink
             ["service"] = @event.Service,
             ["message"] = @event.Operation,
             ["duration"] = @event.DurationMs,
-            ["dd.axora_event_id"] = @event.EventId,
+            ["dd.openakta_event_id"] = @event.EventId,
             ["dd.env"] = @event.Environment,
         };
 

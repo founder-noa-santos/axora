@@ -24,7 +24,7 @@ Implement Coordinator Agent core structure with worker registry, task queue inte
 
 ### Subagent 1: Coordinator Struct + Worker Registry
 **Task:** Implement Coordinator core struct with worker management
-**File:** `crates/axora-agents/src/coordinator/v2_core.rs`
+**File:** `crates/openakta-agents/src/coordinator/v2_core.rs`
 **Deliverables:**
 - `Coordinator` struct (main orchestrator)
 - `worker_registry` (track all workers)
@@ -34,7 +34,7 @@ Implement Coordinator Agent core structure with worker registry, task queue inte
 
 ### Subagent 2: Task Queue Integration
 **Task:** Integrate task queue with coordinator
-**File:** `crates/axora-agents/src/coordinator/v2_queue_integration.rs`
+**File:** `crates/openakta-agents/src/coordinator/v2_queue_integration.rs`
 **Deliverables:**
 - `TaskQueueIntegration` struct
 - `load_tasks(mission)` loads decomposed tasks
@@ -44,7 +44,7 @@ Implement Coordinator Agent core structure with worker registry, task queue inte
 
 ### Subagent 3: Basic Dispatch Mechanism
 **Task:** Implement basic task dispatch loop
-**File:** `crates/axora-agents/src/coordinator/v2_dispatcher.rs`
+**File:** `crates/openakta-agents/src/coordinator/v2_dispatcher.rs`
 **Deliverables:**
 - `Dispatcher` struct
 - `dispatch_loop()` main dispatch loop
@@ -64,7 +64,7 @@ Implement Coordinator Agent core structure with worker registry, task queue inte
    - Resolve integration issues
 
 2. **Integrate Components:**
-   - Create `crates/axora-agents/src/coordinator/v2.rs` (main module)
+   - Create `crates/openakta-agents/src/coordinator/v2.rs` (main module)
    - Combine all 3 subagent components
    - Export unified `Coordinator` struct
 
@@ -80,7 +80,7 @@ Implement Coordinator Agent core structure with worker registry, task queue inte
    - Test mission execution (end-to-end)
 
 5. **Update Documentation:**
-   - Add module to `crates/axora-agents/src/lib.rs`
+   - Add module to `crates/openakta-agents/src/lib.rs`
    - Add coordinator examples
 
 ---

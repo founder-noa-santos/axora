@@ -6,11 +6,11 @@ Describe the journeys that are actually implemented in the current backend.
 
 ## Executive Summary
 
-The real journeys are now mission-first developer journeys around `axora do ...`. AXORA supports a live end-to-end flow: automatic runtime bootstrap, native MCP startup, base squad initialization, mission decomposition, compressed-context assembly, live provider execution, dual-thread ReAct task execution, deterministic patch application, memory logging, and doc synchronization.
+The real journeys are now mission-first developer journeys around `openakta do ...`. OPENAKTA supports a live end-to-end flow: automatic runtime bootstrap, native MCP startup, base squad initialization, mission decomposition, compressed-context assembly, live provider execution, dual-thread ReAct task execution, deterministic patch application, memory logging, and doc synchronization.
 
 ## Confirmed Current Journeys
 
-- Run `axora do "..."` and let the runtime bootstrap itself.
+- Run `openakta do "..."` and let the runtime bootstrap itself.
 - Submit or execute a mission through `CoordinatorV2`.
 - Run coding tasks through a planner/actor ReAct loop with MCP-routed tools.
 - Execute code modifications through validated diff output and deterministic patch application.
@@ -18,9 +18,9 @@ The real journeys are now mission-first developer journeys around `axora do ...`
 
 ## Journey: Start the Runtime
 
-1. Developer runs `axora do "<mission>"`.
+1. Developer runs `openakta do "<mission>"`.
 2. Workspace root is inferred from the current directory.
-3. `.axora/` runtime paths are created automatically.
+3. `.openakta/` runtime paths are created automatically.
 4. SQLite, procedural skills, and local semantic stores are initialized.
 5. The native MCP service is started as an embedded runtime dependency.
 6. Memory pruning, consolidation, and doc-sync services begin running.
@@ -55,16 +55,16 @@ The real journeys are now mission-first developer journeys around `axora do ...`
 
 ## Implementation Evidence
 
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-cli/src/main.rs`
-- `crates/axora-core/src/bootstrap.rs`
-- `crates/axora-core/src/runtime_services.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-agents/src/provider_transport.rs`
-- `crates/axora-agents/src/prompt_assembly.rs`
-- `crates/axora-agents/src/react.rs`
-- `crates/axora-agents/src/mcp_client.rs`
-- `crates/axora-mcp-server/src/lib.rs`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-cli/src/main.rs`
+- `crates/openakta-core/src/bootstrap.rs`
+- `crates/openakta-core/src/runtime_services.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-agents/src/provider_transport.rs`
+- `crates/openakta-agents/src/prompt_assembly.rs`
+- `crates/openakta-agents/src/react.rs`
+- `crates/openakta-agents/src/mcp_client.rs`
+- `crates/openakta-mcp-server/src/lib.rs`
 
 ## Business Meaning
 

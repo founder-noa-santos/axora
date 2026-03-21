@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using Axora.Logger.Sinks;
+using Openakta.Logger.Sinks;
 
-namespace Axora.Logger.Otel;
+namespace Openakta.Logger.Otel;
 
 public interface IOtelLoggerLike
 {
@@ -19,24 +19,24 @@ public sealed class OtelSink : ISink
 
     public OtelSink(IOtelLoggerProviderLike provider)
     {
-        _logger = provider.GetLogger("axora-logger", "0.1.0");
+        _logger = provider.GetLogger("openakta-logger", "0.1.0");
     }
 
     public Task ExportAsync(WideEventPayload @event)
     {
         var attributes = new Dictionary<string, object?>
         {
-            ["axora.event_id"] = @event.EventId,
-            ["axora.operation"] = @event.Operation,
-            ["axora.status"] = @event.Status,
-            ["axora.duration_ms"] = @event.DurationMs,
+            ["openakta.event_id"] = @event.EventId,
+            ["openakta.operation"] = @event.Operation,
+            ["openakta.status"] = @event.Status,
+            ["openakta.duration_ms"] = @event.DurationMs,
             ["service.name"] = @event.Service,
             ["deployment.environment.name"] = @event.Environment,
         };
 
         foreach (var (key, value) in @event.Context)
         {
-            attributes[$"axora.ctx.{key}"] = value;
+            attributes[$"openakta.ctx.{key}"] = value;
         }
 
         if (@event.Error.Message is not null)

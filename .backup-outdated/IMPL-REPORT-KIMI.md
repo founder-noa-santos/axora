@@ -2,7 +2,7 @@
 
 **Model:** Kimi (Kimi Code CLI)  
 **Audit Date:** 2026-03-19  
-**Repository:** AXORA Multi-Agent System  
+**Repository:** OPENAKTA Multi-Agent System  
 **Scope:** Phase 1 (Hybrid/Diff/Patch) + Phase 2 (API Cost Optimization)
 
 ---
@@ -43,22 +43,22 @@ The implementation is structurally sound with many correct types, protocols, and
 
 ### Repositories/Crates/Files Reviewed
 - `proto/collective/v1/core.proto` - Protobuf definitions
-- `crates/axora-agents/src/patch_protocol.rs` - Patch protocol, diff validation
-- `crates/axora-agents/src/provider.rs` - Provider adapters, prompt caching
-- `crates/axora-agents/src/result_contract.rs` - Publication guard
-- `crates/axora-agents/src/retrieval.rs` - Graph-based retrieval
-- `crates/axora-agents/src/transport.rs` - Protobuf transport adapters
-- `crates/axora-agents/src/graph.rs` - Workflow graph with hardening
-- `crates/axora-agents/src/communication.rs` - Message bus (mixed typed/string)
-- `crates/axora-agents/src/coordinator.rs` - Coordinator v1 (has diff enforcement)
-- `crates/axora-agents/src/coordinator/v2.rs` - Coordinator v2 (NO diff enforcement)
-- `crates/axora-agents/src/coordinator/v2_dispatcher.rs` - Task dispatch
-- `crates/axora-cache/src/toon.rs` - TOON serialization
-- `crates/axora-cache/src/prefix_cache.rs` - Prefix caching
-- `crates/axora-indexing/src/scip.rs` - SCIP indexing
-- `crates/axora-indexing/src/influence.rs` - Influence graph
-- `crates/axora-indexing/src/merkle.rs` - Merkle tree indexing
-- `crates/axora-cache/benches/token_savings.rs` - Benchmarks
+- `crates/openakta-agents/src/patch_protocol.rs` - Patch protocol, diff validation
+- `crates/openakta-agents/src/provider.rs` - Provider adapters, prompt caching
+- `crates/openakta-agents/src/result_contract.rs` - Publication guard
+- `crates/openakta-agents/src/retrieval.rs` - Graph-based retrieval
+- `crates/openakta-agents/src/transport.rs` - Protobuf transport adapters
+- `crates/openakta-agents/src/graph.rs` - Workflow graph with hardening
+- `crates/openakta-agents/src/communication.rs` - Message bus (mixed typed/string)
+- `crates/openakta-agents/src/coordinator.rs` - Coordinator v1 (has diff enforcement)
+- `crates/openakta-agents/src/coordinator/v2.rs` - Coordinator v2 (NO diff enforcement)
+- `crates/openakta-agents/src/coordinator/v2_dispatcher.rs` - Task dispatch
+- `crates/openakta-cache/src/toon.rs` - TOON serialization
+- `crates/openakta-cache/src/prefix_cache.rs` - Prefix caching
+- `crates/openakta-indexing/src/scip.rs` - SCIP indexing
+- `crates/openakta-indexing/src/influence.rs` - Influence graph
+- `crates/openakta-indexing/src/merkle.rs` - Merkle tree indexing
+- `crates/openakta-cache/benches/token_savings.rs` - Benchmarks
 
 ### Important Limits in Review
 - Did NOT verify actual provider API behavior (Anthropic/OpenAI)
@@ -220,7 +220,7 @@ Incremental indexing is a key efficiency requirement. Without this connection, e
 
 **Evidence:**
 - `merkle.rs`: Complete implementation with `diff()`, `find_changed()`, `update()`
-- No calls to `MerkleTree` in `axora-agents` coordinator or retrieval paths
+- No calls to `MerkleTree` in `openakta-agents` coordinator or retrieval paths
 - No integration with file watcher (no `notify` usage in `merkle.rs`)
 
 **Plan violation:**
@@ -250,7 +250,7 @@ This creates a dual transport system: protobuf is defined but not used for typed
 - No usage of `proto::TaskAssignment`, `proto::ResultSubmission` in communication layer
 
 **Plan violation:**
-Plan 2: "Extend the existing proto surface in `axora-proto` for coordinator/worker/system orchestration instead of leaving `communication.rs` as string-content messaging."
+Plan 2: "Extend the existing proto surface in `openakta-proto` for coordinator/worker/system orchestration instead of leaving `communication.rs` as string-content messaging."
 
 **Recommended fix:**
 Refactor `CommunicationProtocol` to use protobuf message types directly. The `Message` proto already has `task_assignment`, `result_submission`, etc. fields - use those instead of JSON strings.

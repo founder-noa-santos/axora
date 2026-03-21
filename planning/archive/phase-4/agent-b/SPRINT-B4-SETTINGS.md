@@ -12,7 +12,7 @@
 
 Implement Settings panel for model selection, token limits, worker pool settings, and theme preferences.
 
-**Context:** Users need to configure AXORA behavior (models, limits, preferences).
+**Context:** Users need to configure OPENAKTA behavior (models, limits, preferences).
 
 **Difficulty:** ⚠️ **MEDIUM** — Settings UI, local storage, sync with backend
 
@@ -221,7 +221,7 @@ export const useSettingsStore = create<SettingsStore>()(
       },
     }),
     {
-      name: 'axora-settings', // Local storage key
+      name: 'openakta-settings', // Local storage key
       partialize: (state) => ({ settings: state.settings }),
     }
   )

@@ -1,6 +1,6 @@
 # Wide Event Schema
 
-This document is the canonical payload contract for AXORA diagnostics SDKs.
+This document is the canonical payload contract for OPENAKTA diagnostics SDKs.
 Every language implementation emits one sealed Wide Event per logical operation.
 
 ## Contract Summary
@@ -16,7 +16,7 @@ Every language implementation emits one sealed Wide Event per logical operation.
 
 The machine-readable contract lives in:
 
-[`docs/wide-event-schema.json`](/Users/noasantos/Fluri/axora/docs/wide-event-schema.json)
+[`docs/wide-event-schema.json`](/Users/noasantos/Fluri/openakta/docs/wide-event-schema.json)
 
 ## Notes for SDK Authors
 

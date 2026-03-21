@@ -56,12 +56,14 @@ var api = {
     }
   },
   preferences: {
-    get: () => import_electron.ipcRenderer.invoke(ipcChannels.getPreferences),
+    get: () => import_electron.ipcRenderer.invoke(
+      ipcChannels.getPreferences
+    ),
     update: (patch) => import_electron.ipcRenderer.invoke(
       ipcChannels.updatePreferences,
       patch
     )
   }
 };
-import_electron.contextBridge.exposeInMainWorld("axoraDesktop", api);
+import_electron.contextBridge.exposeInMainWorld("openaktaDesktop", api);
 //# sourceMappingURL=preload.cjs.map

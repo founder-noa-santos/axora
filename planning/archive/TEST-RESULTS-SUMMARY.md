@@ -9,16 +9,16 @@
 
 | Crate | Tests | Status |
 |-------|-------|--------|
-| axora-proto | 0 | ✅ Pass (warnings only) |
-| axora-storage | 7 | ✅ Pass |
-| axora-core | 1 | ✅ Pass |
-| axora-embeddings | 6 | ✅ Pass |
-| axora-agents | 93 | ✅ Pass |
-| axora-cache | 76 | ✅ Pass |
-| axora-docs | 54 | ✅ Pass |
-| axora-indexing | 43 | ✅ Pass |
-| axora-memory | 5 | ✅ Pass |
-| axora-daemon | 3 | ✅ Pass |
+| openakta-proto | 0 | ✅ Pass (warnings only) |
+| openakta-storage | 7 | ✅ Pass |
+| openakta-core | 1 | ✅ Pass |
+| openakta-embeddings | 6 | ✅ Pass |
+| openakta-agents | 93 | ✅ Pass |
+| openakta-cache | 76 | ✅ Pass |
+| openakta-docs | 54 | ✅ Pass |
+| openakta-indexing | 43 | ✅ Pass |
+| openakta-memory | 5 | ✅ Pass |
+| openakta-daemon | 3 | ✅ Pass |
 | Integration tests | 5 | ✅ Pass |
 
 **Total:** 293 tests passing ✅
@@ -27,68 +27,68 @@
 
 ## 🔧 Fixes Applied
 
-### 1. axora-core: test_server_creation
+### 1. openakta-core: test_server_creation
 **Error:** `frame_number()` method not found  
 **Fix:** Changed test to check `agents.read().await.is_empty()` instead  
-**File:** `crates/axora-core/src/server.rs`
+**File:** `crates/openakta-core/src/server.rs`
 
-### 2. axora-agents/Cargo.toml: Missing dev-dependencies
-**Error:** `axora_docs` and `axora_cache` not found in integration tests  
+### 2. openakta-agents/Cargo.toml: Missing dev-dependencies
+**Error:** `openakta_docs` and `openakta_cache` not found in integration tests  
 **Fix:** Uncommented dev-dependencies  
-**File:** `crates/axora-agents/Cargo.toml`
+**File:** `crates/openakta-agents/Cargo.toml`
 
-### 3. axora-cache: Doc-test fixes (4 files)
+### 3. openakta-cache: Doc-test fixes (4 files)
 
 #### rag.rs
 **Error:** Wrong API usage in example  
 **Fix:** Updated example to use correct `add_experience()` signature  
-**File:** `crates/axora-cache/src/rag.rs`
+**File:** `crates/openakta-cache/src/rag.rs`
 
 #### context.rs
 **Error:** Wrong API usage in example  
 **Fix:** Simplified example to avoid accessing internal fields  
-**File:** `crates/axora-cache/src/context.rs`
+**File:** `crates/openakta-cache/src/context.rs`
 
 #### context_pruning.rs
 **Error:** Example required InfluenceGraph (complex)  
 **Fix:** Simplified example to just show import  
-**File:** `crates/axora-cache/src/context_pruning.rs`
+**File:** `crates/openakta-cache/src/context_pruning.rs`
 
 #### concurrency.rs
 **Status:** ✅ Already passing
 
-### 4. axora-memory: lib.rs doc-test
+### 4. openakta-memory: lib.rs doc-test
 **Error:** `await` in non-async function  
 **Fix:** Added `#[tokio::main]` and `async fn main()` wrapper  
-**File:** `crates/axora-memory/src/lib.rs`
+**File:** `crates/openakta-memory/src/lib.rs`
 
 ---
 
 ## 📝 Warnings (Non-Critical)
 
-### axora-proto (72 warnings)
+### openakta-proto (72 warnings)
 - Missing documentation for generated proto types
 - **Action:** Can be ignored (generated code)
 
-### axora-agents (76 warnings)
+### openakta-agents (76 warnings)
 - Unused imports, variables
 - Dead code (unused structs/fields)
 - Missing documentation
 - **Action:** Can be cleaned up later (not blocking)
 
-### axora-cache (21 warnings)
+### openakta-cache (21 warnings)
 - Missing documentation for struct fields
 - **Action:** Minor documentation improvements
 
-### axora-memory (21 warnings)
+### openakta-memory (21 warnings)
 - Missing documentation for struct fields
 - **Action:** Minor documentation improvements
 
-### axora-core (3 warnings)
+### openakta-core (3 warnings)
 - Unused imports
 - **Action:** Minor cleanup
 
-### axora-embeddings (4 warnings)
+### openakta-embeddings (4 warnings)
 - Unused import (`Tensor`)
 - Dead code (`device` field)
 - **Action:** Minor cleanup

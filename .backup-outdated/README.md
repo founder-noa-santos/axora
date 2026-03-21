@@ -1,4 +1,4 @@
-# AXORA Research Hub
+# OPENAKTA Research Hub
 
 ## Overview
 

@@ -1,8 +1,8 @@
 # Python Example
 
 ```python
-from axora_logger import Logger
-from axora_logger.sinks.console_sink import ConsoleSink
+from openakta_logger import Logger
+from openakta_logger.sinks.console_sink import ConsoleSink
 
 logger = Logger(
     service="billing-api",

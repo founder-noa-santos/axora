@@ -275,7 +275,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1 className="text-2xl font-bold text-primary">AXORA</h1>
+        <h1 className="text-2xl font-bold text-primary">OPENAKTA</h1>
         <Badge variant="secondary">v0.1.0</Badge>
       </header>
       
@@ -286,7 +286,7 @@ function App() {
       <main className="content">
         <Card>
           <CardHeader>
-            <CardTitle>Welcome to AXORA</CardTitle>
+            <CardTitle>Welcome to OPENAKTA</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">

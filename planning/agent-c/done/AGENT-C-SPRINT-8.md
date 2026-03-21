@@ -1,7 +1,7 @@
 # Agent C — Sprint 8: Task Decomposition Pivot (Graph-Based, Not DDD)
 
 **Sprint:** 8 of Phase 2 (REPLACES Sprint 7)  
-**File:** `crates/axora-agents/src/decomposer.rs` + `crates/axora-agents/src/graph.rs`  
+**File:** `crates/openakta-agents/src/decomposer.rs` + `crates/openakta-agents/src/graph.rs`  
 **Estimated Tokens:** ~100K output tokens  
 
 ---
@@ -78,7 +78,7 @@ impl MissionDecomposer {
 
 ### 2. Create graph.rs (NEW FILE)
 
-**File:** `crates/axora-agents/src/graph.rs`
+**File:** `crates/openakta-agents/src/graph.rs`
 
 **Purpose:** Graph-Based Deterministic Workflow Engine
 
@@ -176,7 +176,7 @@ impl WorkflowGraph {
 
 ### 3. Implement Deterministic Routing
 
-**File:** `crates/axora-agents/src/graph.rs` (add to existing)
+**File:** `crates/openakta-agents/src/graph.rs` (add to existing)
 
 ```rust
 impl WorkflowGraph {
@@ -221,7 +221,7 @@ impl WorkflowGraph {
 
 ### 4. Add Sequential vs Parallel Detection
 
-**File:** `crates/axora-agents/src/decomposer.rs` (add to existing)
+**File:** `crates/openakta-agents/src/decomposer.rs` (add to existing)
 
 ```rust
 pub struct ParallelismDetector {
@@ -262,14 +262,14 @@ pub enum ExecutionMode {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-agents/src/graph.rs` (NEW)
+- `crates/openakta-agents/src/graph.rs` (NEW)
 
 **Update:**
-- `crates/axora-agents/src/decomposer.rs` (refactor to graph-based)
+- `crates/openakta-agents/src/decomposer.rs` (refactor to graph-based)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's domain)
 
 ---
 

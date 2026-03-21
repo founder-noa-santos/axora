@@ -31,7 +31,7 @@ describe('DatadogSink', () => {
       message: 'job.run',
       duration: 500,
       attempt: 2,
-      'dd.axora_event_id': '2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d',
+      'dd.openakta_event_id': '2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d',
       'dd.env': 'production',
     });
   });

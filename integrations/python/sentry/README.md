@@ -1,3 +1,3 @@
-# axora-logger-sentry
+# openakta-logger-sentry
 
-Sentry adapter for AXORA Wide Events.
+Sentry adapter for OPENAKTA Wide Events.

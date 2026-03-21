@@ -1,0 +1,43 @@
+[package]
+name = "openakta-embeddings"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Embedding inference for OPENAKTA using Candle and Jina Code Embeddings"
+
+[lints]
+workspace = true
+
+[dependencies]
+# ML/Embeddings
+candle-core.workspace = true
+candle-transformers.workspace = true
+candle-nn.workspace = true
+
+# Async
+tokio.workspace = true
+async-trait = "0.1"
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Utilities
+tracing.workspace = true
+once_cell.workspace = true
+parking_lot.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "embed_bench"
+harness = false

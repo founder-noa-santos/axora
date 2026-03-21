@@ -1,4 +1,4 @@
-# AXORA Implementation Plan
+# OPENAKTA Implementation Plan
 
 ## Status
 

@@ -90,7 +90,10 @@ function registerIpcHandlers(info, shellState2, mainWindow) {
     ipcChannels.updatePreferences,
     async (_event, payload) => writePreferences(payload)
   );
-  import_electron2.ipcMain.handle(ipcChannels.getFullscreenState, async () => mainWindow.isFullScreen());
+  import_electron2.ipcMain.handle(
+    ipcChannels.getFullscreenState,
+    async () => mainWindow.isFullScreen()
+  );
   mainWindow.on("enter-full-screen", () => {
     mainWindow.webContents.send(ipcChannels.onFullscreenChange, true);
   });
@@ -105,7 +108,7 @@ var rendererUrl = process.env.ELECTRON_RENDERER_URL;
 var rendererEntry = (0, import_node_path2.join)(__dirname, "../out/index.html");
 var preloadPath = (0, import_node_path2.join)(__dirname, "preload.cjs");
 var appInfo = {
-  name: "AXORA",
+  name: "OPENAKTA",
   version: import_electron3.app.getVersion(),
   platform: process.platform,
   arch: process.arch,

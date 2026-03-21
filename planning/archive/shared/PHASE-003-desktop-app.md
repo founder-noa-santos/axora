@@ -285,7 +285,7 @@ prost = "0.12"
 ### Layout
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  AXORA                           [Settings] [Profile]   │
+│  OPENAKTA                           [Settings] [Profile]   │
 ├────────────┬────────────────────────────────────────────┤
 │            │                                            │
 │  Agents    │           Main Content Area                │

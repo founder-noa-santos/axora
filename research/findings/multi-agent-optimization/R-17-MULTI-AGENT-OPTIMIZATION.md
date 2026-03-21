@@ -58,16 +58,16 @@
 
 | Component | Status | Location | Completion |
 |-----------|--------|----------|------------|
-| **Prefix Caching** | ✅ Implemented | `crates/axora-cache/src/prefix_cache.rs` | 100% |
-| **Diff Communication** | ✅ Implemented | `crates/axora-cache/src/diff.rs` | 100% |
-| **Influence Graph** | ✅ Implemented | `crates/axora-indexing/src/influence.rs` | 100% |
-| **Blackboard v2** | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` | 100% |
-| **Context Compacting** | ✅ Implemented | `crates/axora-cache/src/compactor.rs` | 100% |
+| **Prefix Caching** | ✅ Implemented | `crates/openakta-cache/src/prefix_cache.rs` | 100% |
+| **Diff Communication** | ✅ Implemented | `crates/openakta-cache/src/diff.rs` | 100% |
+| **Influence Graph** | ✅ Implemented | `crates/openakta-indexing/src/influence.rs` | 100% |
+| **Blackboard v2** | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` | 100% |
+| **Context Compacting** | ✅ Implemented | `crates/openakta-cache/src/compactor.rs` | 100% |
 | **Graph Workflow** | ✅ Implemented | Research findings | 100% |
 
 ### Validation of Existing Implementations
 
-#### 1. Prefix Caching (`axora-cache/src/prefix_cache.rs`)
+#### 1. Prefix Caching (`openakta-cache/src/prefix_cache.rs`)
 
 **What Exists:**
 ```rust
@@ -90,7 +90,7 @@ impl PrefixCache {
 
 ---
 
-#### 2. Diff Communication (`axora-cache/src/diff.rs`)
+#### 2. Diff Communication (`openakta-cache/src/diff.rs`)
 
 **What Exists:**
 ```rust
@@ -110,7 +110,7 @@ pub fn generate_unified_diff(old: &str, new: &str) -> UnifiedDiff;
 
 ---
 
-#### 3. Influence Graph (`axora-indexing/src/influence.rs`)
+#### 3. Influence Graph (`openakta-indexing/src/influence.rs`)
 
 **What Exists:**
 ```rust
@@ -136,7 +136,7 @@ pub struct InfluenceGraph {
 
 ---
 
-#### 4. Blackboard v2 (`axora-cache/src/blackboard/v2.rs`)
+#### 4. Blackboard v2 (`openakta-cache/src/blackboard/v2.rs`)
 
 **What Exists:**
 ```rust
@@ -166,7 +166,7 @@ impl Blackboard {
 
 **What's Missing:**
 ```rust
-// Need to add to axora-agents or axora-core
+// Need to add to openakta-agents or openakta-core
 pub struct ApiClient {
     prefix_cache: PrefixCache,
     // ...
@@ -208,7 +208,7 @@ impl ApiClient {
 
 **What's Missing:**
 ```rust
-// Need to add to axora-agents
+// Need to add to openakta-agents
 pub struct DiffEnforcer {
     max_full_write_bytes: usize, // Default: 100 bytes
 }
@@ -252,7 +252,7 @@ impl DiffEnforcer {
 
 **What's Missing:**
 ```rust
-// Need to add to axora-indexing
+// Need to add to openakta-indexing
 pub struct SCIPIndex {
     // Protocol Buffers format
     symbols: HashMap<String, SymbolMetadata>,
@@ -300,7 +300,7 @@ pub trait CodeParser: Send + Sync {
 
 **What's Missing:**
 ```rust
-// Need to add to axora-rag
+// Need to add to openakta-rag
 pub struct GraphRetriever {
     influence_graph: InfluenceGraph,
     vector_store: VectorStore,
@@ -352,7 +352,7 @@ impl GraphRetriever {
 
 **What's Missing:**
 ```rust
-// Need to add to axora-agents
+// Need to add to openakta-agents
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AgentMessage {
     /// Task assignment (Coordinator → Worker)
@@ -447,8 +447,8 @@ impl Agent {
 6. [ ] Write integration tests
 
 **Deliverables:**
-- `crates/axora-agents/src/api_client.rs` — Enhanced API client
-- `crates/axora-agents/src/cache_integration.rs` — Cache integration tests
+- `crates/openakta-agents/src/api_client.rs` — Enhanced API client
+- `crates/openakta-agents/src/cache_integration.rs` — Cache integration tests
 
 **Success Criteria:**
 - [ ] 50-90% reduction in prompt tokens (static prefixes cached)
@@ -472,8 +472,8 @@ impl Agent {
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/diff_enforcer.rs` — Output validator
-- `crates/axora-agents/src/prompts/diff_only.md` — System prompt
+- `crates/openakta-agents/src/diff_enforcer.rs` — Output validator
+- `crates/openakta-agents/src/prompts/diff_only.md` — System prompt
 
 **Success Criteria:**
 - [ ] 89-98% reduction in output tokens
@@ -501,9 +501,9 @@ impl Agent {
 6. [ ] Write tests (verify symbol extraction)
 
 **Deliverables:**
-- `crates/axora-indexing/src/scip.rs` — SCIP index
-- `crates/axora-indexing/src/parsers/` — Language-specific parsers
-- `crates/axora-indexing/src/scip.proto` — Protobuf schema
+- `crates/openakta-indexing/src/scip.rs` — SCIP index
+- `crates/openakta-indexing/src/parsers/` — Language-specific parsers
+- `crates/openakta-indexing/src/scip.proto` — Protobuf schema
 
 **Success Criteria:**
 - [ ] Accurate symbol extraction (functions, classes, imports)
@@ -519,7 +519,7 @@ impl Agent {
 **Priority:** 🔴 CRITICAL
 
 **Tasks:**
-1. [ ] Create `GraphRetriever` in `axora-rag`
+1. [ ] Create `GraphRetriever` in `openakta-rag`
 2. [ ] Implement dependency graph traversal (BFS/DFS)
 3. [ ] Add token budget enforcement (stop at max_tokens)
 4. [ ] Integrate with existing RAG pipeline
@@ -527,8 +527,8 @@ impl Agent {
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-rag/src/graph_retriever.rs` — Graph-based retrieval
-- `crates/axora-rag/src/pruning.rs` — Context pruning logic
+- `crates/openakta-rag/src/graph_retriever.rs` — Graph-based retrieval
+- `crates/openakta-rag/src/pruning.rs` — Context pruning logic
 
 **Success Criteria:**
 - [ ] 95-99% reduction in context tokens (50K → 500-2.5K)
@@ -556,8 +556,8 @@ impl Agent {
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/protocol.rs` — Message protocol
-- `crates/axora-agents/src/protocol.proto` — Protobuf schema
+- `crates/openakta-agents/src/protocol.rs` — Message protocol
+- `crates/openakta-agents/src/protocol.proto` — Protobuf schema
 
 **Success Criteria:**
 - [ ] Zero natural language negotiations
@@ -581,8 +581,8 @@ impl Agent {
 6. [ ] Write tests
 
 **Deliverables:**
-- `crates/axora-agents/src/workflow.rs` — Workflow graph
-- `crates/axora-agents/src/state_machine.rs` — State machine
+- `crates/openakta-agents/src/workflow.rs` — Workflow graph
+- `crates/openakta-agents/src/state_machine.rs` — State machine
 
 **Success Criteria:**
 - [ ] Zero infinite loops
@@ -665,10 +665,10 @@ impl Agent {
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| PrefixCache | ✅ Implemented | `crates/axora-cache/src/prefix_cache.rs` |
-| Diff | ✅ Implemented | `crates/axora-cache/src/diff.rs` |
-| InfluenceGraph | ✅ Implemented | `crates/axora-indexing/src/influence.rs` |
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` |
+| PrefixCache | ✅ Implemented | `crates/openakta-cache/src/prefix_cache.rs` |
+| Diff | ✅ Implemented | `crates/openakta-cache/src/diff.rs` |
+| InfluenceGraph | ✅ Implemented | `crates/openakta-indexing/src/influence.rs` |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` |
 
 ### Needs Integration
 
@@ -721,9 +721,9 @@ impl Agent {
 - [R-13: Influence Graph](../planning/archive/shared/R-13-INFLUENCE-GRAPH.md) — Original influence graph research
 
 ### Implementation Documents
-- [PrefixCache Implementation](../crates/axora-cache/src/prefix_cache.rs)
-- [Diff Implementation](../crates/axora-cache/src/diff.rs)
-- [InfluenceGraph Implementation](../crates/axora-indexing/src/influence.rs)
+- [PrefixCache Implementation](../crates/openakta-cache/src/prefix_cache.rs)
+- [Diff Implementation](../crates/openakta-cache/src/diff.rs)
+- [InfluenceGraph Implementation](../crates/openakta-indexing/src/influence.rs)
 
 ### External Resources
 - [Anthropic Prompt Caching](https://docs.anthropic.com/claude/docs/prompt-caching)

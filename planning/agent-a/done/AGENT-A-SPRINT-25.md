@@ -31,7 +31,7 @@ Competitive analysis validates industry pattern:
 
 **Structure:**
 ```markdown
-# AXORA Architecture Ledger
+# OPENAKTA Architecture Ledger
 
 **Last Updated:** 2026-03-16  
 **Maintained By:** Architect Agent

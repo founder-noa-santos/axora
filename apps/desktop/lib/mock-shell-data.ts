@@ -8,17 +8,20 @@ export const workspaceCollections = [
 export const activityFeed = [
   {
     title: "Repository indexed",
-    detail: "Repository map is ready for workspace navigation and future Rust-backed search.",
+    detail:
+      "Repository map is ready for workspace navigation and future Rust-backed search.",
     time: "Just now",
   },
   {
     title: "Bridge contract wired",
-    detail: "Electron preload now exposes a minimal, typed API surface to the renderer.",
+    detail:
+      "Electron preload now exposes a minimal, typed API surface to the renderer.",
     time: "4m ago",
   },
   {
     title: "Frontend reset complete",
-    detail: "The previous Tauri/Vite shell has been replaced with the new Electron + Next renderer foundation.",
+    detail:
+      "The previous Tauri/Vite shell has been replaced with the new Electron + Next renderer foundation.",
     time: "12m ago",
   },
 ] as const;

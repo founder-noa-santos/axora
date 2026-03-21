@@ -1,20 +1,20 @@
 {
-  "name": "@axora/mvp",
+  "name": "@openakta/mvp",
   "version": "0.1.0",
-  "description": "AXORA - Multi-Agent Coding System",
+  "description": "OPENAKTA - Multi-Agent Coding System",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "turbo run dev --filter=!@axora/mvp",
-    "build": "turbo run build --filter=!@axora/mvp",
-    "test": "turbo run test --filter=!@axora/mvp",
-    "lint": "turbo run lint --filter=!@axora/mvp",
-    "format": "turbo run format --filter=!@axora/mvp",
-    "typecheck": "turbo run typecheck --filter=!@axora/mvp",
-    "clean": "turbo run clean --filter=!@axora/mvp && rm -rf node_modules",
+    "dev": "turbo run dev --filter=!@openakta/mvp",
+    "build": "turbo run build --filter=!@openakta/mvp",
+    "test": "turbo run test --filter=!@openakta/mvp",
+    "lint": "turbo run lint --filter=!@openakta/mvp",
+    "format": "turbo run format --filter=!@openakta/mvp",
+    "typecheck": "turbo run typecheck --filter=!@openakta/mvp",
+    "clean": "turbo run clean --filter=!@openakta/mvp && rm -rf node_modules",
     "proto:gen": "cd proto && buf generate",
-    "dev:daemon": "cargo run -p axora-daemon",
-    "dev:desktop": "pnpm --filter @axora/desktop dev"
+    "dev:daemon": "cargo run -p openakta-daemon",
+    "dev:desktop": "pnpm --filter @openakta/desktop dev"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",

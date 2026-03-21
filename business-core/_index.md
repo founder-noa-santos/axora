@@ -13,7 +13,7 @@ The recommended reading order starts with the business core, domain model, opera
 | File | Purpose | Intended Audience | Confidence |
 | --- | --- | --- | --- |
 | `README.md` | Explains the audit method and maintenance model | All readers | High |
-| `01-company-current-business-core.md` | Defines what AXORA currently is in code | Founders, product, engineering | High |
+| `01-company-current-business-core.md` | Defines what OPENAKTA currently is in code | Founders, product, engineering | High |
 | `02-product-surfaces-and-app-boundaries.md` | Maps runtime surfaces and system boundaries | Engineering, operations | High |
 | `03-actors-roles-and-permissions.md` | Describes implemented actors and role semantics | Engineering, operations | Medium |
 | `04-core-user-journeys.md` | Explains real end-to-end backend journeys | Product, engineering | Medium |
@@ -74,7 +74,7 @@ The recommended reading order starts with the business core, domain model, opera
 - `README.md`
 - `crates/`
 - `proto/collective/v1/core.proto`
-- `crates/axora-daemon/src/main.rs`
+- `crates/openakta-daemon/src/main.rs`
 
 ## Business Meaning
 

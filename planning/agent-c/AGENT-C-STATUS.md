@@ -10,9 +10,9 @@
 ### Phase 3 Sprints
 | Sprint | Title | File | Verified |
 |--------|-------|------|----------|
-| C1 | Coordinator Core | `axora-agents/src/coordinator/` | ✅ |
-| C2 | Task Decomposition | `axora-agents/src/decomposer.rs` | ✅ |
-| C3 | Result Merging | `axora-agents/src/merger/` | ✅ |
+| C1 | Coordinator Core | `openakta-agents/src/coordinator/` | ✅ |
+| C2 | Task Decomposition | `openakta-agents/src/decomposer.rs` | ✅ |
+| C3 | Result Merging | `openakta-agents/src/merger/` | ✅ |
 
 ### Phase 4 Sprints
 | Sprint | Title | File | Verified |
@@ -24,15 +24,15 @@
 ### Legacy Sprints
 | Sprint | Title | File | Verified |
 |--------|-------|------|----------|
-| 3b | Heartbeat System | `axora-agents/src/heartbeat.rs` | ✅ |
-| 7 | Graph Workflow | `axora-agents/src/graph.rs` | ✅ |
-| 8 | Task Decomposition | `axora-agents/src/decomposer.rs` | ✅ |
-| 9 | Dual-Thread ReAct | `axora-agents/src/react.rs` | ✅ |
-| 19 | Bidirectional Traceability | `axora-indexing/src/traceability.rs` | ✅ |
-| 23 | ACI Formatting | `axora-agents/src/aci_formatter.rs` | ✅ |
-| 27 | Episodic Memory Store | `axora-memory/src/episodic_store.rs` | ✅ |
-| 29 | Consolidation Pipeline | `axora-memory/src/consolidation.rs` | ✅ |
-| 30 | MemGAS Retrieval | `axora-memory/src/memgas_retriever.rs` | ✅ |
+| 3b | Heartbeat System | `openakta-agents/src/heartbeat.rs` | ✅ |
+| 7 | Graph Workflow | `openakta-agents/src/graph.rs` | ✅ |
+| 8 | Task Decomposition | `openakta-agents/src/decomposer.rs` | ✅ |
+| 9 | Dual-Thread ReAct | `openakta-agents/src/react.rs` | ✅ |
+| 19 | Bidirectional Traceability | `openakta-indexing/src/traceability.rs` | ✅ |
+| 23 | ACI Formatting | `openakta-agents/src/aci_formatter.rs` | ✅ |
+| 27 | Episodic Memory Store | `openakta-memory/src/episodic_store.rs` | ✅ |
+| 29 | Consolidation Pipeline | `openakta-memory/src/consolidation.rs` | ✅ |
+| 30 | MemGAS Retrieval | `openakta-memory/src/memgas_retriever.rs` | ✅ |
 
 ---
 

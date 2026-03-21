@@ -4,19 +4,19 @@
 
 | Package | Transport | Notes |
 | --- | --- | --- |
-| `axora-logger-otel` | OpenTelemetry logs | Accepts an SDK logger or provider object |
-| `axora-logger-sentry` | Sentry errors and breadcrumbs | Uses the Sentry scope API |
-| `axora-logger-datadog` | Datadog stdout JSON | Emits canonical JSON lines in v1 |
-| `axora-logger-posthog` | PostHog capture events | Uses `distinct_id` plus `shutdown()` |
+| `openakta-logger-otel` | OpenTelemetry logs | Accepts an SDK logger or provider object |
+| `openakta-logger-sentry` | Sentry errors and breadcrumbs | Uses the Sentry scope API |
+| `openakta-logger-datadog` | Datadog stdout JSON | Emits canonical JSON lines in v1 |
+| `openakta-logger-posthog` | PostHog capture events | Uses `distinct_id` plus `shutdown()` |
 
 ## Initialization
 
 ```python
-from axora_logger import Logger
-from axora_logger_otel import OtelSink
-from axora_logger_sentry import SentrySink
-from axora_logger_datadog import DatadogSink
-from axora_logger_posthog import PosthogSink
+from openakta_logger import Logger
+from openakta_logger_otel import OtelSink
+from openakta_logger_sentry import SentrySink
+from openakta_logger_datadog import DatadogSink
+from openakta_logger_posthog import PosthogSink
 
 logger = Logger(
     service="billing-api",

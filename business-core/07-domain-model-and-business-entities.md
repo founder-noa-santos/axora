@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Map the business entities that now define AXORA’s runtime.
+Map the business entities that now define OPENAKTA’s runtime.
 
 ## Executive Summary
 
-AXORA’s domain model is now broader than task orchestration alone. The key entities are agents, tasks, compressed context packs, provider requests/responses, MCP tool calls, audit events, semantic memories, episodic traces, procedural skills, and LivingDocs reconciliation artifacts.
+OPENAKTA’s domain model is now broader than task orchestration alone. The key entities are agents, tasks, compressed context packs, provider requests/responses, MCP tool calls, audit events, semantic memories, episodic traces, procedural skills, and LivingDocs reconciliation artifacts.
 
 ## Core Runtime Entities
 
@@ -60,14 +60,14 @@ AXORA’s domain model is now broader than task orchestration alone. The key ent
 
 - `proto/collective/v1/core.proto`
 - `proto/mcp/v1/mcp.proto`
-- `crates/axora-agents/src/provider.rs`
-- `crates/axora-agents/src/prompt_assembly.rs`
-- `crates/axora-agents/src/react.rs`
-- `crates/axora-mcp-server/src/lib.rs`
-- `crates/axora-memory/src/semantic_store.rs`
-- `crates/axora-memory/src/episodic_store.rs`
-- `crates/axora-memory/src/procedural_store.rs`
-- `crates/axora-storage/migrations/0002_memory_domains.sql`
+- `crates/openakta-agents/src/provider.rs`
+- `crates/openakta-agents/src/prompt_assembly.rs`
+- `crates/openakta-agents/src/react.rs`
+- `crates/openakta-mcp-server/src/lib.rs`
+- `crates/openakta-memory/src/semantic_store.rs`
+- `crates/openakta-memory/src/episodic_store.rs`
+- `crates/openakta-memory/src/procedural_store.rs`
+- `crates/openakta-storage/migrations/0002_memory_domains.sql`
 
 ## Business Meaning
 

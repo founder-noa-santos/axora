@@ -25,17 +25,17 @@ describe('OtelSink', () => {
       meta: { sdk_version: '0.1.0', sdk_language: 'typescript' },
     });
 
-    expect(provider.getLogger).toHaveBeenCalledWith('axora-logger', '0.1.0');
+    expect(provider.getLogger).toHaveBeenCalledWith('openakta-logger', '0.1.0');
     expect(emit).toHaveBeenCalledTimes(1);
     expect(emit.mock.calls[0][0]).toMatchObject({
       severityText: 'WARN',
       body: 'job.run',
       attributes: {
-        'axora.event_id': '2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d',
-        'axora.operation': 'job.run',
-        'axora.status': 'timeout',
-        'axora.duration_ms': 500,
-        'axora.ctx.attempt': 2,
+        'openakta.event_id': '2f64f7ef-efc9-4b9f-8d70-1a0f1e4b6f2d',
+        'openakta.operation': 'job.run',
+        'openakta.status': 'timeout',
+        'openakta.duration_ms': 500,
+        'openakta.ctx.attempt': 2,
         'exception.type': 'TimeoutError',
         'exception.message': 'slow',
         'service.name': 'svc',

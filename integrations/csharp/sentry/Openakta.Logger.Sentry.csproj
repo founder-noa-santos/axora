@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <PackageId>Openakta.Logger.Sentry</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>OPENAKTA</Authors>
+    <Description>OPENAKTA Wide Event Sentry adapter for .NET</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../sdks/csharp/Openakta.Logger/Openakta.Logger.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

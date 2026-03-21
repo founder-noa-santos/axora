@@ -32,6 +32,10 @@ message ToolDefinition {
   repeated string required_actions = 3;
   repeated string allowed_scope_patterns = 4;
   bool supports_streaming = 5;
+  // If true, tool mutates state or is otherwise unsafe while a HITL question is pending.
+  bool is_destructive = 6;
+  // If true, coordinator may allow invocation during mission `pending_answer` (read-only path).
+  bool read_only = 7;
 }
 
 message CapabilityPolicy {
@@ -51,6 +55,8 @@ message ToolCallRequest {
   google.protobuf.Struct arguments = 5;
   CapabilityPolicy policy = 6;
   string workspace_root = 7;
+  /// Trusted mission id from coordinator / runtime (not model-supplied).
+  string mission_id = 8;
 }
 
 message ToolCallResult {

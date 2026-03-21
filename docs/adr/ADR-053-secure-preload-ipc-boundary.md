@@ -24,6 +24,6 @@ Enforce:
 
 ## Consequences
 
-- React code must consume services built on `window.axoraDesktop`
+- React code must consume services built on `window.openaktaDesktop`
 - Electron main owns all native, process, and future Rust integration logic
 - raw `ipcRenderer` exposure is prohibited

@@ -11,7 +11,7 @@ function getDesktopApi(): DesktopApi | null {
     return null;
   }
 
-  return window.axoraDesktop ?? null;
+  return window.openaktaDesktop ?? null;
 }
 
 export const desktopClient = {

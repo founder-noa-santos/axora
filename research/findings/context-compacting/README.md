@@ -22,9 +22,11 @@ Solve the **Context Escalation Crisis** in multi-agent systems:
 
 ```
 context-compacting/
-├── README.md                        ← This file (overview)
-├── R-15-CONTEXT-COMPACTING.md       ← Full research (10 pages)
-└── IMPLEMENTATION-PLAN.md           ← Implementation plan (TBD)
+├── README.md                         ← Overview
+├── R-15-CONTEXT-COMPACTING.md        ← Full research
+├── IMPLEMENTATION-PLAN.md            ← Legacy plan + audit (historical)
+├── IMPLEMENTATION-PLAN-V2.md         ← Working architecture (local-first, multi-model)
+└── PLANNER_UPDATE_DIRECTIVES.md     ← Normative U bands, cache/KV, async consolidation
 ```
 
 ---
@@ -63,7 +65,7 @@ context-compacting/
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              AXORA Context Architecture                          │
+│              OPENAKTA Context Architecture                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Global Semantic State (Coordinator)                            │
@@ -87,7 +89,7 @@ context-compacting/
 
 ---
 
-## 🏗️ AXORA Worker Agent Memory Structure
+## 🏗️ OPENAKTA Worker Agent Memory Structure
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

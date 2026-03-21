@@ -1,9 +1,9 @@
-# axora-logger-otel
+# openakta-logger-otel
 
-OpenTelemetry adapter for AXORA Wide Events.
+OpenTelemetry adapter for OPENAKTA Wide Events.
 
 ## Install
 
 ```bash
-pip install axora-logger-otel opentelemetry-api opentelemetry-sdk
+pip install openakta-logger-otel opentelemetry-api opentelemetry-sdk
 ```

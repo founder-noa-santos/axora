@@ -2,17 +2,17 @@
 
 ## Purpose
 
-Describe the external systems and technical boundaries that now matter to AXORA.
+Describe the external systems and technical boundaries that now matter to OPENAKTA.
 
 ## Executive Summary
 
-AXORA’s external dependency model is now anchored around two hard boundaries: cloud LLM APIs for reasoning and native MCP/gRPC for local tool execution. Around those boundaries sit local persistence, compressed transport, structural indexing, and runtime-managed governance services.
+OPENAKTA’s external dependency model is now anchored around two hard boundaries: cloud LLM APIs for reasoning and native MCP/gRPC for local tool execution. Around those boundaries sit local persistence, compressed transport, structural indexing, and runtime-managed governance services.
 
 ## Core Integrations
 
 | Dependency | Current role |
 | --- | --- |
-| `axora-cli` | Mission-first entrypoint for runtime bootstrap |
+| `openakta-cli` | Mission-first entrypoint for runtime bootstrap |
 | `tonic` / gRPC | Collective service and MCP service transport |
 | `prost` | Typed protobuf contracts for orchestration and tooling |
 | `reqwest` | Live HTTP transport to Anthropic and OpenAI |
@@ -52,17 +52,17 @@ AXORA’s external dependency model is now anchored around two hard boundaries: 
 
 ## Implementation Evidence
 
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-cli/src/main.rs`
-- `crates/axora-core/src/bootstrap.rs`
-- `crates/axora-core/src/config.rs`
-- `crates/axora-agents/src/provider_transport.rs`
-- `crates/axora-agents/src/mcp_client.rs`
-- `crates/axora-mcp-server/src/lib.rs`
-- `crates/axora-cache/src/toon.rs`
-- `crates/axora-cache/src/prefix_cache.rs`
-- `crates/axora-indexing/src/merkle.rs`
-- `crates/axora-daemon/src/services.rs`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-cli/src/main.rs`
+- `crates/openakta-core/src/bootstrap.rs`
+- `crates/openakta-core/src/config.rs`
+- `crates/openakta-agents/src/provider_transport.rs`
+- `crates/openakta-agents/src/mcp_client.rs`
+- `crates/openakta-mcp-server/src/lib.rs`
+- `crates/openakta-cache/src/toon.rs`
+- `crates/openakta-cache/src/prefix_cache.rs`
+- `crates/openakta-indexing/src/merkle.rs`
+- `crates/openakta-daemon/src/services.rs`
 
 ## Business Meaning
 

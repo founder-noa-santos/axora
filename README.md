@@ -1,25 +1,27 @@
-# AXORA MVP
+# OPENAKTA MVP
 
-AXORA is a batteries-included multi-agent coding system with a Rust runtime and a macOS-first desktop shell.
+**Repository:** [github.com/openakta/aktacode](https://github.com/openakta/aktacode)
+
+OPENAKTA is a batteries-included multi-agent coding system with a Rust runtime and a macOS-first desktop shell.
 
 ## Quick start
 
 ```bash
 export ANTHROPIC_API_KEY=...
-cargo run -p axora-cli -- do "add JWT auth"
+cargo run -p openakta-cli -- do "add JWT auth"
 ```
 
-AXORA now bootstraps its local runtime automatically for the mission path:
+OPENAKTA now bootstraps its local runtime automatically for the mission path:
 
 - infers the workspace from the current directory
-- creates a local `.axora/` runtime directory
+- creates a local `.openakta/` runtime directory
 - initializes SQLite, semantic memory, and the default skill library
 - starts the native MCP tool boundary
 - boots the default Base Squad inside `CoordinatorV2`
 
 ## Current desktop architecture
 
-The desktop app in [apps/desktop](/Users/noasantos/Fluri/axora/apps/desktop) now uses:
+The desktop app in [apps/desktop](./apps/desktop) now uses:
 
 - Electron for the native shell
 - Next.js App Router for the renderer
@@ -33,7 +35,7 @@ The renderer is isolated from privileged APIs. Native capabilities are exposed o
 ## Project structure
 
 ```text
-axora/
+openakta/
 ├── apps/
 │   └── desktop/          # Electron + Next.js desktop app
 ├── crates/              # Rust workspace crates
@@ -48,27 +50,34 @@ axora/
 
 ```bash
 pnpm install
-pnpm --filter @axora/desktop dev
+pnpm --filter @openakta/desktop dev
 ```
 
 Useful commands:
 
 ```bash
-pnpm --filter @axora/desktop lint
-pnpm --filter @axora/desktop typecheck
-pnpm --filter @axora/desktop test
-pnpm --filter @axora/desktop build
-pnpm --filter @axora/desktop package
+pnpm --filter @openakta/desktop lint
+pnpm --filter @openakta/desktop typecheck
+pnpm --filter @openakta/desktop test
+pnpm --filter @openakta/desktop build
+pnpm --filter @openakta/desktop package
 cargo test --workspace
 ```
 
+## Rust workspace
+
+- **MSRV:** `1.94` (see root `Cargo.toml` and `rust-toolchain.toml`; enforced by CI).  
+- **Lockfile:** `Cargo.lock` is tracked; use `cargo … --locked` in CI and release flows.  
+- **Quick validation:** `cargo fmt-check && cargo lint && cargo test-all` (aliases from `.cargo/config.toml`).  
+- **Details:** [CONTRIBUTING.md](./CONTRIBUTING.md) and [docs/RUST_TOOLING_BASELINE.md](./docs/RUST_TOOLING_BASELINE.md).
+
 ## SDKs
 
-The AXORA diagnostics SDKs live under `sdks/` and `integrations/`.
+The OPENAKTA diagnostics SDKs live under `sdks/` and `integrations/`.
 
-- Canonical schema: [docs/wide-event-schema.md](/Users/noasantos/Fluri/axora/docs/wide-event-schema.md)
-- Usage examples: [docs/examples/](/Users/noasantos/Fluri/axora/docs/examples/)
-- Integration guides: [docs/integrations/](/Users/noasantos/Fluri/axora/docs/integrations/)
+- Canonical schema: [docs/wide-event-schema.md](./docs/wide-event-schema.md)
+- Usage examples: [docs/examples/](./docs/examples/)
+- Integration guides: [docs/integrations/](./docs/integrations/)
 
 TypeScript packages are part of the pnpm workspace, so they can be built with:
 
@@ -81,11 +90,11 @@ pnpm typecheck
 
 ## Documentation
 
-- Architecture overview: [docs/architecture.md](/Users/noasantos/Fluri/axora/docs/architecture.md)
-- Implementation status and ledger: [docs/ARCHITECTURE-LEDGER.md](/Users/noasantos/Fluri/axora/docs/ARCHITECTURE-LEDGER.md)
-- Desktop build and runtime guide: [docs/ELECTRON-RUST-BUILD-GUIDE.md](/Users/noasantos/Fluri/axora/docs/ELECTRON-RUST-BUILD-GUIDE.md)
-- Desktop and Rust integration plan: [docs/ELECTRON-RUST-MIGRATION-PLAN.md](/Users/noasantos/Fluri/axora/docs/ELECTRON-RUST-MIGRATION-PLAN.md)
-- Batteries-included analysis: [BATTERIES_INCLUDED_ANALYSIS.md](/Users/noasantos/Fluri/axora/BATTERIES_INCLUDED_ANALYSIS.md)
+- Architecture overview: [docs/architecture.md](./docs/architecture.md)
+- Implementation status and ledger: [docs/ARCHITECTURE-LEDGER.md](./docs/ARCHITECTURE-LEDGER.md)
+- Desktop build and runtime guide: [docs/ELECTRON-RUST-BUILD-GUIDE.md](./docs/ELECTRON-RUST-BUILD-GUIDE.md)
+- Desktop and Rust integration plan: [docs/ELECTRON-RUST-MIGRATION-PLAN.md](./docs/ELECTRON-RUST-MIGRATION-PLAN.md)
+- Batteries-included analysis: [BATTERIES_INCLUDED_ANALYSIS.md](./BATTERIES_INCLUDED_ANALYSIS.md)
 
 ## License
 

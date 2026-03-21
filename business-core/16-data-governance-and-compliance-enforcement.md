@@ -40,12 +40,12 @@ The repository currently shows a pragmatic local-runtime data posture rather tha
 
 ## Implementation Evidence
 
-- `crates/axora-storage/migrations/0001_init.sql`
-- `crates/axora-daemon/src/main.rs`
-- `crates/axora-core/src/config.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-cache/src/blackboard/v2.rs`
-- `crates/axora-indexing/src/merkle.rs`
+- `crates/openakta-storage/migrations/0001_init.sql`
+- `crates/openakta-daemon/src/main.rs`
+- `crates/openakta-core/src/config.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
+- `crates/openakta-indexing/src/merkle.rs`
 
 ## Business Meaning
 

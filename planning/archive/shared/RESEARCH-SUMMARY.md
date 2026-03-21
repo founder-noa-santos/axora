@@ -21,7 +21,7 @@
 ## R-10: DDD Agents Validation
 
 ### Question
-Should AXORA organize agents by domain (DDD) or use flat structure?
+Should OPENAKTA organize agents by domain (DDD) or use flat structure?
 
 ### Findings
 1. **DDD is enterprise over-engineering** — solves problems individual devs don't have
@@ -31,7 +31,7 @@ Should AXORA organize agents by domain (DDD) or use flat structure?
 5. **Industry avoids DDD** — AutoGen, CrewAI, LangGraph all use simpler models
 
 ### Decision
-**REJECTED** for AXORA's target audience (individual developers)
+**REJECTED** for OPENAKTA's target audience (individual developers)
 
 ### Adopted Alternative
 **Graph-Based Workflow** (LangGraph-style)
@@ -49,7 +49,7 @@ Should AXORA organize agents by domain (DDD) or use flat structure?
 ## R-11: Concurrency + ReAct
 
 ### Question
-How should AXORA handle concurrent agent execution?
+How should OPENAKTA handle concurrent agent execution?
 
 ### Findings
 1. **Concurrent execution is mandatory** — sequential is 3-5x slower
@@ -74,7 +74,7 @@ How should AXORA handle concurrent agent execution?
 ## R-13: Influence Graph
 
 ### Question
-How should AXORA detect code dependencies for impact analysis?
+How should OPENAKTA detect code dependencies for impact analysis?
 
 ### Findings
 1. **Static analysis > LLM for dependencies** — 95%+ accuracy vs 70-80%
@@ -97,7 +97,7 @@ How should AXORA detect code dependencies for impact analysis?
 ## R-14: Memory Architecture
 
 ### Question
-How should AXORA implement agent memory?
+How should OPENAKTA implement agent memory?
 
 ### Findings
 1. **Semantic memory = Vector stores** — API contracts, schemas, patterns

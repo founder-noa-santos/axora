@@ -14,9 +14,13 @@ The repository contains meaningful stale and aspirational material. The most imp
 | --- | --- | --- | --- |
 | `docs/business_rules/PAY-001.md`, `PAY-002.md` | Payment processing and refunds are business rules | No live payment integration or billing enforcement exists in backend crates | High |
 | `docs/active_architecture/*` | Broad future architecture including auth/payment examples | Mixed historical and design material; only portions match live code | High |
-| older coordinator path in `crates/axora-agents/src/coordinator.rs` | Parallel coordination implementation | V2 path is the stronger current direction; legacy path remains for compatibility/history | Medium |
-| `crates/axora-agents/src/memory.rs` vs cache blackboard v2 | Multiple shared-state abstractions | State truth is split between simpler agent memory/blackboard and stronger cache blackboard v2 | High |
+| older coordinator path in `crates/openakta-agents/src/coordinator.rs` | Parallel coordination implementation | V2 path is the stronger current direction; legacy path remains for compatibility/history | Medium |
+| `crates/openakta-agents/src/memory.rs` vs cache blackboard v2 | Multiple shared-state abstractions | State truth is split between simpler agent memory/blackboard and stronger cache blackboard v2 | High |
 | example config and older docs | Broader product/runtime support | Some entries are aspirational or only partially backed | Medium |
+| `openakta.example.toml` pre-2026-03-20 | Environment variable fallbacks (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) | Env vars are fully purged; file-based secrets only | High |
+| `openakta.example.toml` pre-2026-03-20 | Inline `api_key = "sk-..."` in TOML | Inline keys are discouraged; `api_key_file` is the secure pattern | High |
+| Pre-registry routing docs | Hardcoded token limits (512, 4096, 8192) | Token budgets are dynamically derived from model metadata | High |
+| Legacy provider docs | `ProviderKind` drives transport | `WireProfile` now drives transport; `ProviderKind` is telemetry-only (R4 completed 2026-03-20) | High |
 
 ## Detailed Breakdown
 
@@ -36,8 +40,8 @@ There are now at least two coordination paths in the repo. V2 reflects the curre
 
 The repository contains both:
 
-- a simpler agent memory/blackboard layer in `crates/axora-agents/src/memory.rs`
-- a stronger versioned/diff-publishing blackboard in `crates/axora-cache/src/blackboard/v2.rs`
+- a simpler agent memory/blackboard layer in `crates/openakta-agents/src/memory.rs`
+- a stronger versioned/diff-publishing blackboard in `crates/openakta-cache/src/blackboard/v2.rs`
 
 That overlap is not fatal, but it is not clean.
 
@@ -46,14 +50,15 @@ That overlap is not fatal, but it is not clean.
 - `docs/business_rules/PAY-001.md`
 - `docs/business_rules/PAY-002.md`
 - `docs/active_architecture/`
-- `crates/axora-agents/src/coordinator.rs`
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-agents/src/memory.rs`
-- `crates/axora-cache/src/blackboard/v2.rs`
+- `crates/openakta-agents/src/coordinator.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-agents/src/memory.rs`
+- `crates/openakta-cache/src/blackboard/v2.rs`
+- `openakta.example.toml` (pre-2026-03-20)
 
 ## Business Meaning
 
-Without separating stale material from live truth, teams can overestimate what AXORA already supports commercially and underappreciate what is actually strong in the backend. This is particularly risky around billing, auth, and coordination architecture.
+Without separating stale material from live truth, teams can overestimate what OPENAKTA already supports commercially and underappreciate what is actually strong in the backend. This is particularly risky around billing, auth, and coordination architecture.
 
 ## Open Ambiguities
 

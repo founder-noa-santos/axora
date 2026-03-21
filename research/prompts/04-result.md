@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-**AXORA should build a true local-first codebase indexing system using: (1) Nomic Embed Code or Jina Code Embeddings v2 for 768-dimensional code embeddings with Apache 2.0 licensing; (2) Qdrant in embedded mode for sub-5ms vector search with native Rust integration; (3) Tree-sitter for AST-based function extraction with hierarchical chunking; and (4) a hybrid retrieval pipeline combining HNSW vector search, BM25 lexical matching, and cross-encoder re-ranking to achieve <100ms P95 query latency.** This architecture differentiates from Cursor's cloud-dependent approach by guaranteeing offline operation, eliminating data exfiltration risks, and reducing total cost of ownership while matching or exceeding retrieval quality.
+**OPENAKTA should build a true local-first codebase indexing system using: (1) Nomic Embed Code or Jina Code Embeddings v2 for 768-dimensional code embeddings with Apache 2.0 licensing; (2) Qdrant in embedded mode for sub-5ms vector search with native Rust integration; (3) Tree-sitter for AST-based function extraction with hierarchical chunking; and (4) a hybrid retrieval pipeline combining HNSW vector search, BM25 lexical matching, and cross-encoder re-ranking to achieve <100ms P95 query latency.** This architecture differentiates from Cursor's cloud-dependent approach by guaranteeing offline operation, eliminating data exfiltration risks, and reducing total cost of ownership while matching or exceeding retrieval quality.
 
 ---
 
@@ -44,7 +44,7 @@ The economic model implications are substantial: at Turbopuffer's published rate
 
 Cursor's embedding generation occurs **exclusively on cloud infrastructure**, with client-side code transmission to server endpoints for vectorization . The specific model remains undisclosed, but behavioral analysis strongly suggests **OpenAI's text-embedding-3-large (3072 dimensions)** or a **custom fine-tuned variant** with similar characteristics. Evidence includes: multilingual code understanding quality matching OpenAI's published benchmarks; response latency patterns consistent with OpenAI API infrastructure; and dimensional estimates from retrieval precision analysis.
 
-Server-side embedding enables Cursor to deploy **state-of-the-art models impractical for local inference**: 3072-dimensional embeddings provide superior semantic discrimination versus 768-dimensional alternatives, and custom fine-tuning on proprietary corpora (potentially including GitHub code) could enhance retrieval quality beyond publicly available models. However, this architecture introduces **privacy and availability risks** that AXORA can exploit through local-first design.
+Server-side embedding enables Cursor to deploy **state-of-the-art models impractical for local inference**: 3072-dimensional embeddings provide superior semantic discrimination versus 768-dimensional alternatives, and custom fine-tuning on proprietary corpora (potentially including GitHub code) could enhance retrieval quality beyond publicly available models. However, this architecture introduces **privacy and availability risks** that OPENAKTA can exploit through local-first design.
 
 The batching strategy for embedding requests significantly impacts perceived performance. Cursor likely implements **adaptive batching** with 100-500 chunk batches, request coalescing during rapid changes, and optimistic UI updates that display results before server confirmation completes.
 
@@ -86,23 +86,23 @@ Observed behavior suggests **dependency-aware invalidation**: changes to type de
 
 The confidence assessments reflect evidence strength and source reliability. The **chunking strategy confidence of 90%** is highest due to direct behavioral observation—Cursor's retrieval consistently aligns with function boundaries in ways impossible without AST awareness. The **embedding model confidence of 75%** acknowledges uncertainty about custom fine-tuning versus direct API usage. The **Turbopuffer confidence of 85%** reflects strong converging evidence but allows for potential multi-provider strategies or migration.
 
-### 1.4 Differentiation Opportunities for AXORA
+### 1.4 Differentiation Opportunities for OPENAKTA
 
 #### 1.4.1 True Local-First: No Cloud Dependency
 
-AXORA's **core architectural commitment to local execution** eliminates Cursor's critical vulnerabilities. By performing all embedding inference, vector storage, and retrieval on the developer's machine, AXORA guarantees: **complete offline functionality** regardless of network conditions; **cryptographic certainty that source code never leaves local storage**; **predictable performance without network latency variability**; and **elimination of per-query infrastructure costs** that scale with usage intensity.
+OPENAKTA's **core architectural commitment to local execution** eliminates Cursor's critical vulnerabilities. By performing all embedding inference, vector storage, and retrieval on the developer's machine, OPENAKTA guarantees: **complete offline functionality** regardless of network conditions; **cryptographic certainty that source code never leaves local storage**; **predictable performance without network latency variability**; and **elimination of per-query infrastructure costs** that scale with usage intensity.
 
 This differentiation is **technically demanding but increasingly feasible**: modern quantized embedding models achieve 90%+ of cloud model quality with sub-100ms local inference; embedded vector databases match or exceed cloud query performance for modest dataset sizes; and Rust's zero-cost abstractions enable efficient resource utilization. The investment pays dividends in **enterprise adoption** (air-gapped environments, strict data governance), **developer trust** (verifiable privacy), and **operational economics** (no usage-based cost scaling).
 
 #### 1.4.2 Lower Memory Footprint via Embedded Vector DB
 
-Cursor's cloud-dependent architecture masks local resource usage, but **client-side caching for responsive operation consumes substantial memory**. AXORA's integrated embedded database approach achieves **<500MB total memory for 100K code chunks** through: unified storage eliminating client-server duplication; memory-mapped indexes with OS-managed paging; and aggressive quantization (INT8 embeddings, compressed HNSW graphs). This efficiency enables deployment on **resource-constrained environments**: CI/CD runners, containerized development, older hardware.
+Cursor's cloud-dependent architecture masks local resource usage, but **client-side caching for responsive operation consumes substantial memory**. OPENAKTA's integrated embedded database approach achieves **<500MB total memory for 100K code chunks** through: unified storage eliminating client-server duplication; memory-mapped indexes with OS-managed paging; and aggressive quantization (INT8 embeddings, compressed HNSW graphs). This efficiency enables deployment on **resource-constrained environments**: CI/CD runners, containerized development, older hardware.
 
-The memory advantage compounds with codebase scale: Cursor's cached fragment approach grows with working set size, while AXORA's on-disk indexes with memory-mapped access maintain **bounded resident memory** regardless of total indexed content.
+The memory advantage compounds with codebase scale: Cursor's cached fragment approach grows with working set size, while OPENAKTA's on-disk indexes with memory-mapped access maintain **bounded resident memory** regardless of total indexed content.
 
 #### 1.4.3 Multi-Language Unified Embedding vs. Per-Language Models
 
-Cursor's observed retrieval quality varies across languages—strongest for TypeScript/JavaScript (likely training data bias), weaker for Rust, Go, and niche languages. AXORA can differentiate through **deliberately unified embedding space** where all languages share a single representation, enabling: **cross-language semantic search** (finding Python implementations from TypeScript queries); **consistent quality regardless of language popularity**; and **simplified deployment** without per-language model management.
+Cursor's observed retrieval quality varies across languages—strongest for TypeScript/JavaScript (likely training data bias), weaker for Rust, Go, and niche languages. OPENAKTA can differentiate through **deliberately unified embedding space** where all languages share a single representation, enabling: **cross-language semantic search** (finding Python implementations from TypeScript queries); **consistent quality regardless of language popularity**; and **simplified deployment** without per-language model management.
 
 Modern multi-language models (Nomic Embed Code, StarCoder) demonstrate strong zero-shot transfer across 80+ languages through large-scale contrastive pretraining. The unified approach sacrifices marginal per-language optimization for **architectural simplicity and cross-language capabilities** impossible with fragmented models.
 
@@ -124,13 +124,13 @@ Modern multi-language models (Nomic Embed Code, StarCoder) demonstrate strong ze
 | **mxbai-embed-large**  | 1024 | 335M | N/A | 0.72 (general) | **Apache 2.0** | ~65ms | 1.3 GB |
 | **text-embedding-3-large** | 3072 | Unknown | ~0.80 (est.) | ~0.78 (est.) | Proprietary API | N/A (cloud) | N/A |
 
-The benchmark data reveals critical tradeoffs for AXORA's constraints. **MRR@10 (Mean Reciprocal Rank at 10)** measures retrieval quality: higher values indicate better ranking of relevant results, with 1.0 representing perfect ranking. The **CodeSearchNet benchmark** provides standardized evaluation across six programming languages (Ruby, JavaScript, Go, Python, Java, PHP), though reported figures vary by evaluation protocol.
+The benchmark data reveals critical tradeoffs for OPENAKTA's constraints. **MRR@10 (Mean Reciprocal Rank at 10)** measures retrieval quality: higher values indicate better ranking of relevant results, with 1.0 representing perfect ranking. The **CodeSearchNet benchmark** provides standardized evaluation across six programming languages (Ruby, JavaScript, Go, Python, Java, PHP), though reported figures vary by evaluation protocol.
 
 #### 2.1.1 CodeBERT: Established Baseline with Limitations
 
 CodeBERT, introduced by Microsoft Research in 2020, established transformer-based code embeddings with **0.699 average MRR@10 on CodeSearchNet** . The 125M parameter RoBERTa-based architecture with bimodal pre-training (natural language + code) provides strong baseline performance. **Advantages**: mature ecosystem, trivial local inference, permissive MIT license. **Limitations**: training data predates modern language features (React hooks, Rust async/await, Python type hints); bimodal objectives less effective than modern contrastive learning; 15-20% quality gap versus state-of-the-art.
 
-For AXORA, CodeBERT serves as **conservative fallback** if newer models prove unstable, but the quality differential is difficult to justify given superior alternatives.
+For OPENAKTA, CodeBERT serves as **conservative fallback** if newer models prove unstable, but the quality differential is difficult to justify given superior alternatives.
 
 #### 2.1.2 GraphCodeBERT: Structural Enhancement
 
@@ -148,7 +148,7 @@ UniXcoder excels as **adaptation base**: LoRA fine-tuning achieves 86.69% MRR im
 
 StarCoder-15B achieves **0.801 MRR@10 on Python**—state-of-the-art among open models—through massive scale: 15.5B parameters trained on 1 trillion tokens across 80+ languages . The BigCode OpenRAIL-M license permits commercial use with responsible AI provisions. **Critical limitation**: **31GB FP32 memory requirement**, necessitating aggressive quantization (INT4/INT8 via GGUF) or GPU deployment for practical local use. CPU inference exceeds 2 seconds per query—unacceptable for interactive use.
 
-StarCoder is **viable only for premium tiers** with appropriate hardware, not AXORA's default deployment target.
+StarCoder is **viable only for premium tiers** with appropriate hardware, not OPENAKTA's default deployment target.
 
 #### 2.1.5 Nomic Embed Code: State-of-the-Art Open Option
 
@@ -160,7 +160,7 @@ Nomic Embed Code represents the **current pinnacle of open code embeddings**: es
 
 Jina Code Embeddings v2 achieves **0.792 MRR@10 at 137M parameters**—**97% of Nomic's quality with 2% of the parameters** . The **~15ms CPU inference latency** and **~550MB memory footprint** enable deployment on virtually any hardware. Apache 2.0 licensing removes commercial restrictions.
 
-This model represents the **optimal efficiency-quality tradeoff** for AXORA's default deployment: near-state-of-the-art retrieval quality with resource requirements matching CodeBERT-era models.
+This model represents the **optimal efficiency-quality tradeoff** for OPENAKTA's default deployment: near-state-of-the-art retrieval quality with resource requirements matching CodeBERT-era models.
 
 #### 2.1.7 BGE-Code and mxbai-embed-large: Specialized Alternatives
 
@@ -170,12 +170,12 @@ This model represents the **optimal efficiency-quality tradeoff** for AXORA's de
 
 ### 2.2 2025-2026 Emerging Models
 
-| Model | Key Innovation | Status | Relevance to AXORA |
+| Model | Key Innovation | Status | Relevance to OPENAKTA |
 |-------|--------------|--------|-------------------|
 | **GitHub Copilot Custom Embedding**  | 37.6% quality lift, 8× smaller index, Matryoshka RL | Proprietary, cloud-only | Validates importance of code-specific optimization; unavailable for local deployment |
 | **NV-Embed-v2**  | Latent attention, 32K+ context | Available | Long-context benefits for large files; unproven on code benchmarks |
 | **E5-Mistral-7B-instruct**  | Instruction-tuned retrieval | Available | Flexible task-specific behavior at 7B scale; high inference cost |
-| **CRME**  | Prototype-based ensemble, 81.4% avg MRR | Research system | Ensemble methodology applicable to AXORA's pipeline |
+| **CRME**  | Prototype-based ensemble, 81.4% avg MRR | Research system | Ensemble methodology applicable to OPENAKTA's pipeline |
 | **OASIS**  | Order-augmented strategy, 51.13 MRR on hard queries | Research system | Query-aware processing for challenging retrieval |
 
 The **GitHub Copilot Custom Embedding** announcement (September 2025) is particularly significant: **37.6% retrieval quality improvement** with **2× throughput** and **8× index size reduction** demonstrates the potential of task-optimized architectures . While proprietary, the published techniques—contrastive learning with hard negatives, multi-granularity embeddings, repository-aware training—inform open model development priorities.
@@ -184,7 +184,7 @@ The **GitHub Copilot Custom Embedding** announcement (September 2025) is particu
 
 #### 2.3.1 Optimal Dimensions: 768 for Quality-Speed Balance, 1024 if Memory Permits
 
-Dimensional analysis reveals **768 as the efficiency sweet spot** for AXORA's constraints. Quality improvement from 768 to 1024 dimensions is **3-5% relative MRR** at **33% increased storage and compute cost** . For 100K chunks: 768-dim requires ~300MB raw storage (INT8: 75MB); 1024-dim requires ~400MB (INT8: 100MB). The marginal quality gain does not justify cost for typical deployments.
+Dimensional analysis reveals **768 as the efficiency sweet spot** for OPENAKTA's constraints. Quality improvement from 768 to 1024 dimensions is **3-5% relative MRR** at **33% increased storage and compute cost** . For 100K chunks: 768-dim requires ~300MB raw storage (INT8: 75MB); 1024-dim requires ~400MB (INT8: 100MB). The marginal quality gain does not justify cost for typical deployments.
 
 **1024 dimensions becomes viable** when: memory budget exceeds 32GB; quality-critical applications tolerate no degradation; or specific models (BGE-Code) demonstrate disproportionate gains from increased capacity.
 
@@ -196,7 +196,7 @@ The unified approach enables **cross-language retrieval impossible with fragment
 
 #### 2.3.3 Fine-Tuning: LoRA Adapters for Domain-Specific Codebases
 
-**Parameter-efficient fine-tuning via LoRA** enables 10-20% quality improvement on specialized codebases without full model retraining . Rank-16 to rank-64 adapters add only **10-50MB per adapter** versus multi-gigabyte base models. AXORA's architecture should support:
+**Parameter-efficient fine-tuning via LoRA** enables 10-20% quality improvement on specialized codebases without full model retraining . Rank-16 to rank-64 adapters add only **10-50MB per adapter** versus multi-gigabyte base models. OPENAKTA's architecture should support:
 
 - **Pre-trained adapters** for common frameworks (React, TensorFlow, internal corporate patterns)
 - **User-generated adapters** from their codebase via automated fine-tuning pipeline
@@ -212,7 +212,7 @@ The unified approach enables **cross-language retrieval impossible with fragment
 
 #### 2.4.1 Candle: Native Rust, Growing Ecosystem
 
-Candle provides **pure-Rust transformer inference** with active development and expanding model coverage . Performance benchmarks: **15-25ms for 512-token sequences with 125M models** on modern CPUs; **2-3× speedup** from Metal/ROCm GPU acceleration. The zero-FFI design eliminates cross-language complexity and enables fine-grained optimization for AXORA's specific workload.
+Candle provides **pure-Rust transformer inference** with active development and expanding model coverage . Performance benchmarks: **15-25ms for 512-token sequences with 125M models** on modern CPUs; **2-3× speedup** from Metal/ROCm GPU acceleration. The zero-FFI design eliminates cross-language complexity and enables fine-grained optimization for OPENAKTA's specific workload.
 
 Model coverage includes BERT-family encoders (CodeBERT, GraphCodeBERT, UniXcoder) and growing support for modern architectures. Community contributions expand coverage rapidly; Nomic Embed Code support is available through `candle-nn` examples.
 
@@ -256,13 +256,13 @@ The **<50ms target** for default deployment (Jina Code Embeddings v2) enables **
 
 #### 3.1.1 ChromaDB: Python-First, Limited Rust Integration
 
-ChromaDB's **Python-centric architecture** creates fundamental mismatch with AXORA's Rust codebase . The unofficial Rust client (`chroma-rs`) lacks feature parity; HTTP API usage introduces **5-10ms serialization overhead**. Memory footprint of **250-300MB for 100K vectors** exceeds targets. **Not recommended** for native Rust deployment despite ease-of-use advantages in Python ecosystems.
+ChromaDB's **Python-centric architecture** creates fundamental mismatch with OPENAKTA's Rust codebase . The unofficial Rust client (`chroma-rs`) lacks feature parity; HTTP API usage introduces **5-10ms serialization overhead**. Memory footprint of **250-300MB for 100K vectors** exceeds targets. **Not recommended** for native Rust deployment despite ease-of-use advantages in Python ecosystems.
 
 #### 3.1.2 Qdrant: Rust-Native Performance Leader
 
 Qdrant is **the only production vector database implemented in Rust**, providing exceptional ecosystem alignment . **Embedded mode** (`qdrant-client` with `memory` storage) eliminates server process overhead. **Performance**: **1.6ms P50, 3.5ms P95** for 100K vectors at 768 dimensions; **1200+ QPS** throughput; **>95% recall@10** with tuned HNSW. **Memory-mapped indexes** enable larger-than-RAM datasets with graceful degradation.
 
-Key features for AXORA: **filtered search** combining vector similarity with metadata predicates (critical for language-specific queries); **incremental updates** without full rebuilds; **ACID transactions** for index consistency. The Apache 2.0 license and active commercial backing ensure long-term viability.
+Key features for OPENAKTA: **filtered search** combining vector similarity with metadata predicates (critical for language-specific queries); **incremental updates** without full rebuilds; **ACID transactions** for index consistency. The Apache 2.0 license and active commercial backing ensure long-term viability.
 
 #### 3.1.3 LanceDB: Columnar Analytics Integration
 
@@ -272,7 +272,7 @@ LanceDB's **columnar storage on Arrow** provides unique advantages for hybrid wo
 
 The **sqlite-vec extension** transforms SQLite into a capable vector database with **extraordinary integration simplicity** . **Single-database architecture**: metadata, embeddings, and application data in one file with ACID guarantees. **Performance**: **12-17ms query latency** for 100K vectors; **<100MB memory footprint** with proper configuration; **43K inserts/second** for batch indexing.
 
-Current limitations: **no native HNSW** (flat and IVF indexes only), though HNSW is on the roadmap ; **smaller community** than dedicated databases. For AXORA's existing SQLite investment, the **simplification of unified storage** may outweigh modest performance penalties. The extension's virtual table design enables standard SQL:
+Current limitations: **no native HNSW** (flat and IVF indexes only), though HNSW is on the roadmap ; **smaller community** than dedicated databases. For OPENAKTA's existing SQLite investment, the **simplification of unified storage** may outweigh modest performance penalties. The extension's virtual table design enables standard SQL:
 
 ```sql
 SELECT rowid, distance FROM vec_chunks 
@@ -296,7 +296,7 @@ HNSWlib offers **reference HNSW implementation** with **1-3ms query latency** an
 | **Build Time (100K)** | 25s | 45s | 55s | <60s | ✅ All |
 | **Recall@10** | >95% | ~92% | ~94% | >90% | ✅ All |
 
-All evaluated databases comfortably exceed AXORA's stated requirements. **Differentiation is in latency-optimality and operational characteristics**, not binary capability.
+All evaluated databases comfortably exceed OPENAKTA's stated requirements. **Differentiation is in latency-optimality and operational characteristics**, not binary capability.
 
 ### 3.3 Index Algorithm Selection
 
@@ -307,7 +307,7 @@ All evaluated databases comfortably exceed AXORA's stated requirements. **Differ
 | **Flat**  | O(n) | None | **100%** | 1× | Small datasets (<10K), validation |
 | **PQ/SQ**  | O(√n) + decode | O(n) | 75-85% | 0.1-0.2× | Extreme scale (>10M), approximate OK |
 
-**HNSW is optimal for AXORA's requirements**: logarithmic query time enables <5ms even at 1M vectors; incremental insertion supports real-time updates; >95% recall preserves retrieval quality. The memory overhead (2-3× raw vectors) is acceptable within 500MB budget for 100K chunks.
+**HNSW is optimal for OPENAKTA's requirements**: logarithmic query time enables <5ms even at 1M vectors; incremental insertion supports real-time updates; >95% recall preserves retrieval quality. The memory overhead (2-3× raw vectors) is acceptable within 500MB budget for 100K chunks.
 
 ### 3.4 Final Recommendation
 
@@ -536,7 +536,7 @@ Multiple strategies resolve "User class" ambiguity: **type-based resolution** fr
 
 ```
 ┌─────────────────────────────────────────┐
-│           AXORA Indexing Core           │
+│           OPENAKTA Indexing Core           │
 ├─────────────────────────────────────────┤
 │  API Layer (gRPC/HTTP)                  │
 │  ├── Query Engine (hybrid search)       │
@@ -601,7 +601,7 @@ Multiple strategies resolve "User class" ambiguity: **type-based resolution** fr
 
 ### 9.3 Comparative Evaluation
 
-| Baseline | Comparison | AXORA Target |
+| Baseline | Comparison | OPENAKTA Target |
 |----------|-----------|--------------|
 | `grep` + `ctags` | Traditional search | 10× relevance improvement |
 | Cursor (behavioral) | Cloud-dependent competitor | Latency parity, offline superiority |

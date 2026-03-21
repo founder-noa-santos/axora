@@ -1,30 +1,42 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/axora-cli",
-    "crates/axora-proto",
-    "crates/axora-storage",
-    "crates/axora-core",
-    "crates/axora-daemon",
-    "crates/axora-mcp-server",
+    "crates/openakta-cli",
+    "crates/openakta-proto",
+    "crates/openakta-storage",
+    "crates/openakta-core",
+    "crates/openakta-daemon",
+    "crates/openakta-mcp-server",
+    "crates/openakta-mcp-wasi-tools",
     # Phase 1 crates
-    "crates/axora-rag",
-    "crates/axora-indexing",
-    "crates/axora-embeddings",
-    "crates/axora-agents",
-    "crates/axora-cache",
+    "crates/openakta-rag",
+    "crates/openakta-indexing",
+    "crates/openakta-embeddings",
+    "crates/openakta-agents",
+    "crates/openakta-cache",
     # Phase 2 crates
-    "crates/axora-docs",
-    "crates/axora-memory",
+    "crates/openakta-docs",
+    "crates/openakta-memory",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["AXORA Team <team@axora.dev>"]
+authors = ["OPENAKTA Team <team@openakta.dev>"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/axora/axora-mvp"
-rust-version = "1.75"
+repository = "https://github.com/openakta/aktacode"
+# MSRV: keep in sync with `rust-toolchain.toml` (pinned toolchain for the workspace).
+rust-version = "1.94"
+
+# Shared lint levels for workspace members (`[lints] workspace = true` in each crate).
+# `missing_docs` stays at default (allow): several crates are still growing public surfaces;
+# re-enable workspace-wide when API docs are complete (see docs/RUST_TOOLING_BASELINE.md).
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+
+# Smaller release artifacts for CLI/daemon without aggressive compile-time tuning.
+[profile.release]
+strip = "debuginfo"
 
 [workspace.dependencies]
 # Core async runtime
@@ -69,16 +81,17 @@ tokio-test = "0.4"
 criterion = { version = "0.5", features = ["async_tokio"] }
 
 # Internal crates
-axora-proto = { path = "crates/axora-proto" }
-axora-storage = { path = "crates/axora-storage" }
-axora-core = { path = "crates/axora-core" }
-axora-mcp-server = { path = "crates/axora-mcp-server" }
-axora-indexing = { path = "crates/axora-indexing" }
-axora-docs = { path = "crates/axora-docs" }
-axora-cache = { path = "crates/axora-cache" }
-axora-agents = { path = "crates/axora-agents" }
-axora-memory = { path = "crates/axora-memory" }
-axora-embeddings = { path = "crates/axora-embeddings" }
+openakta-proto = { path = "crates/openakta-proto" }
+openakta-storage = { path = "crates/openakta-storage" }
+openakta-core = { path = "crates/openakta-core" }
+openakta-mcp-server = { path = "crates/openakta-mcp-server" }
+openakta-indexing = { path = "crates/openakta-indexing" }
+openakta-docs = { path = "crates/openakta-docs" }
+openakta-cache = { path = "crates/openakta-cache" }
+openakta-agents = { path = "crates/openakta-agents" }
+openakta-memory = { path = "crates/openakta-memory" }
+openakta-embeddings = { path = "crates/openakta-embeddings" }
+openakta-mcp-wasi-tools = { path = "crates/openakta-mcp-wasi-tools" }
 
 # Phase 1: Embeddings & ML
 candle-core = "0.8"
@@ -107,6 +120,7 @@ notify = "6.1"
 # Phase 1: Hashing
 blake3 = "1.5"
 sha2 = "0.10"
+hmac = "0.12"
 hex = "0.4"
 
 # Phase 1: Inference
@@ -116,6 +130,10 @@ ollama-rs = "0.2"
 unified-diff = "0.3"
 patch = "0.5"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+async-trait = "0.1"
+wasmtime = "25"
+wasmtime-wasi = "25"
+wat = "1.217"
 
 # Phase 1: Token counting
 tiktoken-rs = "0.6"

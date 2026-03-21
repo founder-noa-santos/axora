@@ -1,7 +1,7 @@
 {
-  "name": "@axora/logger-core",
+  "name": "@openakta/logger-core",
   "version": "0.1.0",
-  "description": "AXORA Wide Event SDK - Core",
+  "description": "OPENAKTA Wide Event SDK - Core",
   "type": "module",
   "exports": {
     ".": {

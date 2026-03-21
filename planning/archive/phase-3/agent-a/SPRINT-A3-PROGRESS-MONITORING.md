@@ -22,7 +22,7 @@ Implement real-time progress monitoring with ETA calculation, blocker detection,
 
 ### Subagent 1: Progress Tracker
 **Task:** Implement progress tracking with ETA calculation
-**File:** `crates/axora-agents/src/monitor/progress_tracker.rs`
+**File:** `crates/openakta-agents/src/monitor/progress_tracker.rs`
 **Deliverables:**
 - `ProgressTracker` struct
 - `track_task(task_id, status)` method
@@ -32,7 +32,7 @@ Implement real-time progress monitoring with ETA calculation, blocker detection,
 
 ### Subagent 2: Blocker Detector + Reporter
 **Task:** Implement blocker detection and status reporting
-**File:** `crates/axora-agents/src/monitor/reporter.rs`
+**File:** `crates/openakta-agents/src/monitor/reporter.rs`
 **Deliverables:**
 - `BlockerDetector` struct
 - `detect_blockers()` identifies stalled tasks
@@ -52,7 +52,7 @@ Implement real-time progress monitoring with ETA calculation, blocker detection,
    - Ensure accurate ETA calculation
 
 2. **Integrate Components:**
-   - Create `crates/axora-agents/src/monitor.rs` (main module)
+   - Create `crates/openakta-agents/src/monitor.rs` (main module)
    - Combine tracker + detector + reporter
    - Export unified `ProgressMonitor` struct
 
@@ -67,7 +67,7 @@ Implement real-time progress monitoring with ETA calculation, blocker detection,
    - Test report generation (all info included)
 
 5. **Update Documentation:**
-   - Add module to `crates/axora-agents/src/lib.rs`
+   - Add module to `crates/openakta-agents/src/lib.rs`
    - Add progress monitoring examples
 
 ---

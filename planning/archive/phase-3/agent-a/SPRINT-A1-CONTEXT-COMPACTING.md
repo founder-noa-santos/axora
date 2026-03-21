@@ -22,7 +22,7 @@ Implement context compacting system that reduces token usage by 60-80% while pre
 
 ### Subagent 1: Rolling Summary Implementation
 **Task:** Implement rolling summary (last N turns)
-**File:** `crates/axora-cache/src/compactor/rolling_summary.rs`
+**File:** `crates/openakta-cache/src/compactor/rolling_summary.rs`
 **Deliverables:**
 - `RollingSummary` struct
 - `add_turn()` method
@@ -31,7 +31,7 @@ Implement context compacting system that reduces token usage by 60-80% while pre
 
 ### Subagent 2: Hierarchical Memory Implementation
 **Task:** Implement hierarchical memory (recent full, old summarized)
-**File:** `crates/axora-cache/src/compactor/hierarchical_memory.rs`
+**File:** `crates/openakta-cache/src/compactor/hierarchical_memory.rs`
 **Deliverables:**
 - `HierarchicalMemory` struct
 - 3 levels: Recent (0-10), Mid (11-50), Old (50+)
@@ -40,7 +40,7 @@ Implement context compacting system that reduces token usage by 60-80% while pre
 
 ### Subagent 3: Importance Scoring + Pruning
 **Task:** Implement importance scoring (prune low-importance)
-**File:** `crates/axora-cache/src/compactor/importance_scorer.rs`
+**File:** `crates/openakta-cache/src/compactor/importance_scorer.rs`
 **Deliverables:**
 - `ImportanceScorer` struct
 - Score 0-1 (high = keep, low = prune)
@@ -59,7 +59,7 @@ Implement context compacting system that reduces token usage by 60-80% while pre
    - Resolve conflicts between implementations
 
 2. **Integrate Components:**
-   - Create `crates/axora-cache/src/compactor.rs` (main module)
+   - Create `crates/openakta-cache/src/compactor.rs` (main module)
    - Combine rolling summary + hierarchical + importance
    - Export unified `ContextCompactor` struct
 
@@ -69,7 +69,7 @@ Implement context compacting system that reduces token usage by 60-80% while pre
    - Test edge cases (empty context, huge context)
 
 4. **Update Documentation:**
-   - Add module to `crates/axora-cache/src/lib.rs`
+   - Add module to `crates/openakta-cache/src/lib.rs`
    - Update README with compaction examples
 
 ---

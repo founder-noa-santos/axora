@@ -1,4 +1,4 @@
-import type { Sink, WideEventPayload } from '@axora/logger-core';
+import type { Sink, WideEventPayload } from '@openakta/logger-core';
 
 export class DatadogSink implements Sink {
   async export(event: WideEventPayload): Promise<void> {
@@ -9,7 +9,7 @@ export class DatadogSink implements Sink {
       message: event.operation,
       duration: event.duration_ms,
       ...event.context,
-      'dd.axora_event_id': event.event_id,
+      'dd.openakta_event_id': event.event_id,
       'dd.env': event.environment,
     };
 

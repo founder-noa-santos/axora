@@ -3,7 +3,7 @@
 **/target/
 target-*/
 *.rs.bk
-Cargo.lock
+# Cargo.lock is committed for this workspace (binaries: openakta-cli, openakta-daemon; reproducible CI).
 CACHEDIR.TAG
 
 # Build artifacts
@@ -35,6 +35,8 @@ logs/
 # Environment
 .env
 .env.local
+.openakta/secrets/
+**/.openakta/secrets/
 
 # Documentation
 docs/_build/
@@ -45,6 +47,12 @@ site/
 *.temp
 *.pending
 test_dir/
+
+# .NET build outputs (regenerated locally)
+integrations/csharp/**/obj/
+integrations/csharp/**/bin/
+sdks/csharp/**/obj/
+sdks/csharp/**/bin/
 
 # Node (qualquer pasta node_modules em qualquer nível)
 node_modules/

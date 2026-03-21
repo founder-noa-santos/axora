@@ -1,0 +1,51 @@
+[package]
+name = "openakta-memory"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Tripartite memory system for OPENAKTA agents (semantic, episodic, procedural)"
+
+[lints]
+workspace = true
+
+[dependencies]
+openakta-embeddings = { path = "../openakta-embeddings" }
+openakta-indexing = { path = "../openakta-indexing" }
+openakta-proto.workspace = true
+openakta-rag = { path = "../openakta-rag" }
+
+# SQLite (using rusqlite to match openakta-storage)
+rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid"] }
+
+# ML for GMM clustering
+ndarray = "0.15"
+linfa = "0.7"
+
+# Async
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml = "0.9"
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Utilities
+async-trait = "0.1"
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+dashmap.workspace = true
+blake3.workspace = true
+prost-types.workspace = true
+tiktoken-rs.workspace = true
+
+[dev-dependencies]
+tokio-test.workspace = true
+tempfile = "3.10"

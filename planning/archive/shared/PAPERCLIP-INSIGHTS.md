@@ -1,4 +1,4 @@
-# Paperclip Insights for AXORA
+# Paperclip Insights for OPENAKTA
 
 **Analyzed:** Paperclip (https://github.com/paperclipai/paperclip)  
 **Date:** 2026-03-16  
@@ -6,9 +6,9 @@
 
 ---
 
-## 🔍 Key Differences: Paperclip vs AXORA
+## 🔍 Key Differences: Paperclip vs OPENAKTA
 
-| Aspect | Paperclip | AXORA |
+| Aspect | Paperclip | OPENAKTA |
 |--------|-----------|-------|
 | **Target Audience** | Teams running 20+ agents | Individual developers |
 | **Deployment** | Cloud, multi-tenant | Local-first, cloud-optional |
@@ -30,7 +30,7 @@
 
 **Why Adopted:**
 - BYOK users need cost visibility
-- Aligns with AXORA's token efficiency differentiator
+- Aligns with OPENAKTA's token efficiency differentiator
 - Low implementation cost (add counters to existing message flow)
 
 **Implementation:**
@@ -77,7 +77,7 @@ pub struct AuditLog {
 **What:** Scheduled agent wake-ups for recurring work
 
 **Why Deferred:**
-- AXORA has 5-10 agents (not 20+)
+- OPENAKTA has 5-10 agents (not 20+)
 - Current state machine supports Idle/Executing states
 - Adds complexity without immediate benefit
 
@@ -104,21 +104,21 @@ pub struct AuditLog {
 ### 1. Multi-Company Architecture
 **Status:** Rejected
 
-**Why:** AXORA targets individual developers, not teams/orgs.
+**Why:** OPENAKTA targets individual developers, not teams/orgs.
 
 ---
 
 ### 2. PostgreSQL
 **Status:** Rejected
 
-**Why:** AXORA is local-first. SQLite is the right choice.
+**Why:** OPENAKTA is local-first. SQLite is the right choice.
 
 ---
 
 ### 3. Node.js/TypeScript Stack
 **Status:** Rejected
 
-**Why:** Rust is core to AXORA's value (performance, safety, local-first).
+**Why:** Rust is core to OPENAKTA's value (performance, safety, local-first).
 
 ---
 
@@ -136,7 +136,7 @@ pub struct AuditLog {
 
 ---
 
-## 🎯 Impact on AXORA Roadmap
+## 🎯 Impact on OPENAKTA Roadmap
 
 **Phase 2 Adjustments:**
 - Sprint 2: Added budget tracking
@@ -150,4 +150,4 @@ pub struct AuditLog {
 
 ---
 
-**Conclusion:** Paperclip has valuable patterns for **orchestration at scale**. AXORA focuses on **ready-to-use agent team for individuals**. We adopted what aligns (budget, audit), deferred what's premature (heartbeat, BYOA), and rejected what doesn't fit (multi-company, PostgreSQL).
+**Conclusion:** Paperclip has valuable patterns for **orchestration at scale**. OPENAKTA focuses on **ready-to-use agent team for individuals**. We adopted what aligns (budget, audit), deferred what's premature (heartbeat, BYOA), and rejected what doesn't fit (multi-company, PostgreSQL).

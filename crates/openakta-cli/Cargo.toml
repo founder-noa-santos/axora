@@ -1,0 +1,24 @@
+[package]
+name = "openakta-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Batteries-included OPENAKTA CLI"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "openakta"
+path = "src/main.rs"
+
+[dependencies]
+openakta-agents.workspace = true
+openakta-core.workspace = true
+anyhow.workspace = true
+clap = { version = "4.4", features = ["derive", "env"] }
+serde_json.workspace = true
+tokio.workspace = true

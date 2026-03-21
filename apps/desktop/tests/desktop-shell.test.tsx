@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { AppProvider } from "@/lib/app-state";
 
 vi.mock("@/lib/services/desktop-service", () => ({
   desktopService: {
     getBootstrap: () =>
       Promise.resolve({
         info: {
-          name: "AXORA",
+          name: "OPENAKTA",
           version: "0.2.0",
           platform: "darwin",
           arch: "arm64",
@@ -56,19 +57,43 @@ vi.mock("next-themes", () => ({
 
 // Mock the sidebar context
 vi.mock("@/components/ui/sidebar", () => ({
-  Sidebar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarGroupLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarGroupContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarMenuItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SidebarMenuButton: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
-    <button onClick={onClick}>{children}</button>
+  Sidebar: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
   ),
-  SidebarInset: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  SidebarContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarFooter: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarProvider: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarGroup: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarGroupLabel: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarGroupContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarMenu: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarMenuItem: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  SidebarMenuButton: ({
+    children,
+    onClick,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+  }) => <button onClick={onClick}>{children}</button>,
+  SidebarInset: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
   useSidebar: () => ({ open: true, toggleSidebar: vi.fn() }),
 }));
 
@@ -78,8 +103,12 @@ describe("Desktop App Theme System", () => {
   it("renders with dark theme by default", async () => {
     // Import dynamically to avoid issues with the layout being the default export
     const { AppContent } = await import("@/app/layout");
-    
-    render(<AppContent />);
+
+    render(
+      <AppProvider>
+        <AppContent />
+      </AppProvider>,
+    );
 
     // Use findAllByText since React StrictMode may double-render
     const letsBuild = await screen.findAllByText("Let's build");
@@ -97,10 +126,14 @@ describe("Desktop App Theme System", () => {
 
   it("renders thread items", async () => {
     const { AppContent } = await import("@/app/layout");
-    render(<AppContent />);
+    render(
+      <AppProvider>
+        <AppContent />
+      </AppProvider>,
+    );
 
-    const axoraElements = await screen.findAllByText("axora");
-    expect(axoraElements.length).toBeGreaterThanOrEqual(1);
+    const openaktaElements = await screen.findAllByText("openakta");
+    expect(openaktaElements.length).toBeGreaterThanOrEqual(1);
 
     const nexusElements = screen.getAllByText("nexus-social");
     expect(nexusElements.length).toBeGreaterThanOrEqual(1);
@@ -111,7 +144,11 @@ describe("Desktop App Theme System", () => {
 
   it("renders navigation items", async () => {
     const { AppContent } = await import("@/app/layout");
-    render(<AppContent />);
+    render(
+      <AppProvider>
+        <AppContent />
+      </AppProvider>,
+    );
 
     const automations = await screen.findAllByText("Automations");
     expect(automations.length).toBeGreaterThanOrEqual(1);
@@ -122,7 +159,11 @@ describe("Desktop App Theme System", () => {
 
   it("renders quick action cards", async () => {
     const { AppContent } = await import("@/app/layout");
-    render(<AppContent />);
+    render(
+      <AppProvider>
+        <AppContent />
+      </AppProvider>,
+    );
 
     const snakeGame = await screen.findAllByText("Build a classic Snake game");
     expect(snakeGame.length).toBeGreaterThanOrEqual(1);

@@ -293,7 +293,7 @@ if server_version != client_version {
 ```
 **Advantage:** System context separate from conversation
 
-##### C. Hierarchical Memory (Recommended for AXORA)
+##### C. Hierarchical Memory (Recommended for OPENAKTA)
 ```json
 {
   "system": "...", // Fixed instructions
@@ -315,7 +315,7 @@ if server_version != client_version {
 
 ---
 
-### Part 4: AXORA Integration
+### Part 4: OPENAKTA Integration
 
 #### 9. Coordinator + Blackboard Architecture
 
@@ -423,7 +423,7 @@ For each system below, research:
 - [ ] Identify best practices
 - [ ] Identify anti-patterns
 
-### Phase 4: AXORA Recommendations (1 hour)
+### Phase 4: OPENAKTA Recommendations (1 hour)
 - [ ] Which techniques to adopt?
 - [ ] Implementation priority
 - [ ] Sprint breakdown
@@ -462,7 +462,7 @@ For each system below, research:
 **File:** `research/findings/context-compacting/ARCHITECTURE-RECOMMENDATION.md`
 
 **Content:**
-- Recommended architecture for AXORA
+- Recommended architecture for OPENAKTA
 - Coordinator + Blackboard design
 - Context compaction integration
 - Context sharing protocol
@@ -491,7 +491,7 @@ Research is successful when:
 - [ ] 5+ industry implementations analyzed
 - [ ] Compression ratios quantified (targets set)
 - [ ] Quality trade-offs documented
-- [ ] Recommended architecture for AXORA defined
+- [ ] Recommended architecture for OPENAKTA defined
 - [ ] Implementation plan created
 - [ ] Integration with Memory Architecture defined
 - [ ] Integration with Coordinator (DADD) defined

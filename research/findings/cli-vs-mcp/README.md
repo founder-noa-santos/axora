@@ -1,6 +1,6 @@
 # CLI-First vs MCP Research
 
-**Mission:** Determine optimal architecture for AXORA tool execution  
+**Mission:** Determine optimal architecture for OPENAKTA tool execution  
 **Status:** 📋 Research Required — Decision Pending  
 **Priority:** 🔴 CRITICAL  
 
@@ -8,7 +8,7 @@
 
 ## 🎯 Goal
 
-Decide whether AXORA should:
+Decide whether OPENAKTA should:
 1. **Pure CLI** (Aider model) — Fast but single-agent, no sandboxing
 2. **Pure MCP** — Secure but complex, potential overhead
 3. **Hybrid** (CLI-First, MCP-Backed) — Best of both worlds (RECOMMENDED)
@@ -51,9 +51,9 @@ cli-vs-mcp/
 
 | Component | Status | Location | Architecture |
 |-----------|--------|----------|--------------|
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` | Pub/Sub (MCP-compatible) |
-| Worker Agents | ✅ Implemented | `crates/axora-agents/src/worker_pool.rs` | Parallel execution |
-| gRPC Scaffold | ✅ Exists | `crates/axora-proto/` | MCP-ready |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` | Pub/Sub (MCP-compatible) |
+| Worker Agents | ✅ Implemented | `crates/openakta-agents/src/worker_pool.rs` | Parallel execution |
+| gRPC Scaffold | ✅ Exists | `crates/openakta-proto/` | MCP-ready |
 | Tool Execution | ❌ Not implemented | — | CLI or MCP? |
 
 ### What We Need to Decide
@@ -76,7 +76,7 @@ cli-vs-mcp/
 - ✅ **Simplicity:** Single process, no orchestration
 - ✅ **Developer Experience:** Terminal-native, familiar
 
-### CLI Critical Flaws for AXORA
+### CLI Critical Flaws for OPENAKTA
 
 - ❌ **Single Blocking Loop:** No parallelism (destroys 3-5x speed goal)
 - ❌ **No Tool Sandboxing:** Any agent can delete any file
@@ -140,7 +140,7 @@ User Terminal (CLI)
 
 ## 📋 Decision Required
 
-**Question:** Should AXORA adopt the **Hybrid (CLI-First, MCP-Backed)** architecture?
+**Question:** Should OPENAKTA adopt the **Hybrid (CLI-First, MCP-Backed)** architecture?
 
 **If Approved:**
 - Agent C starts Phase 1 (MCP Foundation) — 4 weeks

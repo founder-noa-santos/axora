@@ -4,8 +4,8 @@ import { HttpSink } from '../HttpSink.js';
 
 describe('HttpSink', () => {
   it('uses explicit options before env fallbacks and sends the canonical payload', async () => {
-    vi.stubEnv('AXORA_SINK_URL', 'https://env.invalid/logs');
-    vi.stubEnv('AXORA_SINK_TOKEN', 'env-token');
+    vi.stubEnv('OPENAKTA_SINK_URL', 'https://env.invalid/logs');
+    vi.stubEnv('OPENAKTA_SINK_TOKEN', 'env-token');
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

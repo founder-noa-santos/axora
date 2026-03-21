@@ -32,7 +32,7 @@ Agent B completed **11 sprints** in Phase 2/3 ✅ — documented in `planning/ag
 
 **Check:**
 - [ ] Settings store loads/saves correctly
-- [ ] Local storage persistence works (`axora-settings` key)
+- [ ] Local storage persistence works (`openakta-settings` key)
 - [ ] Backend API sync works (when `/api/settings` available)
 - [ ] Settings validation works (import/export)
 - [ ] Zustand persist middleware works with new build

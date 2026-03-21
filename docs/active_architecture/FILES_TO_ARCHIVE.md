@@ -50,10 +50,10 @@
 
 | Component | Location | Status |
 |-----------|----------|--------|
-| PrefixCache | `crates/axora-cache/src/prefix_cache.rs` | ✅ Keep (implemented) |
-| Diff | `crates/axora-cache/src/diff.rs` | ✅ Keep (implemented) |
-| InfluenceGraph | `crates/axora-indexing/src/influence.rs` | ✅ Keep (implemented) |
-| Blackboard v2 | `crates/axora-cache/src/blackboard/v2.rs` | ✅ Keep (implemented) |
+| PrefixCache | `crates/openakta-cache/src/prefix_cache.rs` | ✅ Keep (implemented) |
+| Diff | `crates/openakta-cache/src/diff.rs` | ✅ Keep (implemented) |
+| InfluenceGraph | `crates/openakta-indexing/src/influence.rs` | ✅ Keep (implemented) |
+| Blackboard v2 | `crates/openakta-cache/src/blackboard/v2.rs` | ✅ Keep (implemented) |
 
 ---
 

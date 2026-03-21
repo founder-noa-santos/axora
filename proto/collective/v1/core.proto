@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package collective.v1;
 
-option go_package = "github.com/axora/axora-mvp/proto/collective/v1";
+option go_package = "github.com/openakta/aktacode/proto/collective/v1";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
@@ -22,6 +22,8 @@ service CollectiveService {
   // Message streaming
   rpc StreamMessages(StreamMessagesRequest) returns (stream Message);
   rpc SendMessage(SendMessageRequest) returns (google.protobuf.Empty);
+  /// Authoritative HITL answer ingestion (drives MissionHitlGate + blackboard wake).
+  rpc SubmitHitlAnswer(SubmitHitlAnswerRequest) returns (SubmitHitlAnswerResponse);
 }
 
 // Agent represents a coding agent in the system
@@ -79,6 +81,8 @@ message Message {
   ResultSubmission result_submission = 13;
   BlockerAlert blocker_alert = 14;
   WorkflowTransitionEvent workflow_transition = 15;
+  QuestionEnvelope human_question = 16;
+  AnswerEnvelope human_answer = 17;
 }
 
 enum MessageType {
@@ -96,6 +100,43 @@ enum MessageType {
   MESSAGE_TYPE_RESULT_SUBMISSION = 11;
   MESSAGE_TYPE_BLOCKER_ALERT = 12;
   MESSAGE_TYPE_WORKFLOW_TRANSITION = 13;
+  MESSAGE_TYPE_QUESTION = 14;
+  MESSAGE_TYPE_ANSWER = 15;
+}
+
+/// How a QuestionEnvelope expects input.
+enum QuestionKind {
+  QUESTION_KIND_UNSPECIFIED = 0;
+  QUESTION_KIND_SINGLE = 1;
+  QUESTION_KIND_MULTI = 2;
+  QUESTION_KIND_FREE_TEXT = 3;
+  QUESTION_KIND_MIXED = 4;
+}
+
+/// Authoritative mode on an AnswerEnvelope (mirrors QuestionKind).
+enum AnswerMode {
+  ANSWER_MODE_UNSPECIFIED = 0;
+  ANSWER_MODE_SINGLE = 1;
+  ANSWER_MODE_MULTI = 2;
+  ANSWER_MODE_FREE_TEXT = 3;
+  ANSWER_MODE_MIXED = 4;
+}
+
+/// Who produced the answer.
+enum AnswerAuthor {
+  ANSWER_AUTHOR_UNSPECIFIED = 0;
+  ANSWER_AUTHOR_HUMAN = 1;
+  ANSWER_AUTHOR_SYSTEM = 2;
+}
+
+/// High-level mission lifecycle for HITL coordination (parallel to task state).
+enum MissionLifecycleState {
+  MISSION_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  MISSION_LIFECYCLE_STATE_RUNNING = 1;
+  MISSION_LIFECYCLE_STATE_PENDING_ANSWER = 2;
+  MISSION_LIFECYCLE_STATE_CANCELLED = 3;
+  MISSION_LIFECYCLE_STATE_TIMED_OUT = 4;
+  MISSION_LIFECYCLE_STATE_COMPLETED = 5;
 }
 
 // Request/Response messages
@@ -166,6 +207,59 @@ message SendMessageRequest {
   ResultSubmission result_submission = 11;
   BlockerAlert blocker_alert = 12;
   WorkflowTransitionEvent workflow_transition = 13;
+  QuestionEnvelope human_question = 14;
+  AnswerEnvelope human_answer = 15;
+}
+
+message SubmitHitlAnswerRequest {
+  AnswerEnvelope answer = 1;
+}
+
+message SubmitHitlAnswerResponse {
+  bool accepted = 1;
+  string detail = 2;
+}
+
+/// Single selectable option in a HITL question.
+message QuestionOption {
+  string id = 1;
+  string label = 2;
+  string description = 3;
+  bool is_default = 4;
+}
+
+/// Validation constraints for answers.
+message QuestionConstraints {
+  uint32 min_selections = 1;
+  uint32 max_selections = 2;
+  optional uint32 free_text_max_chars = 3;
+}
+
+/// Structured question emitted to UIs / CLI when the agent calls `request_user_input`.
+message QuestionEnvelope {
+  string question_id = 1;
+  string mission_id = 2;
+  string session_id = 3;
+  uint32 turn_index = 4;
+  string text = 5;
+  QuestionKind kind = 6;
+  repeated QuestionOption options = 7;
+  QuestionConstraints constraints = 8;
+  // Opaque token (e.g. JWT); clients may show countdown if `expires_at` is set.
+  optional string expiry_token = 9;
+  bool sensitive = 10;
+  optional google.protobuf.Timestamp expires_at = 11;
+}
+
+/// Validated human (or system default) response to a question.
+message AnswerEnvelope {
+  string question_id = 1;
+  string mission_id = 2;
+  AnswerAuthor answered_by = 3;
+  AnswerMode mode = 4;
+  repeated string selected_option_ids = 5;
+  optional string free_text = 6;
+  google.protobuf.Timestamp answered_at = 7;
 }
 
 enum TaskPayloadType {
@@ -245,6 +339,7 @@ message ResultSubmission {
   string summary = 6;
   string error_message = 7;
   PatchReceipt patch_receipt = 8;
+  string diagnostic_toon = 9;
 }
 
 message BlockerAlert {
@@ -342,4 +437,5 @@ message ValidationResult {
   bool accepted = 2;
   string message = 3;
   repeated ValidationFact facts = 4;
+  string diagnostic_toon = 5;
 }

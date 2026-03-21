@@ -281,7 +281,7 @@ All agents → Coordinator → Routes context
 |---------|-------------|---------|
 | **Full History** (OpenAI) | Entire message array for every request | ❌ Anti-pattern (context explosion) |
 | **System + Messages** (Anthropic) | System prompt (cached) + truncated messages | ✅ Better, but still limited |
-| **Hierarchical Memory** (AXORA) | Bounded size (~5K-8K tokens) regardless of turns | ✅ **Optimal** |
+| **Hierarchical Memory** (OPENAKTA) | Bounded size (~5K-8K tokens) regardless of turns | ✅ **Optimal** |
 
 **Hierarchical Memory Structure:**
 ```
@@ -342,13 +342,13 @@ Semantic Summaries: Compressed knowledge from vector DB
 
 ---
 
-## 🏗️ AXORA Architecture Recommendations
+## 🏗️ OPENAKTA Architecture Recommendations
 
 ### Recommended Topology: Coordinator + CRDT Blackboard
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│              AXORA Context Architecture                          │
+│              OPENAKTA Context Architecture                          │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  Global Semantic State (Coordinator)                            │
@@ -374,7 +374,7 @@ Semantic Summaries: Compressed knowledge from vector DB
 
 ### Context Compaction Integration
 
-**AXORA Worker Agent Prompt Structure:**
+**OPENAKTA Worker Agent Prompt Structure:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -458,7 +458,7 @@ Semantic Summaries: Compressed knowledge from vector DB
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` |
 | TOON Serializer | 📋 Planned | Next sprint |
 | CRDT Integration | 📋 Planned | Next sprint |
 | Diff-Based Event Bus | 📋 Planned | Next sprint |

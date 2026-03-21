@@ -1,6 +1,6 @@
-using Axora.Logger.Sinks;
+using Openakta.Logger.Sinks;
 
-namespace Axora.Logger.Posthog;
+namespace Openakta.Logger.Posthog;
 
 public interface IPosthogClientLike
 {
@@ -25,8 +25,8 @@ public sealed class PosthogSink : ISink
 
         var properties = new Dictionary<string, object?>(@event.Context)
         {
-            ["axora_event_id"] = @event.EventId,
-            ["axora_service"] = @event.Service,
+            ["openakta_event_id"] = @event.EventId,
+            ["openakta_service"] = @event.Service,
             ["status"] = @event.Status,
             ["level"] = @event.Level,
             ["duration_ms"] = @event.DurationMs,

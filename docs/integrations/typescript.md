@@ -4,19 +4,19 @@
 
 | Package | Transport | Notes |
 | --- | --- | --- |
-| `@axora/logger-otel` | OpenTelemetry logs | Requires a configured `LoggerProvider` |
-| `@axora/logger-sentry` | Sentry errors and breadcrumbs | Uses `withScope` and `captureException` |
-| `@axora/logger-datadog` | Datadog stdout JSON | Ships canonical JSON lines in v1 |
-| `@axora/logger-posthog` | PostHog capture events | Uses `distinctId` plus `shutdown()` |
+| `@openakta/logger-otel` | OpenTelemetry logs | Requires a configured `LoggerProvider` |
+| `@openakta/logger-sentry` | Sentry errors and breadcrumbs | Uses `withScope` and `captureException` |
+| `@openakta/logger-datadog` | Datadog stdout JSON | Ships canonical JSON lines in v1 |
+| `@openakta/logger-posthog` | PostHog capture events | Uses `distinctId` plus `shutdown()` |
 
 ## Initialization
 
 ```typescript
-import { Logger, ConsoleSink } from '@axora/logger-core';
-import { OtelSink } from '@axora/logger-otel';
-import { SentrySink } from '@axora/logger-sentry';
-import { DatadogSink } from '@axora/logger-datadog';
-import { PosthogSink } from '@axora/logger-posthog';
+import { Logger, ConsoleSink } from '@openakta/logger-core';
+import { OtelSink } from '@openakta/logger-otel';
+import { SentrySink } from '@openakta/logger-sentry';
+import { DatadogSink } from '@openakta/logger-datadog';
+import { PosthogSink } from '@openakta/logger-posthog';
 
 const logger = new Logger({
   service: 'billing-api',

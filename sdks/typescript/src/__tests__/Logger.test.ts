@@ -54,8 +54,8 @@ describe('Logger core', () => {
   });
 
   it('falls back to environment variables when service and environment are omitted', async () => {
-    vi.stubEnv('AXORA_SERVICE', 'env-service');
-    vi.stubEnv('AXORA_ENV', 'development');
+    vi.stubEnv('OPENAKTA_SERVICE', 'env-service');
+    vi.stubEnv('OPENAKTA_ENV', 'development');
 
     const sink = new CaptureSink();
     const logger = new Logger({ sinks: [sink] });

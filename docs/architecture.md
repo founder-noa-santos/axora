@@ -1,8 +1,8 @@
-# AXORA Architecture
+# OPENAKTA Architecture
 
 ## Overview
 
-AXORA is split into two clear layers:
+OPENAKTA is split into two clear layers:
 
 1. A Rust workspace that owns domain logic, storage, indexing, orchestration, and daemon behavior.
 2. A desktop application that owns local shell behavior, windowing, renderer composition, and future native capability brokering.
@@ -19,7 +19,7 @@ AXORA is split into two clear layers:
                                │
 ┌──────────────────────────────▼───────────────────────────────────────┐
 │                           Electron Preload                           │
-│         Minimal typed bridge exposed as window.axoraDesktop          │
+│         Minimal typed bridge exposed as window.openaktaDesktop          │
 └──────────────────────────────┬───────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼───────────────────────────────────────┐
@@ -31,7 +31,7 @@ AXORA is split into two clear layers:
                                │
 ┌──────────────────────────────▼───────────────────────────────────────┐
 │                          Rust Workspace                               │
-│ axora-core · axora-daemon · axora-storage · axora-* domain crates    │
+│ openakta-core · openakta-daemon · openakta-storage · openakta-* domain crates    │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -46,18 +46,18 @@ AXORA is split into two clear layers:
 
 ### Desktop app
 
-- [apps/desktop/app](/Users/noasantos/Fluri/axora/apps/desktop/app): Next.js App Router entrypoints
-- [apps/desktop/components](/Users/noasantos/Fluri/axora/apps/desktop/components): shell layout and UI primitives
-- [apps/desktop/electron/main](/Users/noasantos/Fluri/axora/apps/desktop/electron/main): window bootstrap, IPC registration, local persistence
-- [apps/desktop/electron/preload](/Users/noasantos/Fluri/axora/apps/desktop/electron/preload): typed desktop bridge
-- [apps/desktop/shared/contracts](/Users/noasantos/Fluri/axora/apps/desktop/shared/contracts): shared schemas and API contracts
+- [apps/desktop/app](/Users/noasantos/Fluri/openakta/apps/desktop/app): Next.js App Router entrypoints
+- [apps/desktop/components](/Users/noasantos/Fluri/openakta/apps/desktop/components): shell layout and UI primitives
+- [apps/desktop/electron/main](/Users/noasantos/Fluri/openakta/apps/desktop/electron/main): window bootstrap, IPC registration, local persistence
+- [apps/desktop/electron/preload](/Users/noasantos/Fluri/openakta/apps/desktop/electron/preload): typed desktop bridge
+- [apps/desktop/shared/contracts](/Users/noasantos/Fluri/openakta/apps/desktop/shared/contracts): shared schemas and API contracts
 
 ### Rust workspace
 
-- [crates/axora-core](/Users/noasantos/Fluri/axora/crates/axora-core): core orchestration logic
-- [crates/axora-daemon](/Users/noasantos/Fluri/axora/crates/axora-daemon): daemon executable
-- [crates/axora-storage](/Users/noasantos/Fluri/axora/crates/axora-storage): persistence
-- [crates/axora-proto](/Users/noasantos/Fluri/axora/crates/axora-proto): shared protocol types
+- [crates/openakta-core](/Users/noasantos/Fluri/openakta/crates/openakta-core): core orchestration logic
+- [crates/openakta-daemon](/Users/noasantos/Fluri/openakta/crates/openakta-daemon): daemon executable
+- [crates/openakta-storage](/Users/noasantos/Fluri/openakta/crates/openakta-storage): persistence
+- [crates/openakta-proto](/Users/noasantos/Fluri/openakta/crates/openakta-proto): shared protocol types
 
 ## Renderer strategy
 
@@ -69,7 +69,7 @@ The renderer is intentionally static-first:
 
 ## UI system
 
-- Tailwind CSS v4 tokens are centralized in [apps/desktop/styles/tokens.css](/Users/noasantos/Fluri/axora/apps/desktop/styles/tokens.css).
+- Tailwind CSS v4 tokens are centralized in [apps/desktop/styles/tokens.css](/Users/noasantos/Fluri/openakta/apps/desktop/styles/tokens.css).
 - shadcn/ui components are kept local and edited in-repo.
 - Lucide React is the single icon family and should remain the only default icon set.
 - The shell is macOS-first: hidden inset title bar, restrained dark surfaces, dense but calm information layout.

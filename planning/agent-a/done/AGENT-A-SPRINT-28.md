@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 28 (Memory Architecture)  
-**File:** `crates/axora-memory/src/procedural_store.rs`  
+**File:** `crates/openakta-memory/src/procedural_store.rs`  
 **Priority:** CRITICAL (learned workflows, compounding expertise)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ R-14 research provides CRITICAL implementation details:
 
 ### 1. Create procedural_store.rs
 
-**File:** `crates/axora-memory/src/procedural_store.rs`
+**File:** `crates/openakta-memory/src/procedural_store.rs`
 
 **Core Structure:**
 ```rust
@@ -295,7 +295,7 @@ jwt verify --secret $JWT_SECRET $JWT_TOKEN
 
 ### 3. Integrate with Task Decomposition
 
-**File:** `crates/axora-agents/src/coordinator.rs` (UPDATE)
+**File:** `crates/openakta-agents/src/coordinator.rs` (UPDATE)
 
 ```rust
 // Add to existing Coordinator
@@ -340,16 +340,16 @@ impl Coordinator {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-memory/src/procedural_store.rs` (NEW)
-- `crates/axora-memory/skills/` directory (for SKILL.md files)
+- `crates/openakta-memory/src/procedural_store.rs` (NEW)
+- `crates/openakta-memory/skills/` directory (for SKILL.md files)
 
 **Update:**
-- `crates/axora-agents/src/coordinator.rs` (integrate procedural memory)
+- `crates/openakta-agents/src/coordinator.rs` (integrate procedural memory)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-indexing/` (Agent B's domain)
-- `crates/axora-docs/` (Agent A's other work)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
+- `crates/openakta-docs/` (Agent A's other work)
 
 ---
 

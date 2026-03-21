@@ -1,4 +1,4 @@
-# AXORA Business Alignment Report
+# OPENAKTA Business Alignment Report
 
 **Date:** 2026-03-16  
 **Status:** ✅ Complete  
@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-AXORA is a **multi-agent AI coding system** designed for **individual developers** who want a **ready-to-use team of specialized AI agents** that work collaboratively to help them develop software.
+OPENAKTA is a **multi-agent AI coding system** designed for **individual developers** who want a **ready-to-use team of specialized AI agents** that work collaboratively to help them develop software.
 
 **Core Value Proposition:**
 > "A primeira equipe de AI que trabalha pra você, do seu jeito."
@@ -56,7 +56,7 @@ AXORA is a **multi-agent AI coding system** designed for **individual developers
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    AXORA Experience                      │
+│                    OPENAKTA Experience                      │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
 │  Default Mode: "Invisible Orchestra"                     │
@@ -81,7 +81,7 @@ AXORA is a **multi-agent AI coding system** designed for **individual developers
 
 **User = Brain + Business**  
 **Agents = Implementers**  
-**AXORA = Advisor that "pulls your ear"** (quality, security, simplicity)
+**OPENAKTA = Advisor that "pulls your ear"** (quality, security, simplicity)
 
 User converses and specifies → Agents implement → User reviews and iterates
 
@@ -119,7 +119,7 @@ User converses and specifies → Agents implement → User reviews and iterates
 ┌─────────────────────────────────────────┐
 │  Agents Especializados (Presidents)     │
 │  - Arquiteto, Coder, Reviewer, Tester   │
-│  - Cloud (BYOK or paid via AXORA)       │
+│  - Cloud (BYOK or paid via OPENAKTA)       │
 │  - Best quality for complex tasks       │
 └─────────────────────────────────────────┘
               │
@@ -134,7 +134,7 @@ User converses and specifies → Agents implement → User reviews and iterates
 
 **User Options:**
 - **BYOK**: Use your own API keys (pay provider directly)
-- **Pay AXORA**: Use our keys, pay us (convenience, markup)
+- **Pay OPENAKTA**: Use our keys, pay us (convenience, markup)
 - **Local**: Free, unlimited, less capable
 
 ### Technology Stack
@@ -170,7 +170,7 @@ User converses and specifies → Agents implement → User reviews and iterates
 **Primary:** Subscription + Usage
 
 - **Base subscription** (~$10-20/month): Access to app, use your own API keys (BYOK)
-- **Usage-based**: Pay AXORA for API usage (convenience, potential markup)
+- **Usage-based**: Pay OPENAKTA for API usage (convenience, potential markup)
 - **Local**: Free, unlimited (for users who can't/won't pay)
 
 **Philosophy:**
@@ -252,7 +252,7 @@ User converses and specifies → Agents implement → User reviews and iterates
 
 ## Quality Pillars
 
-All code produced by AXORA must adhere to:
+All code produced by OPENAKTA must adhere to:
 
 1. **Security** - No vulnerabilities, safe by default
 2. **Efficiency** - Performant, resource-conscious

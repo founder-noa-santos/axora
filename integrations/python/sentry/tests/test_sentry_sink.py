@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import asyncio
 
-from axora_logger_sentry import SentrySink
+from openakta_logger_sentry import SentrySink
 
 
 def test_sentry_sink_captures_errors() -> None:

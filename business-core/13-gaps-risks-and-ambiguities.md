@@ -17,12 +17,17 @@ The prior risks around synthetic provider execution and missing memory architect
 | Lightweight semantic embeddings in doc sync | Some semantic ingestion uses a simple local embedding strategy, which may limit retrieval quality |
 | Partial governance automation | LivingDocs can detect and stage doc updates, but does not yet auto-open PRs by default |
 | Retrieval/index freshness | Context quality still depends on reliable change detection and indexing freshness |
+| `WireProfile` adoption | Ensure all new providers use `WireProfile` for transport and `ProviderKind` for telemetry (R4 implemented 2026-03-20) |
 
 ## Resolved Risks
 
 - Synthetic provider execution is no longer the primary runtime claim.
 - Tripartite memory and memory pruning are no longer architectural gaps.
 - MCP-backed tool sandboxing is now a real system boundary, not a research note.
+- Hardcoded token limits are replaced by dynamic model metadata (as of 2026-03-20 refactor).
+- Environment variable fallbacks are fully purged; file-based secrets are enforced.
+- Model registry provides authoritative metadata for routing and budgeting.
+- `ProviderKind` conflation resolved: `WireProfile` now drives transport, `ProviderKind` only for telemetry (R4 completed 2026-03-20).
 
 ## Business-Layer Gaps
 
@@ -40,16 +45,21 @@ The prior risks around synthetic provider execution and missing memory architect
 
 ## Implementation Evidence
 
-- `crates/axora-agents/src/coordinator/v2.rs`
-- `crates/axora-agents/src/provider_transport.rs`
-- `crates/axora-agents/src/react.rs`
-- `crates/axora-mcp-server/src/lib.rs`
-- `crates/axora-daemon/src/services.rs`
-- `crates/axora-docs/src/reconciler.rs`
+- `crates/openakta-agents/src/coordinator/v2.rs`
+- `crates/openakta-agents/src/provider_transport.rs`
+- `crates/openakta-agents/src/react.rs`
+- `crates/openakta-agents/src/model_registry/mod.rs`
+- `crates/openakta-agents/src/routing/mod.rs`
+- `crates/openakta-agents/src/token_budget.rs`
+- `crates/openakta-core/src/config_resolve.rs`
+- `crates/openakta-core/src/bootstrap.rs`
+- `crates/openakta-mcp-server/src/lib.rs`
+- `crates/openakta-daemon/src/services.rs`
+- `crates/openakta-docs/src/reconciler.rs`
 
 ## Business Meaning
 
-AXORA’s remaining uncertainty is no longer “can the platform run end-to-end?” It is “how far and how fast to harden and commercialize the now-real execution core.”
+OPENAKTA’s remaining uncertainty is no longer “can the platform run end-to-end?” It is “how far and how fast to harden and commercialize the now-real execution core.”
 
 ## Confidence Assessment
 

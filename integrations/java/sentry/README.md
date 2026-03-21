@@ -1,6 +1,6 @@
-# com.axora:logger-sentry
+# com.openakta:logger-sentry
 
-Sentry adapter boundary for AXORA Wide Events.
+Sentry adapter boundary for OPENAKTA Wide Events.
 
 ## Notes
 

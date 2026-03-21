@@ -117,7 +117,7 @@ research/findings/
 **Status:** 📋 Research Complete — Decision Pending  
 **Priority:** 🔴 CRITICAL (foundational architecture decision)
 
-**Goal:** Determine optimal architecture for AXORA tool execution
+**Goal:** Determine optimal architecture for OPENAKTA tool execution
 
 **Options:**
 1. Pure CLI (Aider model) — Fast but single-agent, no sandboxing
@@ -126,7 +126,7 @@ research/findings/
 
 **Research:** `cli-vs-mcp/R-18-CLI-VS-MCP-ANALYSIS.md`
 
-**Decision Required:** Should AXORA adopt the Hybrid architecture?
+**Decision Required:** Should OPENAKTA adopt the Hybrid architecture?
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 31 (Memory Architecture)  
-**File:** `crates/axora-memory/src/lifecycle.rs`  
+**File:** `crates/openakta-memory/src/lifecycle.rs`  
 **Priority:** HIGH (prevents memory bloat, context rot)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ R-14 research provides CRITICAL implementation details:
 
 ### 1. Create lifecycle.rs
 
-**File:** `crates/axora-memory/src/lifecycle.rs`
+**File:** `crates/openakta-memory/src/lifecycle.rs`
 
 **Core Structure:**
 ```rust
@@ -221,7 +221,7 @@ pub struct ConflictResolutionReport {
 
 ### 2. Background Pruning Worker
 
-**File:** `crates/axora-memory/src/lifecycle.rs` (add to existing)
+**File:** `crates/openakta-memory/src/lifecycle.rs` (add to existing)
 
 ```rust
 /// Background pruning worker
@@ -276,7 +276,7 @@ impl PruningWorker {
 
 ### 3. Ebbinghaus Decay Implementation
 
-**File:** `crates/axora-memory/src/lifecycle.rs` (add to existing)
+**File:** `crates/openakta-memory/src/lifecycle.rs` (add to existing)
 
 ```rust
 impl EbbinghausDecay {
@@ -312,15 +312,15 @@ impl EbbinghausDecay {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-memory/src/lifecycle.rs` (NEW)
+- `crates/openakta-memory/src/lifecycle.rs` (NEW)
 
 **Update:**
 - None (new module)
 
 **DO NOT Edit:**
-- `crates/axora-cache/` (Agent B's domain)
-- `crates/axora-indexing/` (Agent B's domain)
-- `crates/axora-agents/` (Agent C's domain)
+- `crates/openakta-cache/` (Agent B's domain)
+- `crates/openakta-indexing/` (Agent B's domain)
+- `crates/openakta-agents/` (Agent C's domain)
 
 ---
 

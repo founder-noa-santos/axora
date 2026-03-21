@@ -52,7 +52,7 @@ UI Update (React Query invalidates)
 **Coverage Target:** 80%
 
 ```rust
-// crates/axora-storage/src/lib.rs
+// crates/openakta-storage/src/lib.rs
 
 #[cfg(test)]
 mod tests {
@@ -83,7 +83,7 @@ mod tests {
 ### Level 2: Integration Tests
 
 ```rust
-// crates/axora-core/tests/integration.rs
+// crates/openakta-core/tests/integration.rs
 
 #[tokio::test]
 async fn test_agent_registration_flow() {
@@ -251,10 +251,10 @@ jobs:
 ## Performance Benchmarks
 
 ```rust
-// crates/axora-core/benches/frame_bench.rs
+// crates/openakta-core/benches/frame_bench.rs
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use axora_core::FrameExecutor;
+use openakta_core::FrameExecutor;
 
 fn bench_frame_execution(c: &mut Criterion) {
     let executor = FrameExecutor::new();
@@ -292,10 +292,10 @@ cargo bench
 ### Error Types
 
 ```rust
-// crates/axora-core/src/error.rs
+// crates/openakta-core/src/error.rs
 
 #[derive(Error, Debug)]
-pub enum AxoraError {
+pub enum OpenaktaError {
     #[error("Database error: {0}")]
     Database(#[from] StorageError),
     
@@ -312,19 +312,19 @@ pub enum AxoraError {
     Connection(String),
 }
 
-pub type Result<T> = std::result::Result<T, AxoraError>;
+pub type Result<T> = std::result::Result<T, OpenaktaError>;
 ```
 
 ### Error Responses
 
 ```rust
 // Map internal errors to gRPC status codes
-fn map_error(err: AxoraError) -> tonic::Status {
+fn map_error(err: OpenaktaError) -> tonic::Status {
     match err {
-        AxoraError::AgentNotFound(_) => tonic::Status::not_found(err.to_string()),
-        AxoraError::TaskNotFound(_) => tonic::Status::not_found(err.to_string()),
-        AxoraError::Database(_) => tonic::Status::internal(err.to_string()),
-        AxoraError::Connection(_) => tonic::Status::unavailable(err.to_string()),
+        OpenaktaError::AgentNotFound(_) => tonic::Status::not_found(err.to_string()),
+        OpenaktaError::TaskNotFound(_) => tonic::Status::not_found(err.to_string()),
+        OpenaktaError::Database(_) => tonic::Status::internal(err.to_string()),
+        OpenaktaError::Connection(_) => tonic::Status::unavailable(err.to_string()),
         _ => tonic::Status::unknown(err.to_string()),
     }
 }
@@ -357,7 +357,7 @@ async fn register_agent(&self, agent: Agent) -> Result<()> {
 tracing_subscriber::fmt()
     .with_env_filter(
         EnvFilter::from_default_env()
-            .add_directive("axora=debug".parse().unwrap())
+            .add_directive("openakta=debug".parse().unwrap())
             .add_directive("tokio=info".parse().unwrap())
     )
     .with_target(true)
@@ -367,7 +367,7 @@ tracing_subscriber::fmt()
 
 Run with custom log level:
 ```bash
-RUST_LOG=axora=debug,tonic=info cargo run -p axora-daemon
+RUST_LOG=openakta=debug,tonic=info cargo run -p openakta-daemon
 ```
 
 ---

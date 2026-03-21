@@ -1,7 +1,7 @@
 # Fix: lifecycle.rs Closure Trait Errors (Fn vs FnMut)
 
 **Priority:** 🔴 BLOCKER (prevents compilation)  
-**File:** `crates/axora-memory/src/lifecycle.rs`  
+**File:** `crates/openakta-memory/src/lifecycle.rs`  
 **Estimated Fix Time:** 5-10 minutes  
 
 ---
@@ -10,7 +10,7 @@
 
 ```
 error[E0596]: cannot borrow `deleted` as mutable, as it is a captured variable in a `Fn` closure
-   --> crates/axora-memory/src/lifecycle.rs:781:17
+   --> crates/openakta-memory/src/lifecycle.rs:781:17
     |
 374 |           should_delete: impl Fn(&S) -> std::result::Result<bool, LifecycleError>,
     |                          -------------------------------------------------------- change this to accept `FnMut` instead of `Fn`
@@ -143,7 +143,7 @@ prune_fn(|item| {
 2. [ ] Change `impl Fn(...)` to `impl FnMut(...)` in `prune_semantic`
 3. [ ] Change `impl Fn(...)` to `impl FnMut(...)` in `resolve_conflicts` (line 447)
 4. [ ] Add `mut` keyword to all three parameter names
-5. [ ] Run `cargo test -p axora-memory lifecycle` to verify fix
+5. [ ] Run `cargo test -p openakta-memory lifecycle` to verify fix
 6. [ ] Verify all lifecycle tests pass
 
 ---
@@ -152,8 +152,8 @@ prune_fn(|item| {
 
 **After fix:**
 ```
-cargo test -p axora-memory lifecycle
-   Compiling axora-memory v0.1.0
+cargo test -p openakta-memory lifecycle
+   Compiling openakta-memory v0.1.0
    Finished `test` profile [unoptimized + debuginfo]
    Running unittests src/lib.rs
 

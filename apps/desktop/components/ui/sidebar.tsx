@@ -1,65 +1,65 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
-import { PanelLeft } from "lucide-react"
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { PanelLeft } from "lucide-react";
 
-import { useIsMobile } from "@/hooks/use-mobile"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Separator } from "@/components/ui/separator"
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "@/components/ui/tooltip";
 
-const SIDEBAR_COOKIE_NAME = "sidebar_state"
-const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
+const SIDEBAR_COOKIE_NAME = "sidebar_state";
+const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 // Default widths - can be overridden via CSS variable --sidebar-width on SidebarProvider
-const SIDEBAR_WIDTH_DEFAULT = "520px"
-const SIDEBAR_WIDTH_MOBILE = "18rem"
-const SIDEBAR_WIDTH_ICON = "3rem"
-const SIDEBAR_KEYBOARD_SHORTCUT = "b"
+const SIDEBAR_WIDTH_DEFAULT = "520px";
+const SIDEBAR_WIDTH_MOBILE = "18rem";
+const SIDEBAR_WIDTH_ICON = "3rem";
+const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
 type SidebarContextProps = {
-  state: "expanded" | "collapsed"
-  open: boolean
-  setOpen: (open: boolean) => void
-  openMobile: boolean
-  setOpenMobile: (open: boolean) => void
-  isMobile: boolean
-  toggleSidebar: () => void
-}
+  state: "expanded" | "collapsed";
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  openMobile: boolean;
+  setOpenMobile: (open: boolean) => void;
+  isMobile: boolean;
+  toggleSidebar: () => void;
+};
 
-const SidebarContext = React.createContext<SidebarContextProps | null>(null)
+const SidebarContext = React.createContext<SidebarContextProps | null>(null);
 
 function useSidebar() {
-  const context = React.useContext(SidebarContext)
+  const context = React.useContext(SidebarContext);
   if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider.")
+    throw new Error("useSidebar must be used within a SidebarProvider.");
   }
 
-  return context
+  return context;
 }
 
 const SidebarProvider = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    defaultOpen?: boolean
-    open?: boolean
-    onOpenChange?: (open: boolean) => void
+    defaultOpen?: boolean;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
   }
 >(
   (
@@ -72,36 +72,36 @@ const SidebarProvider = React.forwardRef<
       children,
       ...props
     },
-    ref
+    ref,
   ) => {
-    const isMobile = useIsMobile()
-    const [openMobile, setOpenMobile] = React.useState(false)
+    const isMobile = useIsMobile();
+    const [openMobile, setOpenMobile] = React.useState(false);
 
     // This is the internal state of the sidebar.
     // We use openProp and setOpenProp for control from outside the component.
-    const [_open, _setOpen] = React.useState(defaultOpen)
-    const open = openProp ?? _open
+    const [_open, _setOpen] = React.useState(defaultOpen);
+    const open = openProp ?? _open;
     const setOpen = React.useCallback(
       (value: boolean | ((value: boolean) => boolean)) => {
-        const openState = typeof value === "function" ? value(open) : value
+        const openState = typeof value === "function" ? value(open) : value;
         if (setOpenProp) {
-          setOpenProp(openState)
+          setOpenProp(openState);
         } else {
-          _setOpen(openState)
+          _setOpen(openState);
         }
 
         // This sets the cookie to keep the sidebar state.
-        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
+        document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
       },
-      [setOpenProp, open]
-    )
+      [setOpenProp, open],
+    );
 
     // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
       return isMobile
         ? setOpenMobile((open) => !open)
-        : setOpen((open) => !open)
-    }, [isMobile, setOpen, setOpenMobile])
+        : setOpen((open) => !open);
+    }, [isMobile, setOpen, setOpenMobile]);
 
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
@@ -110,18 +110,18 @@ const SidebarProvider = React.forwardRef<
           event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
           (event.metaKey || event.ctrlKey)
         ) {
-          event.preventDefault()
-          toggleSidebar()
+          event.preventDefault();
+          toggleSidebar();
         }
-      }
+      };
 
-      window.addEventListener("keydown", handleKeyDown)
-      return () => window.removeEventListener("keydown", handleKeyDown)
-    }, [toggleSidebar])
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [toggleSidebar]);
 
     // We add a state so that we can do data-state="expanded" or "collapsed".
     // This makes it easier to style the sidebar with Tailwind classes.
-    const state = open ? "expanded" : "collapsed"
+    const state = open ? "expanded" : "collapsed";
 
     const contextValue = React.useMemo<SidebarContextProps>(
       () => ({
@@ -133,8 +133,16 @@ const SidebarProvider = React.forwardRef<
         setOpenMobile,
         toggleSidebar,
       }),
-      [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
-    )
+      [
+        state,
+        open,
+        setOpen,
+        isMobile,
+        openMobile,
+        setOpenMobile,
+        toggleSidebar,
+      ],
+    );
 
     return (
       <SidebarContext.Provider value={contextValue}>
@@ -149,7 +157,7 @@ const SidebarProvider = React.forwardRef<
             }
             className={cn(
               "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
-              className
+              className,
             )}
             ref={ref}
             {...props}
@@ -159,17 +167,17 @@ const SidebarProvider = React.forwardRef<
           </div>
         </TooltipProvider>
       </SidebarContext.Provider>
-    )
-  }
-)
-SidebarProvider.displayName = "SidebarProvider"
+    );
+  },
+);
+SidebarProvider.displayName = "SidebarProvider";
 
 const Sidebar = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    side?: "left" | "right"
-    variant?: "sidebar" | "floating" | "inset"
-    collapsible?: "offcanvas" | "icon" | "none"
+    side?: "left" | "right";
+    variant?: "sidebar" | "floating" | "inset";
+    collapsible?: "offcanvas" | "icon" | "none";
   }
 >(
   (
@@ -181,23 +189,23 @@ const Sidebar = React.forwardRef<
       children,
       ...props
     },
-    ref
+    ref,
   ) => {
-    const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
+    const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
     if (collapsible === "none") {
       return (
         <div
           className={cn(
             "flex h-full w-(--sidebar-width) flex-col bg-sidebar text-sidebar-foreground",
-            className
+            className,
           )}
           ref={ref}
           {...props}
         >
           {children}
         </div>
-      )
+      );
     }
 
     if (isMobile) {
@@ -221,7 +229,7 @@ const Sidebar = React.forwardRef<
             <div className="flex h-full w-full flex-col">{children}</div>
           </SheetContent>
         </Sheet>
-      )
+      );
     }
 
     // DESKTOP: Absolute positioned sidebar that slides in/out
@@ -238,7 +246,7 @@ const Sidebar = React.forwardRef<
           // Slide animation: expanded = slide in from left, collapsed = slide out to left
           "transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
           state === "expanded" ? "translate-x-0" : "-translate-x-full",
-          className
+          className,
         )}
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -246,23 +254,20 @@ const Sidebar = React.forwardRef<
         data-side={side}
         {...props}
       >
-        <div
-          data-sidebar="sidebar"
-          className="flex h-full w-full flex-col"
-        >
+        <div data-sidebar="sidebar" className="flex h-full w-full flex-col">
           {children}
         </div>
       </div>
-    )
-  }
-)
-Sidebar.displayName = "Sidebar"
+    );
+  },
+);
+Sidebar.displayName = "Sidebar";
 
 const SidebarTrigger = React.forwardRef<
   React.ElementRef<typeof Button>,
   React.ComponentProps<typeof Button>
 >(({ className, onClick, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar } = useSidebar();
 
   return (
     <Button
@@ -272,23 +277,23 @@ const SidebarTrigger = React.forwardRef<
       size="icon"
       className={cn("h-7 w-7", className)}
       onClick={(event) => {
-        onClick?.(event)
-        toggleSidebar()
+        onClick?.(event);
+        toggleSidebar();
       }}
       {...props}
     >
       <PanelLeft />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
-  )
-})
-SidebarTrigger.displayName = "SidebarTrigger"
+  );
+});
+SidebarTrigger.displayName = "SidebarTrigger";
 
 const SidebarRail = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button">
 >(({ className, ...props }, ref) => {
-  const { toggleSidebar } = useSidebar()
+  const { toggleSidebar } = useSidebar();
 
   return (
     <button
@@ -305,13 +310,13 @@ const SidebarRail = React.forwardRef<
         "group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:hover:bg-sidebar",
         "in-data-[side=left][data-collapsible=offcanvas]:-right-2",
         "in-data-[side=right][data-collapsible=offcanvas]:-left-2",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarRail.displayName = "SidebarRail"
+  );
+});
+SidebarRail.displayName = "SidebarRail";
 
 const SidebarInset = React.forwardRef<
   HTMLDivElement,
@@ -326,13 +331,13 @@ const SidebarInset = React.forwardRef<
         "group-data-[state=expanded]/sidebar-wrapper:ml-(--sidebar-width)",
         // Smooth transition for the margin change
         "transition-[margin] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarInset.displayName = "SidebarInset"
+  );
+});
+SidebarInset.displayName = "SidebarInset";
 
 const SidebarInput = React.forwardRef<
   React.ElementRef<typeof Input>,
@@ -344,13 +349,13 @@ const SidebarInput = React.forwardRef<
       data-sidebar="input"
       className={cn(
         "h-8 w-full bg-background shadow-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarInput.displayName = "SidebarInput"
+  );
+});
+SidebarInput.displayName = "SidebarInput";
 
 const SidebarHeader = React.forwardRef<
   HTMLDivElement,
@@ -363,9 +368,9 @@ const SidebarHeader = React.forwardRef<
       className={cn("flex flex-col gap-2 p-2", className)}
       {...props}
     />
-  )
-})
-SidebarHeader.displayName = "SidebarHeader"
+  );
+});
+SidebarHeader.displayName = "SidebarHeader";
 
 const SidebarFooter = React.forwardRef<
   HTMLDivElement,
@@ -378,9 +383,9 @@ const SidebarFooter = React.forwardRef<
       className={cn("flex flex-col gap-2 p-2", className)}
       {...props}
     />
-  )
-})
-SidebarFooter.displayName = "SidebarFooter"
+  );
+});
+SidebarFooter.displayName = "SidebarFooter";
 
 const SidebarSeparator = React.forwardRef<
   React.ElementRef<typeof Separator>,
@@ -393,9 +398,9 @@ const SidebarSeparator = React.forwardRef<
       className={cn("mx-2 w-auto bg-sidebar-border", className)}
       {...props}
     />
-  )
-})
-SidebarSeparator.displayName = "SidebarSeparator"
+  );
+});
+SidebarSeparator.displayName = "SidebarSeparator";
 
 const SidebarContent = React.forwardRef<
   HTMLDivElement,
@@ -407,13 +412,13 @@ const SidebarContent = React.forwardRef<
       data-sidebar="content"
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarContent.displayName = "SidebarContent"
+  );
+});
+SidebarContent.displayName = "SidebarContent";
 
 const SidebarGroup = React.forwardRef<
   HTMLDivElement,
@@ -426,15 +431,15 @@ const SidebarGroup = React.forwardRef<
       className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
       {...props}
     />
-  )
-})
-SidebarGroup.displayName = "SidebarGroup"
+  );
+});
+SidebarGroup.displayName = "SidebarGroup";
 
 const SidebarGroupLabel = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & { asChild?: boolean }
 >(({ className, asChild = false, ...props }, ref) => {
-  const Comp = asChild ? Slot : "div"
+  const Comp = asChild ? Slot : "div";
 
   return (
     <Comp
@@ -443,36 +448,36 @@ const SidebarGroupLabel = React.forwardRef<
       className={cn(
         "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 outline-none ring-sidebar-ring transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarGroupLabel.displayName = "SidebarGroupLabel"
+  );
+});
+SidebarGroupLabel.displayName = "SidebarGroupLabel";
 
 const SidebarGroupAction = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button"> & { asChild?: boolean }
 >(({ className, asChild = false, ...props }, ref) => {
-  const Comp = asChild ? Slot : "button"
+  const Comp = asChild ? Slot : "button";
 
   return (
     <Comp
       ref={ref}
       data-sidebar="group-action"
       className={cn(
-        "absolute right-3 top-3.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "absolute right-3 top-3.5 flex aspect-square size-4 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-3 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
         "after:absolute after:-inset-2 after:md:hidden",
         "group-data-[collapsible=icon]:hidden",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarGroupAction.displayName = "SidebarGroupAction"
+  );
+});
+SidebarGroupAction.displayName = "SidebarGroupAction";
 
 const SidebarGroupContent = React.forwardRef<
   HTMLDivElement,
@@ -484,8 +489,8 @@ const SidebarGroupContent = React.forwardRef<
     className={cn("w-full text-sm", className)}
     {...props}
   />
-))
-SidebarGroupContent.displayName = "SidebarGroupContent"
+));
+SidebarGroupContent.displayName = "SidebarGroupContent";
 
 const SidebarMenu = React.forwardRef<
   HTMLUListElement,
@@ -497,21 +502,28 @@ const SidebarMenu = React.forwardRef<
     className={cn("flex w-full min-w-0 flex-col gap-1", className)}
     {...props}
   />
-))
-SidebarMenu.displayName = "SidebarMenu"
+));
+SidebarMenu.displayName = "SidebarMenu";
 
 const SidebarMenuItem = React.forwardRef<
   HTMLLIElement,
-  React.ComponentProps<"li">
->(({ className, ...props }, ref) => (
+  React.ComponentProps<"li"> & {
+    /** When true, omit `group/menu-item` so a nested `group/project-row` can scope hover to a single row (e.g. project + threads). */
+    suppressHoverGroup?: boolean;
+  }
+>(({ className, suppressHoverGroup, ...props }, ref) => (
   <li
     ref={ref}
     data-sidebar="menu-item"
-    className={cn("group/menu-item relative", className)}
+    className={cn(
+      !suppressHoverGroup && "group/menu-item",
+      "relative",
+      className,
+    )}
     {...props}
   />
-))
-SidebarMenuItem.displayName = "SidebarMenuItem"
+));
+SidebarMenuItem.displayName = "SidebarMenuItem";
 
 const sidebarMenuButtonVariants = cva(
   "peer/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
@@ -532,15 +544,15 @@ const sidebarMenuButtonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 const SidebarMenuButton = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button"> & {
-    asChild?: boolean
-    isActive?: boolean
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>
+    asChild?: boolean;
+    isActive?: boolean;
+    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
   } & VariantProps<typeof sidebarMenuButtonVariants>
 >(
   (
@@ -553,10 +565,10 @@ const SidebarMenuButton = React.forwardRef<
       className,
       ...props
     },
-    ref
+    ref,
   ) => {
-    const Comp = asChild ? Slot : "button"
-    const { isMobile, state } = useSidebar()
+    const Comp = asChild ? Slot : "button";
+    const { isMobile, state } = useSidebar();
 
     const button = (
       <Comp
@@ -567,16 +579,16 @@ const SidebarMenuButton = React.forwardRef<
         className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
         {...props}
       />
-    )
+    );
 
     if (!tooltip) {
-      return button
+      return button;
     }
 
     if (typeof tooltip === "string") {
       tooltip = {
         children: tooltip,
-      }
+      };
     }
 
     return (
@@ -589,41 +601,62 @@ const SidebarMenuButton = React.forwardRef<
           {...tooltip}
         />
       </Tooltip>
-    )
-  }
-)
-SidebarMenuButton.displayName = "SidebarMenuButton"
+    );
+  },
+);
+SidebarMenuButton.displayName = "SidebarMenuButton";
 
 const SidebarMenuAction = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<"button"> & {
-    asChild?: boolean
-    showOnHover?: boolean
+    asChild?: boolean;
+    showOnHover?: boolean;
+    /**
+     * `menu-item` — hover on the whole `SidebarMenuItem` (default).
+     * `project-row` — hover only on the nested `group/project-row` wrapper (excludes thread list under an expanded project).
+     */
+    hoverScope?: "menu-item" | "project-row";
   }
->(({ className, asChild = false, showOnHover = false, ...props }, ref) => {
-  const Comp = asChild ? Slot : "button"
+>(
+  (
+    {
+      className,
+      asChild = false,
+      showOnHover = false,
+      hoverScope = "menu-item",
+      ...props
+    },
+    ref,
+  ) => {
+    const Comp = asChild ? Slot : "button";
 
-  return (
-    <Comp
-      ref={ref}
-      data-sidebar="menu-action"
-      className={cn(
-        "absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
-        // Increases the hit area of the button on mobile.
-        "after:absolute after:-inset-2 after:md:hidden",
-        "peer-data-[size=sm]/menu-button:top-1",
-        "peer-data-[size=default]/menu-button:top-1.5",
-        "peer-data-[size=lg]/menu-button:top-2.5",
-        "group-data-[collapsible=icon]:hidden",
-        showOnHover &&
-          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
-        className
-      )}
-      {...props}
-    />
-  )
-})
-SidebarMenuAction.displayName = "SidebarMenuAction"
+    const showOnHoverClasses =
+      showOnHover &&
+      (hoverScope === "project-row"
+        ? "group-hover/project-row:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0 focus-visible:opacity-100"
+        : "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0");
+
+    return (
+      <Comp
+        ref={ref}
+        data-sidebar="menu-action"
+        className={cn(
+          "absolute right-1 top-1.5 flex aspect-square size-4 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-3 [&>svg]:shrink-0",
+          // Increases the hit area of the button on mobile.
+          "after:absolute after:-inset-2 after:md:hidden",
+          "peer-data-[size=sm]/menu-button:top-1",
+          "peer-data-[size=default]/menu-button:top-1.5",
+          "peer-data-[size=lg]/menu-button:top-2.5",
+          "group-data-[collapsible=icon]:hidden",
+          showOnHoverClasses,
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+);
+SidebarMenuAction.displayName = "SidebarMenuAction";
 
 const SidebarMenuBadge = React.forwardRef<
   HTMLDivElement,
@@ -639,22 +672,22 @@ const SidebarMenuBadge = React.forwardRef<
       "peer-data-[size=default]/menu-button:top-1.5",
       "peer-data-[size=lg]/menu-button:top-2.5",
       "group-data-[collapsible=icon]:hidden",
-      className
+      className,
     )}
     {...props}
   />
-))
-SidebarMenuBadge.displayName = "SidebarMenuBadge"
+));
+SidebarMenuBadge.displayName = "SidebarMenuBadge";
 
 const SidebarMenuSkeleton = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    showIcon?: boolean
+    showIcon?: boolean;
   }
 >(({ className, showIcon = false, ...props }, ref) => {
   const width = React.useMemo(() => {
-    return `80%`
-  }, [])
+    return `80%`;
+  }, []);
 
   return (
     <div
@@ -679,9 +712,9 @@ const SidebarMenuSkeleton = React.forwardRef<
         }
       />
     </div>
-  )
-})
-SidebarMenuSkeleton.displayName = "SidebarMenuSkeleton"
+  );
+});
+SidebarMenuSkeleton.displayName = "SidebarMenuSkeleton";
 
 const SidebarMenuSub = React.forwardRef<
   HTMLUListElement,
@@ -693,28 +726,28 @@ const SidebarMenuSub = React.forwardRef<
     className={cn(
       "mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5",
       "group-data-[collapsible=icon]:hidden",
-      className
+      className,
     )}
     {...props}
   />
-))
-SidebarMenuSub.displayName = "SidebarMenuSub"
+));
+SidebarMenuSub.displayName = "SidebarMenuSub";
 
 const SidebarMenuSubItem = React.forwardRef<
   HTMLLIElement,
   React.ComponentProps<"li">
->(({ ...props }, ref) => <li ref={ref} {...props} />)
-SidebarMenuSubItem.displayName = "SidebarMenuSubItem"
+>(({ ...props }, ref) => <li ref={ref} {...props} />);
+SidebarMenuSubItem.displayName = "SidebarMenuSubItem";
 
 const SidebarMenuSubButton = React.forwardRef<
   HTMLAnchorElement,
   React.ComponentProps<"a"> & {
-    asChild?: boolean
-    size?: "sm" | "md"
-    isActive?: boolean
+    asChild?: boolean;
+    size?: "sm" | "md";
+    isActive?: boolean;
   }
 >(({ asChild = false, size = "md", isActive, className, ...props }, ref) => {
-  const Comp = asChild ? Slot : "a"
+  const Comp = asChild ? Slot : "a";
 
   return (
     <Comp
@@ -728,13 +761,13 @@ const SidebarMenuSubButton = React.forwardRef<
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
         "group-data-[collapsible=icon]:hidden",
-        className
+        className,
       )}
       {...props}
     />
-  )
-})
-SidebarMenuSubButton.displayName = "SidebarMenuSubButton"
+  );
+});
+SidebarMenuSubButton.displayName = "SidebarMenuSubButton";
 
 export {
   Sidebar,
@@ -761,4 +794,4 @@ export {
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
-}
+};

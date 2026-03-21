@@ -1,3 +1,3 @@
-# axora-logger-posthog
+# openakta-logger-posthog
 
-PostHog adapter for AXORA Wide Events.
+PostHog adapter for OPENAKTA Wide Events.

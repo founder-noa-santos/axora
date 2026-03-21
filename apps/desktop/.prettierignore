@@ -1,0 +1,6 @@
+.next
+out
+dist
+dist-electron
+coverage
+node_modules

@@ -11,7 +11,7 @@
 
 R-01 research on **Context Management & RAG** is complete. Six architectural decisions have been made (ADR-012, ADR-006, ADR-007, ADR-013, ADR-014, ADR-015) defining a production-grade RAG system optimized for code.
 
-**Key Outcome:** AXORA will implement a **Modular RAG** architecture with:
+**Key Outcome:** OPENAKTA will implement a **Modular RAG** architecture with:
 - Hybrid retrieval (BM25 + Jina embeddings)
 - AST-based chunking (cAST algorithm)
 - Context reordering (counters "Lost in the Middle")
@@ -66,7 +66,7 @@ R-01 research on **Context Management & RAG** is complete. Six architectural dec
   hex = "0.4"
   ```
 
-- [ ] Create `crates/axora-rag/` crate structure
+- [ ] Create `crates/openakta-rag/` crate structure
 - [ ] Set up basic module structure
 - [ ] Create test fixtures (sample codebases)
 
@@ -90,7 +90,7 @@ R-01 research on **Context Management & RAG** is complete. Six architectural dec
 - [ ] Write unit tests for chunking correctness
 - [ ] Benchmark: chunking speed, chunk size distribution
 
-**Deliverable:** `axora-cast` crate with working AST chunking
+**Deliverable:** `openakta-cast` crate with working AST chunking
 
 **Success Criteria:**
 - Chunks align with AST boundaries (functions, classes)
@@ -120,7 +120,7 @@ R-01 research on **Context Management & RAG** is complete. Six architectural dec
 - [ ] Batch embedding for throughput
 - [ ] Benchmark: latency per embedding, GPU vs CPU
 
-**Deliverable:** `axora-embeddings` crate with Jina integration
+**Deliverable:** `openakta-embeddings` crate with Jina integration
 
 **Success Criteria:**
 - Embedding latency: <100ms per chunk (CPU), <20ms (GPU)
@@ -155,7 +155,7 @@ R-01 research on **Context Management & RAG** is complete. Six architectural dec
   ```
 - [ ] Benchmark: retrieval latency, recall metrics
 
-**Deliverable:** `axora-retrieval` crate with hybrid search
+**Deliverable:** `openakta-retrieval` crate with hybrid search
 
 **Success Criteria:**
 - Retrieval latency: <200ms (BM25) + <100ms (Dense)
@@ -187,7 +187,7 @@ R-01 research on **Context Management & RAG** is complete. Six architectural dec
 - [ ] Integrate token counting for budgeting
 - [ ] Benchmark: re-ranking latency, selection quality
 
-**Deliverable:** `axora-rerank` crate with re-ranking + selection
+**Deliverable:** `openakta-rerank` crate with re-ranking + selection
 
 **Success Criteria:**
 - Re-ranking latency: <500ms for 100 chunks
@@ -240,7 +240,7 @@ R-01 research on **Context Management & RAG** is complete. Six architectural dec
 - [ ] Implement incremental sync protocol
 - [ ] Benchmark: sync speed for various change scenarios
 
-**Deliverable:** `axora-sync` crate with Merkle tree sync
+**Deliverable:** `openakta-sync` crate with Merkle tree sync
 
 **Success Criteria:**
 - Full tree build: <5s for 50K files

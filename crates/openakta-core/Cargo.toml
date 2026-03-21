@@ -1,0 +1,56 @@
+[package]
+name = "openakta-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Core business logic for OPENAKTA"
+
+[lints]
+workspace = true
+
+[dependencies]
+openakta-proto.workspace = true
+openakta-storage.workspace = true
+openakta-agents.workspace = true
+openakta-docs.workspace = true
+openakta-embeddings.workspace = true
+openakta-indexing.workspace = true
+openakta-mcp-server.workspace = true
+openakta-memory.workspace = true
+openakta-rag = { path = "../openakta-rag" }
+prost-types.workspace = true
+
+tokio.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+prost.workspace = true
+tokio-stream = { version = "0.1", features = ["net"] }
+
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+secrecy.workspace = true
+
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+uuid.workspace = true
+chrono.workspace = true
+dashmap.workspace = true
+parking_lot.workspace = true
+
+async-stream = "0.3"
+
+[dev-dependencies]
+tokio-test.workspace = true
+criterion.workspace = true
+tempfile = "3.10"
+
+[[bench]]
+name = "frame_bench"
+harness = false

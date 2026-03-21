@@ -1,7 +1,7 @@
 # Agent B — Sprint 10: Phase 2 Consolidation & Documentation
 
 **Sprint:** 10 of Phase 2  
-**File:** `crates/axora-cache/README.md` + Integration support  
+**File:** `crates/openakta-cache/README.md` + Integration support  
 **Estimated Time:** 8 horas  
 
 ---
@@ -31,10 +31,10 @@ Fazer **consolidação e documentação** de TODAS as features implementadas pel
 ### 1. Feature Documentation
 
 **Criar:**
-- `crates/axora-cache/README.md` — Overview do crate
-- `crates/axora-cache/docs/TOON.md` — TOON serialization guide
-- `crates/axora-cache/docs/MINIFIER.md` — Code minification guide
-- `crates/axora-cache/docs/CONTEXT.md` — Context distribution guide
+- `crates/openakta-cache/README.md` — Overview do crate
+- `crates/openakta-cache/docs/TOON.md` — TOON serialization guide
+- `crates/openakta-cache/docs/MINIFIER.md` — Code minification guide
+- `crates/openakta-cache/docs/CONTEXT.md` — Context distribution guide
 
 **Cada doc deve ter:**
 - Overview (o que é, por que existe)
@@ -53,9 +53,9 @@ Fazer **consolidação e documentação** de TODAS as features implementadas pel
 - Garantir que todas features do Agent B estão sendo testadas
 
 **Files para revisar:**
-- `crates/axora-cache/tests/integration.rs`
-- `crates/axora-cache/benches/token_savings.rs`
-- `crates/axora-cache/benches/performance.rs`
+- `crates/openakta-cache/tests/integration.rs`
+- `crates/openakta-cache/benches/token_savings.rs`
+- `crates/openakta-cache/benches/performance.rs`
 
 ---
 
@@ -68,8 +68,8 @@ Fazer **consolidação e documentação** de TODAS as features implementadas pel
 
 **Commands:**
 ```bash
-cargo fix --lib -p axora-cache
-cargo clippy -p axora-cache
+cargo fix --lib -p openakta-cache
+cargo clippy -p openakta-cache
 ```
 
 ---
@@ -77,18 +77,18 @@ cargo clippy -p axora-cache
 ## 📁 File Boundaries
 
 **Criar:**
-- `crates/axora-cache/README.md`
-- `crates/axora-cache/docs/TOON.md`
-- `crates/axora-cache/docs/MINIFIER.md`
-- `crates/axora-cache/docs/CONTEXT.md`
+- `crates/openakta-cache/README.md`
+- `crates/openakta-cache/docs/TOON.md`
+- `crates/openakta-cache/docs/MINIFIER.md`
+- `crates/openakta-cache/docs/CONTEXT.md`
 
 **Editar:**
-- `crates/axora-cache/tests/integration.rs` (revisar)
-- `crates/axora-cache/benches/*.rs` (revisar)
+- `crates/openakta-cache/tests/integration.rs` (revisar)
+- `crates/openakta-cache/benches/*.rs` (revisar)
 
 **NÃO editar:**
-- `crates/axora-agents/` (Agent C)
-- `crates/axora-docs/` (Agent A)
+- `crates/openakta-agents/` (Agent C)
+- `crates/openakta-docs/` (Agent A)
 
 ---
 
@@ -107,9 +107,9 @@ cargo clippy -p axora-cache
 ### `README.md` Template
 
 ```markdown
-# AXORA Cache
+# OPENAKTA Cache
 
-Multi-tier caching and token optimization for AXORA.
+Multi-tier caching and token optimization for OPENAKTA.
 
 ## Features
 
@@ -122,7 +122,7 @@ Multi-tier caching and token optimization for AXORA.
 ## Quick Start
 
 ```rust
-use axora_cache::*;
+use openakta_cache::*;
 
 // Prefix caching
 let mut cache = PrefixCache::new(100);
@@ -158,8 +158,8 @@ let minified = minifier.minify(code, "rust")?;
 ## Testing
 
 ```bash
-cargo test -p axora-cache
-cargo bench -p axora-cache
+cargo test -p openakta-cache
+cargo bench -p openakta-cache
 ```
 ```
 
@@ -223,7 +223,7 @@ impl [StructName] {
 
 ## 🚀 Passos
 
-1. **Criar `crates/axora-cache/README.md`:**
+1. **Criar `crates/openakta-cache/README.md`:**
    - Overview de todas features
    - Quick start examples
    - Benchmarks summary
@@ -248,8 +248,8 @@ impl [StructName] {
    - Sugerir melhorias
 
 6. **Fix warnings:**
-   - `cargo fix --lib -p axora-cache`
-   - `cargo clippy -p axora-cache`
+   - `cargo fix --lib -p openakta-cache`
+   - `cargo clippy -p openakta-cache`
 
 ---
 

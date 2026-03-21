@@ -1,4 +1,4 @@
-# AXORA — Next Steps & Roadmap
+# OPENAKTA — Next Steps & Roadmap
 
 **Date:** 2026-03-16  
 **Status:** Phase 2 Complete ✅  

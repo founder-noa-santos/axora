@@ -10,7 +10,7 @@ Copy and paste the following into Claude/GPT-4/Perplexity with web search enable
 # Deep Research: Local Indexing & Embedding for Code AI Systems
 
 ## Context
-I'm building AXORA, a multi-agent AI coding system that must run locally on developer machines. A key capability is fast codebase indexing and retrieval (similar to Cursor's "codebase understanding"). We need SCIENTIFIC-LEVEL understanding of how to build this. This research must be production-grade with specific implementation details.
+I'm building OPENAKTA, a multi-agent AI coding system that must run locally on developer machines. A key capability is fast codebase indexing and retrieval (similar to Cursor's "codebase understanding"). We need SCIENTIFIC-LEVEL understanding of how to build this. This research must be production-grade with specific implementation details.
 
 ## Core Research Questions
 

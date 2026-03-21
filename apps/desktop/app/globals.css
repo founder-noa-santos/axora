@@ -20,17 +20,29 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    font-feature-settings: "cv11" 1, "ss01" 1, "ss03" 1;
+    font-feature-settings:
+      "cv11" 1,
+      "ss01" 1,
+      "ss03" 1;
     min-height: 100vh;
     /* Theme-aware background gradient (neutral grays only) */
     background-image:
       radial-gradient(circle at top left, rgb(0 0 0 / 0.04), transparent 28%),
-      linear-gradient(180deg, rgb(248 248 248), rgb(242 242 242) 48%, rgb(238 238 238));
+      linear-gradient(
+        180deg,
+        rgb(248 248 248),
+        rgb(242 242 242) 48%,
+        rgb(238 238 238)
+      );
   }
 
   html.dark body {
     background-image:
-      radial-gradient(circle at top left, rgb(255 255 255 / 0.06), transparent 28%),
+      radial-gradient(
+        circle at top left,
+        rgb(255 255 255 / 0.06),
+        transparent 28%
+      ),
       linear-gradient(180deg, rgb(20 20 20), rgb(14 14 14) 48%, rgb(10 10 10));
   }
 
@@ -38,6 +50,12 @@
   input,
   textarea,
   [data-no-drag="true"] {
+    -webkit-app-region: no-drag;
+  }
+
+  /* Electron: drag region from `.app-drag-region` would otherwise swallow OS file drops on child
+     divs; subtree must stay no-drag so HTML5 drop and the file input + button work. */
+  [data-no-drag="true"] * {
     -webkit-app-region: no-drag;
   }
 }

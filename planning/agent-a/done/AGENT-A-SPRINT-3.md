@@ -1,7 +1,7 @@
 # Agent A — Sprint 3: Code Minification
 
 **Sprint:** 3 of Phase 2  
-**File:** `crates/axora-cache/src/minifier.rs`  
+**File:** `crates/openakta-cache/src/minifier.rs`  
 **Estimated Time:** 8 hours  
 
 ---
@@ -45,8 +45,8 @@ Implementar code minification para redução de tokens em código enviado para L
 ## 📁 File Boundaries
 
 **Editar APENAS:**
-- `crates/axora-cache/src/minifier.rs` (CRIAR)
-- `crates/axora-cache/src/lib.rs` (adicionar módulo)
+- `crates/openakta-cache/src/minifier.rs` (CRIAR)
+- `crates/openakta-cache/src/lib.rs` (adicionar módulo)
 
 **NÃO editar:**
 - Nenhum outro arquivo
@@ -114,12 +114,12 @@ impl CodeMinifier {
 
 ## 🚀 Passos
 
-1. `cd /Users/noasantos/Downloads/axora`
-2. Criar `crates/axora-cache/src/minifier.rs`
+1. `cd /Users/noasantos/Downloads/openakta`
+2. Criar `crates/openakta-cache/src/minifier.rs`
 3. Implementar structs
 4. Escrever 10 testes (TDD)
 5. Implementar funcionalidades
-6. `cargo test -p axora-cache`
+6. `cargo test -p openakta-cache`
 7. Atualizar `src/lib.rs`
 
 ---

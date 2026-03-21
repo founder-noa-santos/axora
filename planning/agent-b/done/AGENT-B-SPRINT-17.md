@@ -2,7 +2,7 @@
 
 **Phase:** 2  
 **Sprint:** 17 (Implementation)  
-**File:** `crates/axora-indexing/src/influence.rs`  
+**File:** `crates/openakta-indexing/src/influence.rs`  
 **Priority:** HIGH (depends on Sprint 16)  
 **Estimated Tokens:** ~100K output  
 
@@ -28,7 +28,7 @@ Research provides CRITICAL implementation details:
 
 ### 1. Create influence.rs (Influence Vector)
 
-**File:** `crates/axora-indexing/src/influence.rs`
+**File:** `crates/openakta-indexing/src/influence.rs`
 
 **Core Structure:**
 ```rust
@@ -119,7 +119,7 @@ impl InfluenceGraph {
 
 ### 2. Implement CBO and RFC Metrics
 
-**File:** `crates/axora-indexing/src/influence.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/influence.rs` (add to existing)
 
 ```rust
 impl InfluenceGraph {
@@ -225,7 +225,7 @@ impl InfluenceGraph {
 
 ### 3. Implement Incremental Transitive Closure (IncSCC)
 
-**File:** `crates/axora-indexing/src/influence.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/influence.rs` (add to existing)
 
 ```rust
 impl InfluenceGraph {
@@ -308,7 +308,7 @@ impl InfluenceGraph {
 
 ### 4. Add Graph Database Integration
 
-**File:** `crates/axora-indexing/src/influence.rs` (add to existing)
+**File:** `crates/openakta-indexing/src/influence.rs` (add to existing)
 
 ```rust
 /// Influence Graph with database persistence
@@ -355,15 +355,15 @@ impl PersistentInfluenceGraph {
 ## 📁 File Boundaries
 
 **Create:**
-- `crates/axora-indexing/src/influence.rs` (NEW)
+- `crates/openakta-indexing/src/influence.rs` (NEW)
 
 **Update:**
-- `crates/axora-indexing/src/lib.rs` (add module export)
+- `crates/openakta-indexing/src/lib.rs` (add module export)
 
 **DO NOT Edit:**
-- `crates/axora-agents/` (Agent C's domain)
-- `crates/axora-cache/` (Agent B's other work)
-- `crates/axora-docs/` (Agent A's domain)
+- `crates/openakta-agents/` (Agent C's domain)
+- `crates/openakta-cache/` (Agent B's other work)
+- `crates/openakta-docs/` (Agent A's domain)
 
 **Dependencies:**
 - Sprint 16 (SCIP Indexing) — must complete first

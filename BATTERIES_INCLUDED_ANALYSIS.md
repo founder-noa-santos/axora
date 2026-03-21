@@ -9,7 +9,7 @@
 
 ## The Gaps (The brutal truth)
 
-- The previous visible backend entrypoint was still `axora-daemon`, which forced an operator mental model.
+- The previous visible backend entrypoint was still `openakta-daemon`, which forced an operator mental model.
 - The default squad was capacity-based instead of role-based.
 - Native MCP tooling was too narrow for a serious out-of-the-box coding workflow.
 - Procedural memory created empty directories on first run instead of a useful standard skill library.
@@ -19,10 +19,10 @@
 
 ### Implemented now
 
-1. Added a real user-facing CLI in `crates/axora-cli` with `axora do "<mission>"`.
-2. Added `RuntimeBootstrap` in `crates/axora-core` to:
+1. Added a real user-facing CLI in `crates/openakta-cli` with `openakta do "<mission>"`.
+2. Added `RuntimeBootstrap` in `crates/openakta-core` to:
    - infer the workspace
-   - create `.axora/` runtime paths
+   - create `.openakta/` runtime paths
    - initialize SQLite
    - seed default procedural skills
    - start native MCP
@@ -34,7 +34,7 @@
    - Tester
    - Executor
    - Reviewer
-4. Refactored `axora-mcp-server` around an embedded native tool registry and added core tools:
+4. Refactored `openakta-mcp-server` around an embedded native tool registry and added core tools:
    - `read_file`
    - `generate_diff`
    - `apply_patch`
@@ -56,8 +56,8 @@
 ### Resulting default user journey
 
 1. Export a provider API key.
-2. Run `cargo run -p axora-cli -- do "add JWT auth"`.
-3. AXORA bootstraps its own local runtime and executes the mission.
+2. Run `cargo run -p openakta-cli -- do "add JWT auth"`.
+3. OPENAKTA bootstraps its own local runtime and executes the mission.
 
 ### Remaining work after this pass
 

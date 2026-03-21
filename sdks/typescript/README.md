@@ -1,17 +1,17 @@
-# @axora/logger-core
+# @openakta/logger-core
 
-Canonical AXORA Wide Event SDK for TypeScript.
+Canonical OPENAKTA Wide Event SDK for TypeScript.
 
 ## Install
 
 ```bash
-pnpm add @axora/logger-core
+pnpm add @openakta/logger-core
 ```
 
 ## Usage
 
 ```typescript
-import { Logger, ConsoleSink } from '@axora/logger-core';
+import { Logger, ConsoleSink } from '@openakta/logger-core';
 
 const logger = new Logger({
   service: 'my-api',

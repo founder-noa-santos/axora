@@ -36,7 +36,7 @@ local-first-rag/
 1. **Read Research:** [`R-16-LOCAL-FIRST-RAG.md`](./R-16-LOCAL-FIRST-RAG.md)
 2. **Read Plan:** [`IMPLEMENTATION-PLAN.md`](./IMPLEMENTATION-PLAN.md)
 3. **Start Sprint B5:** Download Jina Code v2 from HuggingFace
-4. **Implement:** Update `crates/axora-embeddings/src/jina.rs`
+4. **Implement:** Update `crates/openakta-embeddings/src/jina.rs`
 5. **Test:** Ensure <25ms latency target
 
 ---
@@ -83,10 +83,10 @@ local-first-rag/
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| PrefixCache | ✅ Implemented | `crates/axora-cache/src/prefix_cache.rs` |
-| Diff | ✅ Implemented | `crates/axora-cache/src/diff.rs` |
-| InfluenceGraph | ✅ Implemented | `crates/axora-indexing/src/influence.rs` |
-| Blackboard v2 | ✅ Implemented | `crates/axora-cache/src/blackboard/v2.rs` |
+| PrefixCache | ✅ Implemented | `crates/openakta-cache/src/prefix_cache.rs` |
+| Diff | ✅ Implemented | `crates/openakta-cache/src/diff.rs` |
+| InfluenceGraph | ✅ Implemented | `crates/openakta-indexing/src/influence.rs` |
+| Blackboard v2 | ✅ Implemented | `crates/openakta-cache/src/blackboard/v2.rs` |
 
 ### Current Agent Task
 

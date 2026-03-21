@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from axora_logger_otel import OtelSink
+from openakta_logger_otel import OtelSink
 
 
 class LoggerCapture:
@@ -18,7 +18,7 @@ class ProviderCapture:
         self.logger = LoggerCapture()
 
     def get_logger(self, name: str, version: str | None = None) -> LoggerCapture:
-        assert name == "axora-logger"
+        assert name == "openakta-logger"
         assert version == "0.1.0"
         return self.logger
 
@@ -49,4 +49,4 @@ def test_otel_sink_maps_payload() -> None:
     )
 
     assert provider.logger.records[0]["severityText"] == "WARN"
-    assert provider.logger.records[0]["attributes"]["axora.ctx.attempt"] == 2
+    assert provider.logger.records[0]["attributes"]["openakta.ctx.attempt"] == 2

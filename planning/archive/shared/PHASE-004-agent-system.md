@@ -12,7 +12,7 @@ Implement the core agent lifecycle management system including registration, sta
 
 ### ✅ What Exists
 - gRPC service definition in `proto/collective/v1/core.proto`
-- Server implementation in `crates/axora-core/src/server.rs`
+- Server implementation in `crates/openakta-core/src/server.rs`
 - In-memory agent storage in `CollectiveServer` struct
 - Basic CRUD operations (register, unregister, list)
 
@@ -29,7 +29,7 @@ Implement the core agent lifecycle management system including registration, sta
 
 ### Step 1: Integrate Storage with Server
 
-Update `crates/axora-core/src/server.rs`:
+Update `crates/openakta-core/src/server.rs`:
 
 ```rust
 pub struct CollectiveServer {
@@ -78,7 +78,7 @@ async fn register_agent(
 
 ### Step 3: Agent Heartbeat System
 
-Create `crates/axora-core/src/agent/heartbeat.rs`:
+Create `crates/openakta-core/src/agent/heartbeat.rs`:
 
 ```rust
 use tokio::time::{interval, Duration};
@@ -139,7 +139,7 @@ impl HeartbeatManager {
 
 ### Step 4: Task Assignment Logic
 
-Create `crates/axora-core/src/agent/assignment.rs`:
+Create `crates/openakta-core/src/agent/assignment.rs`:
 
 ```rust
 pub struct TaskAssigner {
@@ -193,7 +193,7 @@ impl TaskAssigner {
 
 ### Step 5: Agent Capabilities System
 
-Create `crates/axora-core/src/agent/capabilities.rs`:
+Create `crates/openakta-core/src/agent/capabilities.rs`:
 
 ```rust
 use serde::{Deserialize, Serialize};
@@ -225,7 +225,7 @@ pub struct RegisterAgentRequest {
 
 ### Step 6: Session Management
 
-Create `crates/axora-core/src/agent/session.rs`:
+Create `crates/openakta-core/src/agent/session.rs`:
 
 ```rust
 pub struct SessionManager {

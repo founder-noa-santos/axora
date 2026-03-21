@@ -118,7 +118,7 @@ Retrieved Memories:
 
 ---
 
-### 5. Integration with AXORA
+### 5. Integration with OPENAKTA
 
 **Questions:**
 - How does memory integrate with Living Docs (Sprint 6)?
@@ -309,7 +309,7 @@ Savings: 80% time reduction, 90% token reduction
 **File:** `research/findings/memory/INTEGRATION-PLAN.md`
 
 **Content:**
-- Integration with existing AXORA components
+- Integration with existing OPENAKTA components
 - Implementation roadmap
 - Token savings estimation
 
@@ -321,7 +321,7 @@ Research is successful when:
 - [ ] Tripartite architecture fully specified
 - [ ] Consolidation algorithm defined
 - [ ] Retrieval APIs designed
-- [ ] Integration plan with AXORA defined
+- [ ] Integration plan with OPENAKTA defined
 - [ ] Token savings estimated (target: 80% time, 90% tokens)
 - [ ] Implementation roadmap created
 
@@ -348,4 +348,4 @@ Research is successful when:
 
 ---
 
-**Ready to execute. This research will transform AXORA from stateless agents to learning, evolving systems.**
+**Ready to execute. This research will transform OPENAKTA from stateless agents to learning, evolving systems.**

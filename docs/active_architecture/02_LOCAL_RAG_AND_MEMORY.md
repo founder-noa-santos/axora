@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-AXORA uses a **local-first RAG architecture**:
+OPENAKTA uses a **local-first RAG architecture**:
 - **100% local indexing** — No cloud vector databases
 - **Lightweight embeddings** — Jina Code v2 (137M params, ~550MB RAM)
 - **Embedded vector stores** — Qdrant Embedded or sqlite-vec
@@ -168,7 +168,7 @@ Query → [Query Reformulation] → [Hybrid Retrieval: BM25 + Dense]
 - ✅ Purpose-built for code
 - ✅ Matryoshka representation (storage optimization)
 
-**Location:** `crates/axora-embeddings/src/jina.rs`
+**Location:** `crates/openakta-embeddings/src/jina.rs`
 
 ---
 
@@ -190,7 +190,7 @@ Query → [Query Reformulation] → [Hybrid Retrieval: BM25 + Dense]
 
 **Alternative:** sqlite-vec (simpler, <100MB RAM, but no HNSW)
 
-**Location:** `crates/axora-rag/src/vector_store.rs`
+**Location:** `crates/openakta-rag/src/vector_store.rs`
 
 ---
 
@@ -227,7 +227,7 @@ impl CodeChunker {
 - Classes: 200-2000 tokens (may need sub-chunking)
 - Modules: 500-5000 tokens (definitely needs sub-chunking)
 
-**Location:** `crates/axora-indexing/src/chunker.rs`
+**Location:** `crates/openakta-indexing/src/chunker.rs`
 
 ---
 
@@ -318,7 +318,7 @@ impl MerkleIndex {
 | File add/remove | Re-index all | Re-index 1 file | 80-95% |
 | Full project scan | Full re-index | Hash check only | 99% |
 
-**Location:** `crates/axora-indexing/src/merkle.rs`
+**Location:** `crates/openakta-indexing/src/merkle.rs`
 
 ---
 
@@ -361,7 +361,7 @@ impl MerkleIndex {
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Jina Embeddings | 🔄 In Progress | `crates/axora-embeddings/src/jina.rs` |
+| Jina Embeddings | 🔄 In Progress | `crates/openakta-embeddings/src/jina.rs` |
 | Qdrant Embedded | 📋 Planned | Next sprint |
 | AST Chunking | ✅ Designed | Tree-sitter integration ready |
 | Merkle Index | ✅ Designed | BLAKE3 hashing ready |
@@ -369,7 +369,7 @@ impl MerkleIndex {
 
 ---
 
-**This is the Single Source of Truth for AXORA local RAG and memory.**
+**This is the Single Source of Truth for OPENAKTA local RAG and memory.**
 
 **Last Reviewed:** 2026-03-18  
 **Next Review:** After MVP launch

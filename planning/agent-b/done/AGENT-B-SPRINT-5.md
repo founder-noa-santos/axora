@@ -1,7 +1,7 @@
 # Agent B — Sprint 5: TOON Serialization
 
 **Sprint:** 5 of Phase 2  
-**File:** `crates/axora-cache/src/toon.rs`  
+**File:** `crates/openakta-cache/src/toon.rs`  
 **Estimated Time:** 8 hours  
 
 ---
@@ -58,8 +58,8 @@ Schema: {0:user_id, 1:username, 2:email}
 ## 📁 File Boundaries
 
 **Editar APENAS:**
-- `crates/axora-cache/src/toon.rs` (CRIAR)
-- `crates/axora-cache/src/lib.rs` (adicionar módulo)
+- `crates/openakta-cache/src/toon.rs` (CRIAR)
+- `crates/openakta-cache/src/lib.rs` (adicionar módulo)
 
 **NÃO editar:**
 - Nenhum outro arquivo
@@ -137,12 +137,12 @@ impl ToonSerializer {
 
 ## 🚀 Passos
 
-1. `cd /Users/noasantos/Downloads/axora`
-2. Criar `crates/axora-cache/src/toon.rs`
+1. `cd /Users/noasantos/Downloads/openakta`
+2. Criar `crates/openakta-cache/src/toon.rs`
 3. Implementar Schema e ToonSerializer
 4. Escrever 10 testes (TDD)
 5. Implementar encode/decode
-6. `cargo test -p axora-cache`
+6. `cargo test -p openakta-cache`
 7. Atualizar `src/lib.rs`
 
 ---

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from axora_logger_posthog import PosthogSink
+from openakta_logger_posthog import PosthogSink
 
 
 class Client:
