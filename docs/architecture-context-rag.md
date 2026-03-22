@@ -350,10 +350,10 @@ pub struct RankedChunk {
 5. cAST Chunking (AST-aligned)
    │
    ▼
-6. Compute Embeddings (Jina 1.5B)
+6. Compute Embeddings (Candle local: JinaCode 768-dim, BGE-Skill 384-dim)
    │
    ▼
-7. Store in LanceDB (local) + Qdrant (cloud)
+7. Store in sqlite-vec (local HNSW ANN) + SqliteJson fallback
    │
    ▼
 8. Update BM25 Index (tantivy)
@@ -381,14 +381,13 @@ pub struct RankedChunk {
 
 ```toml
 [dependencies]
-# Embedding inference
+# Embedding inference (Candle)
 candle-core = "0.4"
 candle-transformers = "0.4"
-ort = "2.0"  # ONNX Runtime alternative
 
 # Vector databases
-lancedb = "0.10"
-qdrant-client = "1.9"
+sqlite-vec = "0.1"
+rusqlite = "0.31"
 
 # BM25 / full-text search
 tantivy = "0.22"
@@ -401,8 +400,7 @@ tree-sitter-python = "0.22"
 # ... add grammars for all supported languages
 
 # Hashing (Merkle tree)
-sha2 = "0.10"
-hex = "0.4"
+blake3 = "1.5"
 
 # Utilities
 tokio = { version = "1", features = ["full"] }

@@ -52,6 +52,10 @@ pub enum LifecycleError {
     /// Serialization error
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    /// Vector store error
+    #[error("vector store error: {0}")]
+    VectorStore(#[from] crate::vector_backend::VectorStoreError),
 }
 
 /// Result type for lifecycle operations
@@ -290,6 +294,8 @@ pub struct MemoryLifecycle {
     decay_model: EbbinghausDecay,
     utility_tracker: UtilityTracker,
     config: LifecycleConfig,
+    /// Optional vector store for semantic memory pruning (Phase 4).
+    vector_store: Option<Arc<dyn crate::VectorStore>>,
 }
 
 impl MemoryLifecycle {
@@ -302,6 +308,20 @@ impl MemoryLifecycle {
             decay_model,
             utility_tracker,
             config,
+            vector_store: None,
+        }
+    }
+
+    /// Create lifecycle manager with vector store for semantic pruning
+    pub fn with_vector_store(config: LifecycleConfig, vector_store: Arc<dyn crate::VectorStore>) -> Self {
+        let decay_model = EbbinghausDecay::new(config.half_life_days);
+        let utility_tracker = UtilityTracker::new();
+
+        Self {
+            decay_model,
+            utility_tracker,
+            config,
+            vector_store: Some(vector_store),
         }
     }
 
@@ -403,6 +423,47 @@ impl MemoryLifecycle {
         Ok(PruningReport {
             procedural_pruned: pruned_count,
             total_pruned: pruned_count,
+            ..Default::default()
+        })
+    }
+
+    /// Prune semantic memories using vector store scan (Phase 4).
+    ///
+    /// Scans up to `limit` candidates and deletes those below thresholds.
+    pub async fn prune_semantic(&self, limit: usize) -> Result<PruningReport> {
+        let Some(ref vector_store) = self.vector_store else {
+            return Ok(PruningReport {
+                semantic_pruned: 0,
+                total_pruned: 0,
+                ..Default::default()
+            });
+        };
+
+        let candidates = vector_store.scan_for_pruning(limit).await?;
+        let mut to_delete = Vec::new();
+
+        for candidate in &candidates {
+            // Check if protected by retrieval count
+            if candidate.retrieval_count >= self.config.min_retrievals_protected {
+                continue;
+            }
+
+            // Check importance threshold
+            if candidate.importance >= self.config.strength_threshold {
+                continue;
+            }
+
+            to_delete.push(candidate.id.clone());
+        }
+
+        // Delete marked candidates
+        for id in &to_delete {
+            vector_store.delete(id).await?;
+        }
+
+        Ok(PruningReport {
+            semantic_pruned: to_delete.len(),
+            total_pruned: to_delete.len(),
             ..Default::default()
         })
     }

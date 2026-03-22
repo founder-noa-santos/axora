@@ -5,6 +5,7 @@
 pub mod config;
 pub mod embedder;
 pub mod error;
+pub mod registry;
 pub mod research_provider;
 pub mod runtime_registry;
 
@@ -17,6 +18,7 @@ pub use embedder::{
     RemoteFallbackEmbedder, SkillEmbedder,
 };
 pub use error::EmbeddingError;
+pub use registry::EmbeddingRegistry;
 pub use runtime_registry::{
     cache_size, get_or_load_runtime, CachedEmbeddingRuntime, ModelCacheKey,
 };

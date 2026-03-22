@@ -371,11 +371,22 @@ pub struct PersistentSemanticStore {
     db: Arc<RwLock<Connection>>,
     embedding_dim: usize,
     path: String,
+    /// Defensive cap on rows before linear scan warns (default 50_000).
+    scan_cap: usize,
 }
 
 impl PersistentSemanticStore {
     /// Create a persistent semantic store at a SQLite path.
     pub fn new(path: impl AsRef<Path>, embedding_dim: usize) -> Result<Self> {
+        Self::with_scan_cap(path, embedding_dim, 50_000)
+    }
+
+    /// Create a persistent semantic store with a custom scan cap.
+    pub fn with_scan_cap(
+        path: impl AsRef<Path>,
+        embedding_dim: usize,
+        scan_cap: usize,
+    ) -> Result<Self> {
         let path_str = path.as_ref().display().to_string();
         if let Some(parent) = path.as_ref().parent() {
             if !parent.as_os_str().is_empty() {
@@ -396,6 +407,7 @@ impl PersistentSemanticStore {
             db: Arc::new(RwLock::new(conn)),
             embedding_dim,
             path: path_str,
+            scan_cap,
         };
         store.run_migrations()?;
         Ok(store)
@@ -493,7 +505,21 @@ impl PersistentSemanticStore {
             });
         }
 
+        // Guard: warn if table size exceeds scan_cap
         let db = self.db.read().unwrap();
+        let count: i64 = db
+            .query_row("SELECT COUNT(*) FROM semantic_memories", [], |row| {
+                row.get(0)
+            })
+            .unwrap_or(0);
+        if count as usize > self.scan_cap {
+            tracing::warn!(
+                count = count,
+                cap = self.scan_cap,
+                "semantic_memories table exceeds scan_cap; consider pruning or migrating to sqlite-vec backend"
+            );
+        }
+
         let mut stmt = db
             .prepare("SELECT id, content, embedding, metadata FROM semantic_memories")
             .map_err(|e| db_error(&self.path, e))?;

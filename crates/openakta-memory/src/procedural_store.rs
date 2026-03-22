@@ -759,8 +759,8 @@ async fn build_skill_dense_collection(
             .await
             .map_err(|err| ProceduralError::Indexing(err.to_string()))?,
         )),
-        VectorBackendKind::SqliteVec => Ok(Arc::new(
-            openakta_indexing::SqliteVecCollection::new(
+        VectorBackendKind::SqliteJson => Ok(Arc::new(
+            openakta_indexing::SqliteJsonVectorCollection::new(
                 &config.dense_store_path,
                 config.dense_collection.clone(),
             )
@@ -1973,7 +1973,7 @@ mod tests {
                 SkillRetrievalConfig {
                     corpus_root: skill_root.clone(),
                     catalog_db_path: temp_dir.path().join("catalog.db"),
-                    dense_backend: VectorBackendKind::SqliteVec,
+                    dense_backend: VectorBackendKind::SqliteJson,
                     dense_store_path: temp_dir.path().join("skill-vectors.db"),
                     qdrant_url: "http://127.0.0.1:6334".to_string(),
                     dense_collection: CollectionSpec {

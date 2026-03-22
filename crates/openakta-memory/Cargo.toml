@@ -18,7 +18,8 @@ openakta-proto.workspace = true
 openakta-rag = { path = "../openakta-rag" }
 
 # SQLite (using rusqlite to match openakta-storage)
-rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid"] }
+rusqlite.workspace = true
+sqlite-vec = "0.1"
 
 # ML for GMM clustering
 ndarray = "0.15"
@@ -42,9 +43,11 @@ uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
 dashmap.workspace = true
+parking_lot.workspace = true
 blake3.workspace = true
 prost-types.workspace = true
 tiktoken-rs.workspace = true
+bytemuck = "1.14"
 
 [dev-dependencies]
 tokio-test.workspace = true

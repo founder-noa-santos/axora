@@ -42,7 +42,7 @@ strip = "debuginfo"
 
 [workspace.dependencies]
 # Core async runtime
-tokio = { version = "1.50", features = ["full"] }
+tokio = { version = "1.40.0", features = ["full"] }
 tokio-util = { version = "0.7", features = ["codec", "rt"] }
 tokio-stream = "0.1"
 
@@ -59,16 +59,16 @@ prost-types = "0.12"
 async-nats = "0.37"
 
 # Database
-rusqlite = { version = "0.31", features = ["bundled", "chrono", "uuid", "serde_json"] }
+rusqlite = { version = "0.32.1", features = ["bundled", "chrono", "uuid", "serde_json", "load_extension"] }
 refinery = { version = "0.8", features = ["rusqlite"] }
 
 # Error handling
 thiserror = "1.0"
-anyhow = "1.0"
+anyhow = "1.0.86"
 secrecy = "0.8"
 
 # Logging & Tracing
-tracing = "0.1"
+tracing = "0.1.40"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # Utilities

@@ -11,6 +11,7 @@ pub mod lifecycle;
 pub mod procedural_store;
 pub mod semantic_store;
 pub mod skill_seeder;
+pub mod vector_backend;
 
 // Re-export main types
 pub use consolidation::{
@@ -38,3 +39,7 @@ pub use semantic_store::{
     SemanticError, SemanticMemory, SemanticMetadata,
 };
 pub use skill_seeder::{builtin_skill_root, SkillSeedReport};
+pub use vector_backend::{
+    PruneCandidate, SqliteLinearVectorStore, SqliteVecStore, VectorHit, VectorResult, VectorStore,
+    VectorStoreError,
+};

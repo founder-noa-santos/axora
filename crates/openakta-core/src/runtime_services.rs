@@ -7,7 +7,8 @@ use openakta_memory::{
     builtin_skill_root, ConsolidationPipeline, ConsolidationWorker, DocType, EpisodicStore,
     EpisodicStoreConfig, HybridSkillIndex, LightweightLLM, MemoryLifecycle,
     PersistentSemanticStore, SemanticMemory, SemanticMetadata, SkillCatalog, SkillCorpusIngestor,
-    SkillRetrievalConfig, SkillRetrievalPipeline,
+    SkillRetrievalConfig, SkillRetrievalPipeline, SqliteLinearVectorStore, SqliteVecStore,
+    VectorStore,
 };
 use openakta_rag::{CandleCrossEncoder, CodeRetrievalPipeline};
 use std::path::PathBuf;
@@ -15,7 +16,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
-use crate::CoreConfig;
+use crate::{CoreConfig, SemanticVectorBackend};
 
 /// Memory services hosted by the OPENAKTA runtime.
 pub struct MemoryServices {
@@ -29,6 +30,8 @@ pub struct MemoryServices {
     pub code_retrieval: Arc<CodeRetrievalPipeline>,
     /// Persistent semantic store for synced docs and retrieved knowledge.
     pub semantic_store: Arc<PersistentSemanticStore>,
+    /// Vector store trait object (Phase 1+ seam for backend swaps).
+    pub vector_store: Arc<dyn VectorStore>,
 }
 
 impl MemoryServices {
@@ -64,7 +67,7 @@ impl MemoryServices {
             )
             .await
             .map_err(anyhow::Error::msg)?,
-            openakta_indexing::VectorBackendKind::SqliteVec => DualVectorStore::new_sqlite(
+            openakta_indexing::VectorBackendKind::SqliteJson => DualVectorStore::new_sqlite(
                 &config.retrieval.sqlite_path,
                 config.retrieval.code.collection_spec(),
                 config.retrieval.skills.collection_spec(),
@@ -122,8 +125,48 @@ impl MemoryServices {
             "Opening semantic store at: {}",
             config.semantic_store_path.display()
         );
-        let semantic_store = PersistentSemanticStore::new(&config.semantic_store_path, 384)
-            .map_err(anyhow::Error::msg)?;
+        let semantic_store = PersistentSemanticStore::with_scan_cap(
+            &config.semantic_store_path,
+            384,
+            config.semantic_scan_cap,
+        )
+        .map_err(anyhow::Error::msg)?;
+
+        // Wire up vector store based on backend selection (Phase 1-5)
+        let vector_store: Arc<dyn VectorStore> = match &config.semantic_vector_backend {
+            SemanticVectorBackend::SqliteLinear => Arc::new(
+                SqliteLinearVectorStore::new(
+                    &config.semantic_store_path.display().to_string(),
+                    384,
+                    config.semantic_scan_cap,
+                )
+                .map_err(anyhow::Error::msg)?,
+            ),
+            SemanticVectorBackend::SqliteVec => {
+                // Phase 2: sqlite-vec with migration from legacy JSON format
+                let path_str = config.semantic_store_path.display().to_string();
+
+                // First try to create the sqlite-vec store
+                let vec_store = SqliteVecStore::new(
+                    &path_str,
+                    384,
+                    config.semantic_scan_cap,
+                ).map_err(anyhow::Error::msg)?;
+
+                // Migration is handled inside SqliteVecStore::new via run_migrations
+                // The migrate_from_json function is available for manual migration if needed
+
+                Arc::new(vec_store)
+            }
+            SemanticVectorBackend::External { endpoint, api_key } => {
+                // Phase 5: External Qdrant/cloud endpoint (stub — requires implementation)
+                return Err(anyhow::anyhow!(
+                    "External vector backend not yet implemented: endpoint={}, api_key={}",
+                    endpoint,
+                    if api_key.is_some() { "present" } else { "none" }
+                ));
+            }
+        };
 
         #[allow(clippy::arc_with_non_send_sync)]
         let out = Self {
@@ -132,6 +175,7 @@ impl MemoryServices {
             skill_retrieval: Arc::new(skill_retrieval),
             code_retrieval,
             semantic_store: Arc::new(semantic_store),
+            vector_store,
         };
         Ok(out)
     }
@@ -239,8 +283,12 @@ impl DocSyncService {
             root: config.workspace_root.clone(),
             reconciler: DocReconciler::new(DocReconcilerConfig::new(config.workspace_root.clone())),
             semantic_store: Arc::new(
-                PersistentSemanticStore::new(&config.semantic_store_path, 384)
-                    .map_err(anyhow::Error::msg)?,
+                PersistentSemanticStore::with_scan_cap(
+                    &config.semantic_store_path,
+                    384,
+                    config.semantic_scan_cap,
+                )
+                .map_err(anyhow::Error::msg)?,
             ),
             last_tree: None,
         };

@@ -30,8 +30,10 @@ pub enum RetrievalDomain {
 pub enum VectorBackendKind {
     /// Qdrant-backed collection.
     Qdrant,
-    /// SQLite/sqlite-vec style local collection.
-    SqliteVec,
+    /// SQLite JSON-based local collection (linear scan).
+    /// Legacy name retained for backward compatibility.
+    #[serde(alias = "sqlite_vec")]
+    SqliteJson,
 }
 
 /// Distance metric for dense similarity.
@@ -132,9 +134,9 @@ impl DualVectorStore {
         skill_spec: CollectionSpec,
     ) -> Result<Self> {
         Ok(Self {
-            code: Arc::new(SqliteVecCollection::new(path.as_ref(), code_spec)?),
-            skill: Arc::new(SqliteVecCollection::new(path.as_ref(), skill_spec)?),
-            backend: VectorBackendKind::SqliteVec,
+            code: Arc::new(SqliteJsonVectorCollection::new(path.as_ref(), code_spec)?),
+            skill: Arc::new(SqliteJsonVectorCollection::new(path.as_ref(), skill_spec)?),
+            backend: VectorBackendKind::SqliteJson,
         })
     }
 
@@ -271,13 +273,14 @@ impl DenseVectorCollection for QdrantVectorCollection {
 }
 
 /// SQLite-backed dense collection using separate tables per domain.
-pub struct SqliteVecCollection {
+/// Stores embeddings as JSON text and performs linear scan in Rust.
+pub struct SqliteJsonVectorCollection {
     db: Arc<Mutex<Connection>>,
     spec: CollectionSpec,
     path: PathBuf,
 }
 
-impl SqliteVecCollection {
+impl SqliteJsonVectorCollection {
     /// Create a SQLite-backed collection.
     pub fn new(path: &Path, spec: CollectionSpec) -> Result<Self> {
         if let Some(parent) = path.parent() {
@@ -334,7 +337,7 @@ impl SqliteVecCollection {
 }
 
 #[async_trait::async_trait]
-impl DenseVectorCollection for SqliteVecCollection {
+impl DenseVectorCollection for SqliteJsonVectorCollection {
     fn spec(&self) -> &CollectionSpec {
         &self.spec
     }

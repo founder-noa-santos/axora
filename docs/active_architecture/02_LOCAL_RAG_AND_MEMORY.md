@@ -50,13 +50,14 @@ OPENAKTA uses a **local-first RAG architecture**:
 **Structure:**
 ```rust
 pub struct SemanticMemory {
-    stores: HashMap<String, VectorStore>,
+    vector_store: Arc<dyn VectorStore>,
 }
 
 impl SemanticMemory {
-    pub fn retrieve(&self, domain: &str, query: &str) -> Result<Vec<Document>> {
-        // Retrieve API contracts, schemas, patterns
-        store.hybrid_search(query, 10).await
+    pub async fn retrieve(&self, query: &[f32], k: usize) -> Result<Vec<Document>> {
+        // Retrieve API contracts, schemas, patterns via ANN
+        let hits = self.vector_store.search(query, k, None).await?;
+        Ok(hits.into_iter().map(|h| h.payload).collect())
     }
 }
 ```
@@ -64,8 +65,8 @@ impl SemanticMemory {
 **Content Examples:**
 - API contracts (endpoints, request/response schemas)
 - Data models (database schemas, type definitions)
-- Design patterns (auth flows, payment processing)
-- Best practices (security, performance)
+- Design patterns (architecture patterns, best practices)
+- Code semantics (function purposes, module relationships)
 
 ---
 
@@ -100,7 +101,7 @@ impl EpisodicMemory {
 - Decision traces (why a choice was made)
 - Code review feedback
 
-**Retention:** 30 days (configurable via Ebbinghaus Forgetting Curve)
+**Retention:** Configurable via Ebbinghaus forgetting curve lifecycle
 
 ---
 
@@ -172,25 +173,25 @@ Query → [Query Reformulation] → [Hybrid Retrieval: BM25 + Dense]
 
 ---
 
-#### 2. Vector Database: Qdrant Embedded
+#### 2. Vector Database: sqlite-vec
 
 | Property | Value |
 |----------|-------|
-| Language | Rust-native |
-| RAM Usage | ~200MB for 100K vectors |
+| Language | SQLite extension |
+| RAM Usage | <100MB for 100K vectors |
 | Storage | Single file (WAL-based) |
 | Retrieval Latency | <5ms P95 |
 | Index Type | HNSW (disk-based) |
 
-**Why Qdrant Embedded:**
-- ✅ Pure Rust (matches our stack)
+**Why sqlite-vec:**
+- ✅ Pure SQLite extension (matches our stack)
 - ✅ Zero background processes
-- ✅ Rich payload filtering (filter by file path, language, etc.)
-- ✅ Production-proven (used by Cursor via Turbopuffer)
+- ✅ Rich payload filtering via JOIN on payload table
+- ✅ HNSW ANN for production performance
 
-**Alternative:** sqlite-vec (simpler, <100MB RAM, but no HNSW)
+**Fallback:** SqliteJson linear scan for migration/legacy compatibility
 
-**Location:** `crates/openakta-rag/src/vector_store.rs`
+**Location:** `crates/openakta-memory/src/vector_backend.rs`
 
 ---
 
@@ -326,14 +327,14 @@ impl MerkleIndex {
 
 | Component | RAM Usage | Notes |
 |-----------|-----------|-------|
-| Jina Code v2 (loaded) | ~550MB | During inference only |
-| Qdrant Embedded (100K vectors) | ~200MB | Persistent |
+| Candle embeddings (loaded) | ~550MB | During inference only |
+| sqlite-vec (100K vectors) | <100MB | Persistent |
 | Tree-sitter parsers | ~50MB | Multiple languages |
 | Merkle index (10K files) | ~100MB | In-memory hashes |
-| **Total (idle)** | **~300MB** | Qdrant + Merkle index |
-| **Total (embedding)** | **~850MB** | + Jina model loaded |
+| **Total (idle)** | **~300MB** | sqlite-vec + Merkle index |
+| **Total (embedding)** | **~850MB** | + Candle model loaded |
 
-**Target: <1GB peak RAM** ✅ Achievable
+**Target: <50MB RAM for daemon (without embedding inference)** ✅ Achievable
 
 ---
 
@@ -341,12 +342,12 @@ impl MerkleIndex {
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| Retrieval Latency | <100ms | P95 latency |
+| Retrieval Latency | <5ms P95 | sqlite-vec ANN |
 | Embedding Speed | >100 blocks/sec | Batch initial scan |
 | Change Detection Accuracy | 100% | No false negatives |
 | Re-indexing Reduction | 80-95% | vs full re-index |
-| RAM Usage (peak) | <1GB | `htop` during embedding |
-| RAM Usage (idle) | <300MB | `htop` at rest |
+| RAM Usage (peak) | <850MB | With embedding inference |
+| RAM Usage (idle) | <50MB | Daemon at rest |
 
 ---
 
@@ -361,15 +362,16 @@ impl MerkleIndex {
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Jina Embeddings | 🔄 In Progress | `crates/openakta-embeddings/src/jina.rs` |
-| Qdrant Embedded | 📋 Planned | Next sprint |
-| AST Chunking | ✅ Designed | Tree-sitter integration ready |
-| Merkle Index | ✅ Designed | BLAKE3 hashing ready |
-| Tripartite Memory | ✅ Designed | Research complete |
+| Candle Embeddings (JinaCode, BGE-Skill) | ✅ Implemented | `crates/openakta-embeddings/` |
+| sqlite-vec ANN | ✅ Implemented | `crates/openakta-memory/src/vector_backend.rs` |
+| SqliteJson Fallback | ✅ Implemented | `crates/openakta-memory/src/vector_backend.rs` |
+| AST Chunking | ✅ Implemented | Tree-sitter integration |
+| Merkle Index | ✅ Implemented | BLAKE3 hashing |
+| Tripartite Memory | ✅ Implemented | Semantic, Episodic, Procedural |
 
 ---
 
 **This is the Single Source of Truth for OPENAKTA local RAG and memory.**
 
-**Last Reviewed:** 2026-03-18  
+**Last Reviewed:** 2026-03-22
 **Next Review:** After MVP launch

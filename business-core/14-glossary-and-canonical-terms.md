@@ -2,76 +2,94 @@
 
 ## Purpose
 
-Standardize key vocabulary so future docs and implementation discussions do not drift.
+Standardize vocabulary so documentation and implementation discussions remain consistent.
 
 ## Executive Summary
 
-OPENAKTA’s current vocabulary should center on mission execution, typed orchestration, patch safety, and local context infrastructure. Many words that appear elsewhere in the repository, such as auth, payment, or subscription, are often example-domain terms rather than live OPENAKTA business terms. This glossary prefers the implemented backend language.
+OPENAKTA's vocabulary centers on local-first semantic memory, cloud-tier scaling, and deterministic orchestration. This glossary defines canonical terms aligned with current implementation.
 
-## Confirmed Current State
+## Core Architecture Terms
 
-| Term | Canonical meaning | Notes |
-| --- | --- | --- |
-| OPENAKTA | Multi-agent coding backend/runtime platform | Current business-core term |
-| Mission | High-level work request decomposed into tasks | Core orchestration term |
-| Task | Executable unit of work | Has type and status |
-| CoordinatorV2 | Primary current coordination runtime | Prefer over generic “coordinator” when precision matters |
-| Worker | Execution participant assigned tasks | Agent-level runtime actor |
-| TaskAssignment | Typed work instruction payload | Proto and runtime contract |
-| ContextPack | Typed structured context passed across orchestration | Converted to TOON only at model boundary |
-| TOON | Token-Optimized Object Notation | Model-bound compact serialization |
-| Prefix Cache | Local prompt prefix cache metadata and lookup mechanism | Cost-optimization term |
-| PatchEnvelope | Canonical patch submission artifact | Includes target files and base revision |
-| PatchReceipt | Deterministic apply result | Use instead of vague “patch result” |
-| Unified diff zero-context | Preferred diff protocol for code edits | Canonical code-edit format |
-| Search/Replace block | AST-style patch fallback format | Alternative code-edit format |
-| Blackboard V2 | Versioned diff-publishing shared state | Prefer over generic “shared memory” when referring to cache crate implementation |
-| Merkle state | File/block hash index for incremental change detection | Indexing term |
-| SCIP index | Symbol/occurrence structure for code navigation | Retrieval/indexing term |
-| Influence graph | Dependency/influence graph for retrieval | Retrieval term |
-| Repository map | Compact codebase navigation structure | Token-optimization term |
+| Term | Canonical Meaning | Notes |
+|------|-------------------|-------|
+| **sqlite-vec** | Default local vector backend | SQLite extension providing HNSW ANN |
+| **SqliteVec** | Config enum variant | `SemanticVectorBackend::SqliteVec` (default) |
+| **SqliteLinear** | Fallback vector backend | JSON storage with linear scan (legacy/migration) |
+| **SqliteJson** | Alternative name for SqliteLinear | Used in code comments |
+| **External** | Cloud/self-hosted backend config | `SemanticVectorBackend::External { endpoint, api_key }` |
+| **Qdrant Cloud (Azure Marketplace)** | Paid tier vector database | Managed cloud backend |
+| **Cohere embed-v3-multilingual** | Cloud embeddings | Used in paid tier via Azure Foundry |
+| **Candle embeddings** | Local embeddings | JinaCode 768-dim, BGE-Skill 384-dim |
+| **VectorStore** | Core trait for vector backends | Methods: `upsert`, `search`, `delete`, `count`, `scan_for_pruning`, `backend_id` |
+| **SemanticStore** | Vector-based memory | 384-dim semantic memory |
+| **Episodic** | Text/time memory | Conversation logs, debug sessions |
+| **Procedural** | Skills memory | `SKILL.md` files, workflows |
+| **Ebbinghaus lifecycle** | Pruning model | Applies to semantic and episodic memory |
 
-## Detailed Breakdown
+## Cloud Tier Terms
 
-### Terms to avoid using as canonical business truth
+| Term | Canonical Meaning | Notes |
+|------|-------------------|-------|
+| **api.openakta.dev** | Cloud API endpoint | Rust + Axum backend |
+| **openakta_{user_id}** | Namespace pattern | Per-user Qdrant Cloud namespace |
+| **Clerk.dev** | Auth provider | GitHub and Google identity providers only |
+| **tower-governor** | Rate limiting middleware | Redis-backed |
+| **Pro tier** | 100 requests/minute | Rate limit for paid users |
+| **Free tier** | 10 requests/minute | Rate limit for free cloud users |
+| **Azure Marketplace** | Provisioning channel | How cloud tier is provisioned |
+| **Azure Foundry Serverless** | Inference access path | For Cohere embeddings |
 
-| Term | Why to avoid |
-| --- | --- |
-| User account | Not a first-class backend entity today |
-| Organization / tenant / workspace owner | Not an implemented backend truth |
-| Subscription / plan / entitlement | Not a live backend domain |
-| Auth module / payment module | Often appears only in examples, tests, or historical docs |
+## Local Tier Terms
 
-### Preferred naming guidance
+| Term | Canonical Meaning | Notes |
+|------|-------------------|-------|
+| **Free Tier** | Default local-first mode | sqlite-vec + Candle |
+| **<50MB RAM** | Memory target | Peak usage target |
+| **musl static linking** | Distribution format | Single binary |
+| **openakta auth login** | CLI auth command | Token stored in keyring |
 
-- Use `CoordinatorV2` when referring to the current intended runtime.
-- Use `code-edit task` instead of vague “LLM coding response.”
-- Use `typed transport` instead of “message JSON.”
-- Use `patch receipt` instead of “merge result” when the deterministic apply outcome is intended.
+## Orchestration Terms
+
+| Term | Canonical Meaning | Notes |
+|------|-------------------|-------|
+| **CoordinatorV2** | Primary coordination runtime | Prefer over generic "coordinator" |
+| **Mission** | High-level work request | Decomposed into tasks |
+| **Task** | Executable unit of work | Has type and status |
+| **TOON** | Token-Optimized Object Notation | Compact context serialization |
+| **PatchEnvelope** | Canonical patch submission | Target files + base revision |
+| **PatchReceipt** | Deterministic apply result | Use instead of "merge result" |
+| **Blackboard V2** | Versioned shared state | Diff-publishing cache |
+| **MCP** | Model Context Protocol | Secure tool execution boundary |
+
+## Terms to Avoid (Not Current Backend Truth)
+
+| Term | Why to Avoid |
+|------|--------------|
+| **LanceDB** | Not current architecture; was historical consideration |
+| **pgvector** | Not used; sqlite-vec is the local backend |
+| **Milvus** | Not used |
+| **Chroma** | Not used |
+| **Turbopuffer** | Future migration path only, not current |
+| **Voyage code-3** | Not used; Candle local, Cohere cloud |
+| **User account / tenant / organization** | Not first-class backend entities |
+| **Subscription / plan / entitlement** | Not live backend domain (cloud tier is infra-based) |
+
+## Preferred Naming Guidance
+
+- Use **sqlite-vec** for local default backend
+- Use **Qdrant Cloud (Azure Marketplace)** for paid cloud (not "self-hosted Qdrant")
+- Use **External** for self-hosted configuration
+- Use **Candle embeddings** for local mode
+- Use **Cohere embed-v3-multilingual** for cloud mode
+- Use **Ebbinghaus lifecycle** for pruning model
 
 ## Implementation Evidence
 
-- `proto/collective/v1/core.proto`
-- `crates/openakta-agents/src/coordinator/v2.rs`
-- `crates/openakta-agents/src/patch_protocol.rs`
-- `crates/openakta-agents/src/provider.rs`
-- `crates/openakta-cache/src/toon.rs`
-- `crates/openakta-cache/src/blackboard/v2.rs`
-- `crates/openakta-indexing/src/merkle.rs`
-- `crates/openakta-indexing/src/scip.rs`
-
-## Business Meaning
-
-Shared vocabulary is essential because the repository mixes implemented runtime language with example-domain language. This glossary reduces the risk of designing around synthetic examples instead of real OPENAKTA concepts.
-
-## Open Ambiguities
-
-- “Workspace” currently refers more often to repository root / execution root than to a SaaS tenant object.
-
-## Deprecated / Contradicted / Legacy Patterns
-
-- Historical naming from business-rule docs should not dominate current backend terminology.
+- `crates/openakta-memory/src/vector_backend.rs` — `VectorStore` trait
+- `crates/openakta-core/src/config.rs` — `SemanticVectorBackend` enum
+- `openakta-api/` — Cloud tier (private repo)
+- `openakta-web/` — Next.js + Clerk frontend
 
 ## Confidence Assessment
 
-High.
+High. This glossary reflects implemented architecture and current cloud/local tier truth.

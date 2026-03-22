@@ -12,7 +12,7 @@ pub mod runtime_services;
 pub mod server;
 
 pub use bootstrap::{RuntimeBootstrap, RuntimeBootstrapOptions};
-pub use config::CoreConfig;
+pub use config::{CoreConfig, SemanticVectorBackend};
 pub use frame::{Frame, FrameContext, FrameExecutor};
 pub use runtime_services::{DocSyncService, MemoryServices};
 pub use server::{stream_messages_lagged_total, CollectiveServer};

@@ -37,7 +37,8 @@ pub use traceability::{
 };
 pub use vector_store::{
     CollectionSpec, DenseVectorCollection, DistanceMetric, DualVectorStore, QdrantVectorCollection,
-    RetrievalDomain, SearchResult as DenseSearchResult, SqliteVecCollection, VectorBackendKind,
+    RetrievalDomain, SearchResult as DenseSearchResult, SqliteJsonVectorCollection,
+    VectorBackendKind,
 };
 
 use thiserror::Error;

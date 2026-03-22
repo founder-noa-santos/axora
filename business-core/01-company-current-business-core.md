@@ -2,93 +2,117 @@
 
 ## Purpose
 
-Define what OPENAKTA is now, based on the validated Rust runtime.
+Define what OPENAKTA is now, based on the validated Rust runtime and cloud tier architecture.
 
 ## Executive Summary
 
-OPENAKTA is now a batteries-included autonomous software engineering runtime with live cloud reasoning, secure tool execution over MCP/gRPC, deterministic patch application, aggressive context compression, persistent cognitive memory, and a mission-first CLI entrypoint. The business core is no longer “synthetic orchestration with future plans”; it is a real execution platform for high-concurrency code work that can be started from a single command.
+OPENAKTA is a **local-first AI coding assistant** with a **cloud upgrade tier**:
+
+### Free Tier (Local, Default)
+- **Vector Backend:** sqlite-vec HNSW ANN (384-dim semantic memory)
+- **Embeddings:** Candle (JinaCode 768-dim, BGE-Skill 384-dim)
+- **RAM:** <50MB target
+- **Distribution:** Single static binary (musl)
+
+### Paid Tier (Cloud)
+- **Auth:** `openakta auth login` (Clerk.dev, GitHub/Google)
+- **Vector DB:** Qdrant Cloud (Azure Marketplace)
+- **Embeddings:** Cohere embed-v3-multilingual
+- **API:** `api.openakta.dev` (Rust + Axum)
+- **Rate Limiting:** Pro 100/min, Free 10/min (Redis + tower-governor)
+
+### Self-Hosted Option
+- **Config:** `semantic_vector_backend = "external"`
+- **Endpoint:** User-supplied Qdrant or compatible
 
 ## Confirmed Current State
 
-- `CoordinatorV2` builds real provider requests using the **Dynamic Model Registry** for metadata-driven token budgeting.
-- Provider instances support **heterogeneous execution lanes** (cloud and local) with automatic or explicit fallback policies.
-- API keys are **file-based secrets** stored in `.openakta/secrets/`, never inline in configuration.
-- Routing consults `ModelRegistryEntry::preferred_instance` for model-specific instance selection.
-- Token budgets are **dynamically derived** from `max_context_window` and `max_output_tokens` metadata, not hardcoded.
-- Live HTTP transport is used by default when provider credentials are present; synthetic transport is a development fallback.
-- Tool execution is routed through a native MCP boundary for filesystem, diff, AST, graph, and bounded command operations instead of raw in-process agent shelling.
-- ReAct execution is split into planner and actor tasks so planning and acting are no longer one blocking loop.
-- Model-bound context is compacted through TOON, with MetaGlyph commands and latent-context preparation available in the context envelope.
-- Memory is separated into semantic, episodic, and procedural domains, with default skills seeded on first run and pruning/consolidation services started by the runtime bootstrap.
-- LivingDocs/doc-sync runs as a background daemon service and feeds documentation changes into semantic memory.
-- The primary operator-facing entrypoint is now the `openakta` CLI mission flow rather than manual daemon bring-up.
-- Billing, customer tenancy, and account lifecycle are still not the product core in code.
+### Local Tier Architecture
+
+| Component | Implementation |
+|-----------|----------------|
+| Vector Backend | sqlite-vec HNSW ANN |
+| Fallback | SqliteJson linear scan (migration/legacy) |
+| Embeddings | Candle (JinaCode 768-dim, BGE-Skill 384-dim) |
+| Memory Model | Tripartite: Semantic (vectors), Episodic (text/time), Procedural (skills) |
+| Pruning Model | Ebbinghaus lifecycle |
+| Config Default | `CoreConfig.semantic_vector_backend = "sqlite_vec"` |
+
+### Cloud Tier Architecture
+
+| Component | Implementation |
+|-----------|----------------|
+| API Server | Rust + Axum (`openakta-api` private) |
+| Vector DB | Qdrant Cloud (Azure Marketplace) |
+| Namespace | `openakta_{user_id}` |
+| Embeddings | Cohere embed-v3-multilingual |
+| Inference | Azure Foundry Serverless |
+| Auth | Clerk.dev |
+| Identity Providers | GitHub, Google only |
+| Rate Limiting | tower-governor + Redis |
+| Relational DB | Postgres (`users`, `quota_remaining`) |
+| API Paths | `/v1/validate`, `/v1/:user_id/upsert`, `/v1/:user_id/search` |
+
+### CLI Auth Flow
+
+```bash
+openakta auth login
+# → Token stored in keyring
+# → Daemon downloads cloud backend config
+```
+
+### Frontend (openakta-web)
+
+| Component | Implementation |
+|-----------|----------------|
+| Framework | Next.js |
+| Auth | Clerk `<SignIn />` |
+| Identity Providers | GitHub, Google |
+| UX Scope | Single page (auth bridge + instruct to run `openakta auth login`) |
+| Deploy Target | Vercel |
 
 ## What OPENAKTA Sells Technically
 
-OPENAKTA’s differentiated value is now the combination of:
+OPENAKTA's differentiated value:
 
-- controlled multi-agent orchestration
-- live cloud LLM execution with token accounting
-- secure local tool access behind MCP
-- patch-first code modification with deterministic application
-- compressed context transport and retrieval-aware prompt building
-- persistent memory and governance services running beside the coordinator
+1. **Local-first by default** — Free tier works offline, no external dependencies
+2. **Cloud upgrade via Azure** — Managed Qdrant Cloud, not self-hosting burden
+3. **Dual embedding strategy** — Candle local, Cohere cloud
+4. **Simplified auth** — Clerk.dev with GitHub/Google only
+5. **Single binary distribution** — musl static linking, <50MB RAM target
 
 ## What OPENAKTA Is Not Yet
 
-OPENAKTA is still not a full commercial SaaS business system with:
+OPENAKTA is still not a full SaaS with:
 
-- customer billing
-- tenant administration
-- strong user identity and entitlement models
-- external CRM or contract workflows
+- Traditional billing infrastructure (Stripe, invoices, seats)
+- Complex entitlement enforcement
+- Multi-provider identity beyond GitHub/Google
 
 ## Implementation Evidence
 
-- `crates/openakta-daemon/src/main.rs`
-- `crates/openakta-cli/src/main.rs`
-- `crates/openakta-core/src/bootstrap.rs`
-- `crates/openakta-core/src/runtime_services.rs`
-- `crates/openakta-core/src/config.rs`
-- `crates/openakta-agents/src/coordinator/v2.rs`
-- `crates/openakta-agents/src/provider_transport.rs`
-- `crates/openakta-agents/src/react.rs`
-- `crates/openakta-agents/src/mcp_client.rs`
-- `crates/openakta-mcp-server/src/lib.rs`
-- `crates/openakta-memory/src/lifecycle.rs`
-- `crates/openakta-docs/src/reconciler.rs`
+- `crates/openakta-memory/src/vector_backend.rs` — `VectorStore` trait, sqlite-vec backend
+- `crates/openakta-core/src/config.rs` — `SemanticVectorBackend` enum
+- `crates/openakta-daemon/README.md` — Local/cloud tier documentation
+- `openakta-api/` — Cloud API (private repo)
+- `openakta-web/` — Next.js + Clerk frontend
 
 ## Business Meaning
 
-OPENAKTA’s current business core is a production-oriented execution substrate for autonomous coding work: reason in the cloud, act locally through a hardened tool boundary, preserve state across runs, and keep token costs low enough for repeated use.
+OPENAKTA's business core is **infrastructure-based monetization**:
 
-## Multi-Provider Architecture
+- **Free tier:** Fully functional local-first assistant
+- **Paid tier:** Managed cloud infrastructure via Azure Marketplace
+- **Self-hosted:** Enterprise option via `External` config
 
-OPENAKTA now supports dynamic, multi-provider execution:
-
-### Provider Instances
-- **Cloud lanes**: HTTP-backed providers (Anthropic, OpenAI, OpenAI-compatible)
-- **Local lanes**: Ollama or other local runtimes
-- **Instance selection**: Deterministic priority lists or registry-driven routing
-
-### Model Registry
-- **Builtin catalog**: Known models with verified metadata
-- **Remote registry**: Optional JSON endpoint for dynamic updates
-- **TOML extensions**: Local overrides for custom models
-
-### Routing Modes
-- **Routing enabled**: Difficulty-aware routing (fast paths → local, architecture-heavy → cloud)
-- **Routing disabled**: Single-lane fallback to configured default
-- **Fallback policies**: `never`, `explicit`, or `automatic` downgrade to local
+Value is delivered through infrastructure quality, not billing enforcement.
 
 ## Open Ambiguities
 
-- Commercial packaging is still thinner than the runtime.
-- Some legacy subsystems still exist in the repository outside the new batteries-included entry path.
-- MCP tool coverage is broader now, but it is still a core subset rather than a complete external tool ecosystem.
-- `ProviderKind` conflation: currently used for both telemetry and transport selection (technical debt).
+- Enterprise pricing beyond rate limits not codified
+- Self-hosted backend testing not fully validated
+- Turbopuffer migration is future path only
 
 ## Confidence Assessment
 
-High.
+High. This document reflects implemented local-first architecture with cloud tier via Azure Marketplace.

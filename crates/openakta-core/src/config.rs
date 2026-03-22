@@ -13,6 +13,26 @@ use openakta_mcp_server::{
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// Semantic vector backend selection.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SemanticVectorBackend {
+    /// sqlite-vec HNSW ANN (default, production local backend).
+    /// Uses sqlite-vec extension for efficient approximate nearest neighbor search.
+    #[default]
+    SqliteVec,
+    /// SQLite JSON linear scan (fallback/migration path only).
+    /// Legacy compatibility layer; prefer SqliteVec for production use.
+    SqliteLinear,
+    /// External Qdrant or compatible endpoint (cloud tier / enterprise self-hosted).
+    /// Cloud tier: Qdrant Cloud (Azure Marketplace) with Cohere embed-v3-multilingual.
+    /// Self-hosted: bring-your-own Qdrant or compatible vector backend.
+    External {
+        endpoint: String,
+        api_key: Option<String>,
+    },
+}
+
 fn default_broadcast_lag_streak_limit() -> u32 {
     3
 }
@@ -263,6 +283,16 @@ pub struct CoreConfig {
     /// Optional outbound web search (Serper / Tavily BYOK); see [`openakta_research::ResearchConfig`].
     #[serde(default)]
     pub research: Option<openakta_research::ResearchConfig>,
+    /// Defensive cap on semantic store rows before warning (default 50_000).
+    #[serde(default = "default_semantic_scan_cap")]
+    pub semantic_scan_cap: usize,
+    /// Semantic vector backend selection (Phase 1-2).
+    #[serde(default)]
+    pub semantic_vector_backend: SemanticVectorBackend,
+}
+
+fn default_semantic_scan_cap() -> usize {
+    50_000
 }
 
 impl Default for CoreConfig {
@@ -310,6 +340,8 @@ impl Default for CoreConfig {
             debug: false,
             broadcast_lag_streak_limit: default_broadcast_lag_streak_limit(),
             research: None,
+            semantic_scan_cap: default_semantic_scan_cap(),
+            semantic_vector_backend: SemanticVectorBackend::SqliteVec,
         }
     }
 }

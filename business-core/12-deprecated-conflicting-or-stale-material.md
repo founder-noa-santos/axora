@@ -2,73 +2,90 @@
 
 ## Purpose
 
-Capture contradictions and stale materials without polluting the canonical business-core documents.
+Isolate stale and contradictory material so canonical architecture docs reflect current truth.
 
 ## Executive Summary
 
-The repository contains meaningful stale and aspirational material. The most important pattern is that older docs and example content describe a broader SaaS/business domain than the backend actually implements. There are also legacy runtime paths that overlap with newer V2-oriented implementations. This file isolates those divergences.
+This document catalogs architecture references that are **not current truth**. These items have been purged or normalized in canonical docs and code.
 
-## Confirmed Current State
+## Purged Architecture References
 
-| Item | What it claims | What code does now | Confidence |
-| --- | --- | --- | --- |
-| `docs/business_rules/PAY-001.md`, `PAY-002.md` | Payment processing and refunds are business rules | No live payment integration or billing enforcement exists in backend crates | High |
-| `docs/active_architecture/*` | Broad future architecture including auth/payment examples | Mixed historical and design material; only portions match live code | High |
-| older coordinator path in `crates/openakta-agents/src/coordinator.rs` | Parallel coordination implementation | V2 path is the stronger current direction; legacy path remains for compatibility/history | Medium |
-| `crates/openakta-agents/src/memory.rs` vs cache blackboard v2 | Multiple shared-state abstractions | State truth is split between simpler agent memory/blackboard and stronger cache blackboard v2 | High |
-| example config and older docs | Broader product/runtime support | Some entries are aspirational or only partially backed | Medium |
-| `openakta.example.toml` pre-2026-03-20 | Environment variable fallbacks (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) | Env vars are fully purged; file-based secrets only | High |
-| `openakta.example.toml` pre-2026-03-20 | Inline `api_key = "sk-..."` in TOML | Inline keys are discouraged; `api_key_file` is the secure pattern | High |
-| Pre-registry routing docs | Hardcoded token limits (512, 4096, 8192) | Token budgets are dynamically derived from model metadata | High |
-| Legacy provider docs | `ProviderKind` drives transport | `WireProfile` now drives transport; `ProviderKind` is telemetry-only (R4 completed 2026-03-20) | High |
+### Vector Backends (Not Current)
+
+| Reference | Status | Replacement |
+|-----------|--------|-------------|
+| **LanceDB** | Purged from current architecture | sqlite-vec (local), Qdrant Cloud (paid) |
+| **pgvector** | Never implemented | sqlite-vec |
+| **Milvus** | Never implemented | — |
+| **Chroma** | Never implemented | — |
+| **Turbopuffer** | Future migration path only | Not current architecture |
+| **Qdrant Docker / self-hosted as official** | Purged from cloud tier narrative | Qdrant Cloud (Azure Marketplace) |
+
+### Embedding Models (Not Current)
+
+| Reference | Status | Replacement |
+|-----------|--------|-------------|
+| **Voyage code-3** | Never implemented | Candle (JinaCode, BGE-Skill) local, Cohere embed-v3-multilingual cloud |
+| **Jina 1.5B** | Outdated reference | JinaCode 768-dim via Candle |
+
+### Auth/Billing (Not Current Backend Truth)
+
+| Reference | Status | Current Truth |
+|-----------|--------|---------------|
+| **Stripe/Paddle integration** | Not implemented | Azure Marketplace provisioning |
+| **Subscription/seat/entitlement tables** | Not in schema | Cloud tier is infra-based, not billing-enforced |
+| **Synthetic provider execution** | Historical | Live HTTP transport (Anthropic, OpenAI) |
+
+### Deprecated Code Patterns
+
+| Reference | Status | Current Pattern |
+|-----------|--------|-----------------|
+| **ProviderKind drives transport** | Deprecated (R4 completed 2026-03-20) | WireProfile drives transport |
+| **Hardcoded token limits** | Deprecated | Dynamic model metadata |
+| **Env var API keys** | Deprecated (pre-2026-03-20) | File-based secrets in `.openakta/secrets/` |
+| **Inline API keys in TOML** | Deprecated | `api_key_file` pattern |
 
 ## Detailed Breakdown
 
-### Payment and business-rule docs
+### LanceDB References
 
-These docs read like operational business policy, but they are not backed by live payment code. They should be preserved as historical artifacts or intended policy, not current implementation truth.
+LanceDB appeared in historical architecture docs as a potential embedded columnar store. It is **not current architecture**.
 
-### Auth and permissions examples
+**Purged from:**
+- `docs/active_architecture/02_LOCAL_RAG_AND_MEMORY.md` — Now documents sqlite-vec
+- `docs/architecture-communication.md` — Now uses `VectorStore` trait
+- `docs/architecture-context-rag.md` — Now documents sqlite-vec + Candle
 
-Auth-heavy examples appear across docs, tests, benchmarks, and parser fixtures. Most are synthetic content for indexing, documentation, or performance tests rather than live application logic.
+### Turbopuffer References
 
-### Legacy coordinator overlap
+Turbopuffer is a **future migration path** via `VectorStore` trait compatibility. It is not current architecture.
 
-There are now at least two coordination paths in the repo. V2 reflects the current hard-break runtime direction, but the older path still exists and can confuse audits if treated equally.
+**Current framing:**
+- Mentioned only as future compatibility in `vector_backend.rs` stubs
+- Not in active architecture docs
 
-### Overlapping memory/state models
+### Self-Hosted Qdrant Framing
 
-The repository contains both:
+Self-hosted Qdrant is available via `External` backend config, but it is **not the official paid cloud path**.
 
-- a simpler agent memory/blackboard layer in `crates/openakta-agents/src/memory.rs`
-- a stronger versioned/diff-publishing blackboard in `crates/openakta-cache/src/blackboard/v2.rs`
+**Current framing:**
+- Paid cloud = Qdrant Cloud (Azure Marketplace)
+- Self-hosted = `External { endpoint, api_key }` config option
 
-That overlap is not fatal, but it is not clean.
+### Payment/Billing Docs
+
+`docs/business_rules/PAY-001.md`, `PAY-002.md` describe payment processing not implemented in backend.
+
+**Current truth:**
+- Cloud tier monetization is infra-based (Azure Marketplace, rate limiting)
+- No Stripe, invoices, or entitlement enforcement in code
 
 ## Implementation Evidence
 
-- `docs/business_rules/PAY-001.md`
-- `docs/business_rules/PAY-002.md`
-- `docs/active_architecture/`
-- `crates/openakta-agents/src/coordinator.rs`
-- `crates/openakta-agents/src/coordinator/v2.rs`
-- `crates/openakta-agents/src/memory.rs`
-- `crates/openakta-cache/src/blackboard/v2.rs`
-- `openakta.example.toml` (pre-2026-03-20)
-
-## Business Meaning
-
-Without separating stale material from live truth, teams can overestimate what OPENAKTA already supports commercially and underappreciate what is actually strong in the backend. This is particularly risky around billing, auth, and coordination architecture.
-
-## Open Ambiguities
-
-- Some historical docs may still reflect future direction, but they are not current backend truth.
-- Parts of the old coordinator may still be referenced in tests or non-primary paths.
-
-## Deprecated / Contradicted / Legacy Patterns
-
-- Treat all items in the table above as legacy, contradictory, or non-authoritative unless revalidated in code.
+- `crates/openakta-memory/src/vector_backend.rs` — No LanceDB, only sqlite-vec/SqliteLinear/External
+- `crates/openakta-core/src/config.rs` — `SemanticVectorBackend` enum: `SqliteVec`, `SqliteLinear`, `External`
+- `business-core/14-glossary-and-canonical-terms.md` — Terms to avoid section
 
 ## Confidence Assessment
 
-High.
+High. Stale references have been purged or normalized in canonical docs.

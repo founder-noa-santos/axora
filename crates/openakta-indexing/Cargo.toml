@@ -47,7 +47,7 @@ tokio.workspace = true
 async-trait = "0.1"
 
 # Database
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 
 # Serialization

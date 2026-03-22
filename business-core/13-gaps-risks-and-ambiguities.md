@@ -2,65 +2,95 @@
 
 ## Purpose
 
-Identify the real remaining risks after validating the current implementation.
+Capture remaining risks and ambiguities in OPENAKTA's architecture and business model.
 
 ## Executive Summary
 
-The prior risks around synthetic provider execution and missing memory architecture are no longer the main story. The runtime now has live providers, MCP, dual-thread ReAct, tripartite memory, and daemonized doc sync. The remaining risks are narrower: legacy-path overlap, limited MCP tool breadth, lightweight semantic ingestion in some paths, and incomplete automation around governance outputs.
+OPENAKTA's architecture is now coherent around **local-first sqlite-vec + cloud-tier Qdrant Cloud**. The remaining gaps are narrow and well-bounded.
 
-## Current Risks
+## Current State
 
-| Risk | Why it matters |
-| --- | --- |
-| Legacy runtime overlap | Old coordinator and state abstractions still coexist with the stronger V2 path |
-| Narrow MCP tool catalog | The secure boundary is real, but the default tool surface is still small |
-| Lightweight semantic embeddings in doc sync | Some semantic ingestion uses a simple local embedding strategy, which may limit retrieval quality |
-| Partial governance automation | LivingDocs can detect and stage doc updates, but does not yet auto-open PRs by default |
-| Retrieval/index freshness | Context quality still depends on reliable change detection and indexing freshness |
-| `WireProfile` adoption | Ensure all new providers use `WireProfile` for transport and `ProviderKind` for telemetry (R4 implemented 2026-03-20) |
+The prior risks around synthetic provider execution and missing memory architecture are no longer the main story. The runtime now has:
 
-## Resolved Risks
+- **Live providers** (Anthropic, OpenAI via HTTP)
+- **MCP tool boundary** (secure local execution)
+- **Dual-thread ReAct** (planner/actor split)
+- **Tripartite memory** (semantic, episodic, procedural)
+- **Daemonized doc sync** (background governance)
+- **sqlite-vec ANN** (default local backend)
+- **Cloud tier** (Qdrant Cloud via Azure Marketplace)
 
-- Synthetic provider execution is no longer the primary runtime claim.
-- Tripartite memory and memory pruning are no longer architectural gaps.
-- MCP-backed tool sandboxing is now a real system boundary, not a research note.
-- Hardcoded token limits are replaced by dynamic model metadata (as of 2026-03-20 refactor).
-- Environment variable fallbacks are fully purged; file-based secrets are enforced.
-- Model registry provides authoritative metadata for routing and budgeting.
-- `ProviderKind` conflation resolved: `WireProfile` now drives transport, `ProviderKind` only for telemetry (R4 completed 2026-03-20).
+## Remaining Risks
 
-## Business-Layer Gaps
+### 1. Legacy Path Overlap
 
-| Gap | Current status |
-| --- | --- |
-| User accounts | Not part of the current backend truth |
-| Tenant/workspace ownership | Still thin as a business model |
-| Billing and plan enforcement | Not implemented |
-| Customer onboarding workflows | Not implemented as a backend state machine |
+**Risk:** Some legacy runtime paths still coexist with V2 stack.
 
-## Ambiguities
+**Examples:**
+- Older coordinator path in `crates/openakta-agents/src/coordinator.rs`
+- Legacy memory abstraction in `crates/openakta-agents/src/memory.rs`
 
-- How much of the legacy stack will be retired versus maintained for compatibility is still open.
-- The long-term semantic-memory quality plan is not fully inferable from the current embedding strategy alone.
+**Mitigation:** Prefer `CoordinatorV2` and `blackboard/v2` in new code.
+
+### 2. MCP Tool Breadth
+
+**Risk:** MCP surface is opinionated but not fully comprehensive.
+
+**Current coverage:**
+- File, diff, AST, graph, bounded command operations
+
+**Gap:** External tool ecosystem is still core subset, not fully open-ended.
+
+### 3. Cloud Tier Rate Limit Enforcement
+
+**Risk:** Rate limiting (Pro: 100/min, Free: 10/min) is implemented but pricing tiers beyond rate limits are not codified.
+
+**Current truth:**
+- Redis + `tower-governor` enforces rate limits
+- No subscription/entitlement tables in Postgres
+
+### 4. Self-Hosted Configuration
+
+**Risk:** `External` backend config is available but not fully documented/tested.
+
+**Current truth:**
+- `SemanticVectorBackend::External { endpoint, api_key }` exists
+- Enterprise self-host pricing not implemented
+
+### 5. ProviderKind Technical Debt
+
+**Risk:** `ProviderKind` conflation noted in historical docs.
+
+**Current truth:**
+- `WireProfile` drives transport (R4 completed 2026-03-20)
+- `ProviderKind` is telemetry-only
+
+## What Is NOT a Risk (Resolved)
+
+The following are **no longer risks**:
+
+- ✅ **Vector backend choice:** sqlite-vec is default, SqliteLinear is fallback
+- ✅ **Cloud tier architecture:** Qdrant Cloud (Azure Marketplace) is official path
+- ✅ **Embedding models:** Candle local, Cohere cloud
+- ✅ **Auth model:** Clerk.dev with GitHub/Google
+- ✅ **Memory architecture:** Tripartite with Ebbinghaus pruning
+- ✅ **Provider transport:** Live HTTP, not synthetic
+
+## Open Ambiguities
+
+| Ambiguity | Status |
+|-----------|--------|
+| **Enterprise pricing beyond rate limits** | Not codified in backend |
+| **Self-hosted backend testing** | Available but not fully validated |
+| **Turbopuffer migration timeline** | Future path, no timeline |
 
 ## Implementation Evidence
 
-- `crates/openakta-agents/src/coordinator/v2.rs`
-- `crates/openakta-agents/src/provider_transport.rs`
-- `crates/openakta-agents/src/react.rs`
-- `crates/openakta-agents/src/model_registry/mod.rs`
-- `crates/openakta-agents/src/routing/mod.rs`
-- `crates/openakta-agents/src/token_budget.rs`
-- `crates/openakta-core/src/config_resolve.rs`
-- `crates/openakta-core/src/bootstrap.rs`
-- `crates/openakta-mcp-server/src/lib.rs`
-- `crates/openakta-daemon/src/services.rs`
-- `crates/openakta-docs/src/reconciler.rs`
-
-## Business Meaning
-
-OPENAKTA’s remaining uncertainty is no longer “can the platform run end-to-end?” It is “how far and how fast to harden and commercialize the now-real execution core.”
+- `crates/openakta-memory/src/vector_backend.rs` — sqlite-vec, SqliteLinear, External stub
+- `crates/openakta-core/src/config.rs` — `SemanticVectorBackend` enum
+- `business-core/06-billing-monetization-and-plan-enforcement.md` — Cloud tier architecture
+- `business-core/09-integrations-and-external-dependencies.md` — Local/cloud dependencies
 
 ## Confidence Assessment
 
-High.
+High. Remaining risks are narrow and well-understood. Core architecture is stable.

@@ -2,81 +2,110 @@
 
 ## Purpose
 
-Record the architecture decisions that now materially define OPENAKTA’s product behavior.
+Record the architecture decisions that define OPENAKTA's product behavior and business model.
 
 ## Executive Summary
 
-OPENAKTA’s business is shaped by six active decisions: live cloud reasoning, MCP as the local tool boundary, patch-first code editing, dual-thread ReAct execution, compressed context transport, and tripartite memory with background governance services.
+OPENAKTA's business is shaped by its **local-first, cloud-upgrade** architecture:
+
+1. **sqlite-vec as default local backend** — Free tier is fully local, no external dependencies
+2. **Qdrant Cloud (Azure Marketplace) for paid tier** — Managed cloud, not self-hosted
+3. **Candle embeddings local, Cohere embeddings cloud** — Dual embedding strategy
+4. **Clerk.dev auth with GitHub/Google only** — Simplified identity model
+5. **Rate limiting via Redis + tower-governor** — Pro: 100/min, Free: 10/min
+6. **VectorStore trait abstraction** — Future migration path (Turbopuffer) via trait compatibility
 
 ## Active Decisions
 
-### Decision: Use Dynamic Model Registry for metadata-driven execution
+### Decision: sqlite-vec is the default local vector backend
 
-Model metadata (context windows, output tokens, preferred instances) is the authoritative source for routing and budgeting. Hardcoded limits are rejected.
+**Rationale:**
+- Pure SQLite extension (no separate process)
+- HNSW ANN for production performance
+- <100MB RAM for 100K vectors
+- Matches Rust/SQLite stack
 
-### Decision: Use file-based secrets for provider authentication
+**Alternatives rejected:**
+- LanceDB (not current architecture)
+- pgvector (requires Postgres)
+- Chroma (Python dependency)
 
-API keys are stored in `.openakta/secrets/<instance>.key`, never inline in TOML. This prevents accidental credential leakage in version control.
+### Decision: Qdrant Cloud (Azure Marketplace) for paid tier
 
-### Decision: Support heterogeneous execution lanes (cloud + local)
+**Rationale:**
+- Managed infrastructure (no self-hosting burden)
+- Azure Marketplace provisioning channel
+- Namespace isolation: `openakta_{user_id}`
+- Production-proven at scale
 
-Provider instances define independent cloud and local lanes. Routing can be difficulty-aware or fixed to a single lane.
+**Alternatives rejected:**
+- Self-hosted Qdrant as official path (operational burden)
+- Turbopuffer as current choice (future migration only)
 
-### Decision: Fail fast on missing provider configuration
+### Decision: Candle local, Cohere cloud for embeddings
 
-A system without provider configuration cannot function. The bootstrap panics rather than allowing silent degradation.
+**Rationale:**
+- **Local:** JinaCode 768-dim, BGE-Skill 384-dim via Candle (no external API)
+- **Cloud:** Cohere embed-v3-multilingual via Azure Foundry
 
-### Decision: Use live cloud providers as the default reasoning path
+**Alternatives rejected:**
+- Voyage code-3 (not implemented)
+- Local-only embeddings (limits cloud tier value)
 
-`CoordinatorV2` uses transport injection so live HTTP is the default when credentials exist. Synthetic transport remains a development and test fallback, not the primary runtime story.
+### Decision: Clerk.dev with GitHub/Google only
 
-### Decision: Use hybrid CLI-first, MCP-backed local execution
+**Rationale:**
+- Simplified identity model
+- `<SignIn />` component for Next.js
+- Token-based auth for CLI (`openakta auth login`)
 
-Local work stays local, but filesystem and command actions cross an MCP/gRPC boundary with scope checks, allowlists, timeouts, and audit events. This is a security and product decision, not just an implementation detail.
+**Alternatives rejected:**
+- Custom auth system (operational burden)
+- Additional identity providers (scope creep)
 
-### Decision: Keep TOON as the canonical compressed payload
+### Decision: Rate limiting via Redis + tower-governor
 
-TOON is the canonical text representation at the model boundary. MetaGlyph is used to compress prompt intent, and latent context is optional preparation work rather than the source of truth.
+**Rationale:**
+- Pro: 100/min, Free: 10/min
+- Redis-backed for distributed enforcement
+- `tower-governor` middleware for Axum
 
-### Decision: Split cognition and action
+### Decision: VectorStore trait for backend abstraction
 
-ReAct is organized as planner and actor tasks. That reduces blocking behavior, enables interrupts, and better matches the product goal of responsive autonomous execution.
+**Rationale:**
+- Trait surface: `upsert`, `search`, `delete`, `count`, `scan_for_pruning`, `backend_id`
+- Enables future migration (Turbopuffer) without breaking changes
+- Supports local (sqlite-vec), fallback (SqliteLinear), and external (Qdrant) backends
 
-### Decision: Keep patch-first code editing
+### Decision: Local-first with cloud upgrade path
 
-Code modifications remain constrained to validated patch formats and deterministic application. This keeps edits auditable and lowers token overhead.
-
-### Decision: Treat memory and docs as runtime services
-
-Semantic, episodic, and procedural memory are persisted separately, and pruning, consolidation, and LivingDocs sync run continuously in the daemon.
+**Rationale:**
+- Free tier is fully functional offline
+- Cloud tier is opt-in via `openakta auth login`
+- Single binary distribution (musl static linking)
 
 ## Implementation Evidence
 
-- `crates/openakta-agents/src/coordinator/v2.rs`
-- `crates/openakta-agents/src/provider_transport.rs`
-- `crates/openakta-agents/src/prompt_assembly.rs`
-- `crates/openakta-agents/src/react.rs`
-- `crates/openakta-agents/src/model_registry/mod.rs`
-- `crates/openakta-agents/src/routing/mod.rs`
-- `crates/openakta-agents/src/token_budget.rs`
-- `crates/openakta-core/src/config_resolve.rs`
-- `crates/openakta-core/src/bootstrap.rs`
-- `crates/openakta-mcp-server/src/lib.rs`
-- `crates/openakta-daemon/src/main.rs`
-- `crates/openakta-daemon/src/services.rs`
-- `proto/collective/v1/core.proto`
-- `proto/mcp/v1/mcp.proto`
+- `crates/openakta-memory/src/vector_backend.rs` — `VectorStore` trait, backends
+- `crates/openakta-core/src/config.rs` — `SemanticVectorBackend` enum
+- `openakta-api/` — Cloud API (private: Rust + Axum)
+- `openakta-web/` — Next.js + Clerk frontend
+- `crates/openakta-daemon/README.md` — Local/cloud tier documentation
 
 ## Business Meaning
 
-These decisions optimize OPENAKTA for controlled autonomy: live reasoning power, low token cost, bounded local action, persistent memory, and auditable governance.
+These decisions optimize OPENAKTA for:
+
+- **Low barrier to entry:** Free tier works offline, no signup required
+- **Clear upgrade path:** Cloud tier via Azure Marketplace with managed infrastructure
+- **Operational simplicity:** No self-hosting burden for cloud tier
+- **Future flexibility:** `VectorStore` trait enables backend migration
 
 ## Open Ambiguities
 
-- Legacy runtime paths still coexist with the clearer V2 stack.
-- The latent-context path is prepared but still experimental by design.
-- `ProviderKind` conflation: currently drives both telemetry and transport selection (R4 technical debt).
+- **Turbopuffer:** Future migration path only, not current architecture
+- **Enterprise self-host:** Available via `External` config, but not the official paid path
 
 ## Confidence Assessment
 
-High.
+High. These decisions reflect implemented architecture and current business model.

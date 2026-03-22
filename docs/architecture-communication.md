@@ -365,29 +365,26 @@ Instead of passing conversation history, use shared vector store:
 
 ```rust
 pub struct SharedContextStore {
-    vector_db: LanceDB,
+    vector_store: Arc<dyn VectorStore>,
 }
 
 impl SharedContextStore {
     pub async fn write_finding(&self, finding: &Finding) -> Result<FindingId> {
         let embedding = self.embedder.embed(&finding.summary).await?;
-        
-        let doc = Document {
-            id: Uuid::new_v4().to_string(),
-            content: finding.summary.clone(),
-            embedding,
-            metadata: FindingMetadata {
-                agent_id: finding.agent_id.clone(),
-                thread_id: finding.thread_id.clone(),
-                timestamp: SystemTime::now(),
-                file_refs: finding.file_refs.clone(),
-            },
-        };
-        
-        self.vector_db.insert(doc).await
+        let id = blake3_hash(&finding.summary);
+
+        self.vector_store.upsert(&id, &embedding, serde_json::json!({
+            "summary": finding.summary,
+            "agent_id": finding.agent_id,
+            "thread_id": finding.thread_id,
+            "timestamp": chrono::Utc::now().timestamp_millis(),
+            "file_refs": finding.file_refs,
+        })).await?;
+
+        Ok(id)
     }
-    
-    pub async fn get_context(&self, query: &str, thread_id: &str) -> Result<Vec<Finding>> {
+
+    pub async fn get_context(&self, query: &[f32], k: usize) -> Result<Vec<Finding>> {
         let query_embedding = self.embedder.embed(query).await?;
         
         let results = self.vector_db
