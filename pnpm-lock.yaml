@@ -280,8 +280,8 @@ importers:
         version: link:../../../sdks/typescript
     devDependencies:
       '@opentelemetry/api-logs':
-        specifier: ^0.52.1
-        version: 0.52.1
+        specifier: ^0.213.0
+        version: 0.213.0
       '@opentelemetry/sdk-logs':
         specifier: ^0.52.1
         version: 0.52.1(@opentelemetry/api@1.9.0)
@@ -1817,11 +1817,18 @@ packages:
       semver: 7.7.4
     dev: true
 
+  /@opentelemetry/api-logs@0.213.0:
+    resolution: {integrity: sha512-zRM5/Qj6G84Ej3F1yt33xBVY/3tnMxtL1fiDIxYbDWYaZ/eudVw3/PBiZ8G7JwUxXxjW8gU4g6LnOyfGKYHYgw==}
+    engines: {node: '>=8.0.0'}
+    dependencies:
+      '@opentelemetry/api': 1.9.0
+
   /@opentelemetry/api-logs@0.52.1:
     resolution: {integrity: sha512-qnSqB2DQ9TPP96dl8cDubDvrUyWc0/sK81xHTK8eSUspzDM3bsewX903qclQFvVhgStjRWdC5bLb3kQqMkfV5A==}
     engines: {node: '>=14'}
     dependencies:
       '@opentelemetry/api': 1.9.0
+    dev: true
 
   /@opentelemetry/api-logs@0.53.0:
     resolution: {integrity: sha512-8HArjKx+RaAI8uEIgcORbZIPklyh1YLjPSBus8hjRmvLi6DeFzgOcdZ7KwPabKj8mXF8dX0hyfAyGfycz0DbFw==}
@@ -6546,7 +6553,7 @@ packages:
       '@datadog/pprof': 5.13.5
       '@datadog/wasm-js-rewriter': 5.0.1
       '@opentelemetry/api': 1.9.0
-      '@opentelemetry/api-logs': 0.52.1
+      '@opentelemetry/api-logs': 0.213.0
       oxc-parser: 0.118.0
     transitivePeerDependencies:
       - '@openfeature/server-sdk'
