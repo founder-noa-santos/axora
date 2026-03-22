@@ -21,12 +21,9 @@ OPENAKTA uses a **structured documentation approach** with:
 
 | Type | Location | Format | Validation |
 |------|----------|--------|------------|
-| **Business Rules** | `docs/business_rules/` | Markdown + YAML | JSON Schema |
-| **Architecture** | `docs/architecture/` | Markdown | Linting |
-| **API Documentation** | `docs/api/` | OpenAPI + Markdown | OpenAPI Validator |
-| **User Guides** | `docs/guides/` | Markdown | Linting |
-| **Research** | `research/` | Markdown | Linting |
-| **Planning** | `planning/` | Markdown | Linting |
+| **Business rules** | `docs/business_rules/` | Markdown + YAML | JSON Schema |
+| **Architecture** | `docs/` + `docs/active_architecture/` | Markdown | Linting |
+| **Contributor docs** | repo root + `docs/` | Markdown | Linting |
 
 ---
 
@@ -163,58 +160,21 @@ Common issues and solutions.
 
 ---
 
-## 🔬 Research Documentation
+## Investigation and roadmaps
 
-Research documents capture investigation findings:
+Long-form research dumps and sprint boards are **not** kept in this repository tree. Use **issues**, **design docs in PRs**, and **`docs/active_architecture/`** for durable technical narrative. Recover old material from **git history** if needed.
 
-- **Location:** `research/`
-- **Format:** Markdown
-- **Validation:** Link checking
-
-### Example Structure
+### Example: design note in a PR
 
 ```markdown
-# Research Topic
+## Problem
+...
 
-## Question
-What we're investigating.
+## Options considered
+...
 
-## Methodology
-How we investigated.
-
-## Findings
-What we discovered.
-
-## Recommendation
-What we should do based on findings.
-```
-
----
-
-## 📋 Planning Documentation
-
-Planning documents track project progress:
-
-- **Location:** `planning/`
-- **Format:** Markdown
-- **Validation:** Link checking
-
-### Example Structure
-
-```markdown
-# Phase/Project Name
-
-## Status
-Current status.
-
-## Goals
-What we're trying to achieve.
-
-## Progress
-What we've completed.
-
-## Blockers
-What's blocking progress.
+## Decision
+...
 
 ## Next Steps
 What we're doing next.
@@ -252,7 +212,7 @@ remark docs/**/*.md
 ```markdown
 **Relative links:**
 - [`BUSINESS-RULE-SCHEMA.md`](./BUSINESS-RULE-SCHEMA.md)
-- [`../planning/shared/GRAPH-WORKFLOW-DESIGN.md`](../planning/shared/GRAPH-WORKFLOW-DESIGN.md)
+- [`active_architecture/README.md`](./active_architecture/README.md)
 
 **Absolute links (avoid):**
 - Use relative paths for internal links

@@ -268,9 +268,9 @@ mod tests {
     #[test]
     fn test_doc_section_api_contract() {
         let endpoint = Endpoint {
-            method: "GET".to_string(),
-            path: "/api/users".to_string(),
-            description: "Get all users".to_string(),
+            method: "POST".to_string(),
+            path: "/mcp.v1.ToolService/CallTool".to_string(),
+            description: "Invoke a sandboxed tool against the local workspace".to_string(),
             parameters: vec![Parameter {
                 name: "limit".to_string(),
                 param_type: "int".to_string(),
@@ -287,7 +287,7 @@ mod tests {
         match section {
             DocSection::ApiContract { endpoints } => {
                 assert_eq!(endpoints.len(), 1);
-                assert_eq!(endpoints[0].method, "GET");
+                assert_eq!(endpoints[0].method, "POST");
             }
             _ => panic!("Expected ApiContract section"),
         }

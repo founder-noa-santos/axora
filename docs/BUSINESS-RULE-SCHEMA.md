@@ -405,7 +405,7 @@ scripts/
 ## 🔗 Related Documents
 
 - [`DOCUMENTATION-FORMAT.md`](./DOCUMENTATION-FORMAT.md) — Documentation standards
-- [`PHASE-2-INTEGRATION-INFLUENCE-GRAPH.md`](../planning/shared/PHASE-2-INTEGRATION-INFLUENCE-GRAPH.md) — Traceability design
+- [Architecture communication](./architecture-communication.md) — traceability and messaging (reference)
 
 ---
 

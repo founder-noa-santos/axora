@@ -157,15 +157,15 @@ impl RegistrySnapshot {
         match provider.api.compatibility.family {
             CompatibilityFamily::OpenAi => AdapterHint::Supported {
                 adapter_id: "openai".to_string(),
-                surface: provider.api.compatibility.surface.clone(),
+                surface: provider.api.compatibility.surface,
             },
             CompatibilityFamily::Anthropic => AdapterHint::Supported {
                 adapter_id: "anthropic".to_string(),
-                surface: provider.api.compatibility.surface.clone(),
+                surface: provider.api.compatibility.surface,
             },
             CompatibilityFamily::Google => AdapterHint::Supported {
                 adapter_id: "google".to_string(),
-                surface: provider.api.compatibility.surface.clone(),
+                surface: provider.api.compatibility.surface,
             },
             CompatibilityFamily::Custom => AdapterHint::Unknown {
                 reason: "Custom compatibility family".to_string(),

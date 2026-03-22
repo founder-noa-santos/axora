@@ -1,4 +1,7 @@
 //! Heuristic doc reconciliation for LivingDocs-driven sync.
+//!
+//! Scheduling is **only** through the Rust daemon (`openakta-daemon`): SQLite-backed job queue plus
+//! in-process debounced FS watches. No Node/chokidar/bunqueue pipeline participates in this crate.
 
 use crate::{DocUpdate, LivingDocs, UpdateType};
 use std::path::{Path, PathBuf};

@@ -1,0 +1,20 @@
+# Local manual testing — Alibaba Cloud Coding Plan (OpenAI-compatible).
+# Chave: .openakta/secrets/alibaba-coding.key (não commitar).
+
+fallback_policy = "explicit"
+routing_enabled = false
+local_validation_retry_budget = 1
+
+[providers]
+default_cloud_instance = "alibaba-coding"
+
+[providers.instances.alibaba-coding]
+profile = "open_ai_compatible"
+base_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
+is_local = false
+# Modelos típicos do Coding Plan: qwen3-coder-plus, qwen3-coder-flash, etc.
+default_model = "qwen3-coder-plus"
+label = "Alibaba Coding Plan (DashScope intl)"
+
+[providers.instances.alibaba-coding.secret]
+api_key_file = ".openakta/secrets/alibaba-coding.key"

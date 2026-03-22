@@ -11,7 +11,7 @@ export ANTHROPIC_API_KEY=...
 cargo run -p openakta-cli -- do "add JWT auth"
 ```
 
-OPENAKTA now bootstraps its local runtime automatically for the mission path:
+OPENAKTA bootstraps its local runtime automatically for the mission path:
 
 - infers the workspace from the current directory
 - creates a local `.openakta/` runtime directory
@@ -21,7 +21,7 @@ OPENAKTA now bootstraps its local runtime automatically for the mission path:
 
 ## Current desktop architecture
 
-The desktop app in [apps/desktop](./apps/desktop) now uses:
+The desktop app in [apps/desktop](./apps/desktop) uses:
 
 - Electron for the native shell
 - Next.js App Router for the renderer
@@ -38,12 +38,12 @@ The renderer is isolated from privileged APIs. Native capabilities are exposed o
 openakta/
 ├── apps/
 │   └── desktop/          # Electron + Next.js desktop app
-├── crates/              # Rust workspace crates
-├── sdks/                # Language SDKs
-├── integrations/        # Vendor adapters for SDKs
-├── docs/                # Architecture docs and ADRs
-├── planning/            # Historical planning material
-└── proto/               # Protocol buffer schemas
+├── crates/               # Rust workspace crates
+├── sdks/                 # Language SDKs
+├── integrations/         # Vendor adapters for SDKs
+├── docs/                 # Documentation (see docs/README.md)
+├── business-core/        # Business rules grounded in code
+└── proto/                # Protocol buffer schemas
 ```
 
 ## Desktop shell
@@ -79,7 +79,7 @@ The OPENAKTA diagnostics SDKs live under `sdks/` and `integrations/`.
 - Usage examples: [docs/examples/](./docs/examples/)
 - Integration guides: [docs/integrations/](./docs/integrations/)
 
-TypeScript packages are part of the pnpm workspace, so they can be built with:
+TypeScript packages are part of the pnpm workspace:
 
 ```bash
 pnpm build
@@ -90,11 +90,10 @@ pnpm typecheck
 
 ## Documentation
 
+- **Index:** [DOCS-INDEX.md](./DOCS-INDEX.md) and [docs/README.md](./docs/README.md)
 - Architecture overview: [docs/architecture.md](./docs/architecture.md)
 - Implementation status and ledger: [docs/ARCHITECTURE-LEDGER.md](./docs/ARCHITECTURE-LEDGER.md)
-- Desktop build and runtime guide: [docs/ELECTRON-RUST-BUILD-GUIDE.md](./docs/ELECTRON-RUST-BUILD-GUIDE.md)
-- Desktop and Rust integration plan: [docs/ELECTRON-RUST-MIGRATION-PLAN.md](./docs/ELECTRON-RUST-MIGRATION-PLAN.md)
-- Batteries-included analysis: [BATTERIES_INCLUDED_ANALYSIS.md](./BATTERIES_INCLUDED_ANALYSIS.md)
+- Desktop build and runtime: [docs/ELECTRON-RUST-BUILD-GUIDE.md](./docs/ELECTRON-RUST-BUILD-GUIDE.md)
 
 ## License
 

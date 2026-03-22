@@ -4,18 +4,27 @@
 //! Handles command-line arguments, configuration, and starts
 //! all necessary services.
 
+mod background;
+
 use clap::Parser;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use tracing::{error, info};
+use tokio::sync::Notify;
+use tracing::{error, info, warn};
 
 use openakta_agents::hitl::{HitlConfig, MissionHitlGate};
 use openakta_agents::RuntimeBlackboard;
-use openakta_core::{init_tracing, CollectiveServer, CoreConfig, DocSyncService, MemoryServices};
+use openakta_core::{init_tracing, CollectiveServer, CoreConfig, CoreError, MemoryServices};
 use openakta_mcp_server::{McpService, McpServiceConfig};
+use openakta_proto::livingdocs::v1::living_docs_review_service_server::LivingDocsReviewServiceServer;
 use openakta_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalServiceServer;
 use openakta_proto::mcp::v1::tool_service_server::ToolServiceServer;
 use openakta_storage::{Database, DatabaseConfig};
+
+use crate::background::engine::LivingDocsEngine;
+use crate::background::livingdocs_review_service::LivingDocsReviewGrpc;
+use crate::background::queue::SqliteJobQueue;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -72,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     info!("Configuration: {:?}", config);
+    config.ensure_runtime_layout()?;
     std::env::set_var(
         "OPENAKTA_MCP_ENDPOINT",
         format!("http://{}", config.mcp_server_address()),
@@ -89,7 +99,9 @@ async fn main() -> anyhow::Result<()> {
     // Start memory and documentation services
     let memory_services = MemoryServices::new(&config).await?;
     let _memory_handles = memory_services.start(&config);
-    let _doc_sync_handle = DocSyncService::start(config.clone());
+    let livingdocs_shutdown = Arc::new(AtomicBool::new(false));
+    let livingdocs_handle =
+        LivingDocsEngine::start(config.clone(), Arc::clone(&livingdocs_shutdown));
 
     let (message_bus, hitl_bus_rx) = tokio::sync::broadcast::channel(1024);
     let blackboard = Arc::new(tokio::sync::Mutex::new(RuntimeBlackboard::new()));
@@ -106,6 +118,14 @@ async fn main() -> anyhow::Result<()> {
         .mcp_server_address()
         .parse()
         .map_err(|e| anyhow::anyhow!("invalid MCP address: {}", e))?;
+    let livingdocs_queue = SqliteJobQueue::open(SqliteJobQueue::path_for_workspace(
+        &config.workspace_root,
+    ))?;
+    let livingdocs_review = LivingDocsReviewGrpc::open(
+        livingdocs_queue,
+        config.workspace_root.clone(),
+    );
+
     let mcp_service = McpService::with_config(McpServiceConfig {
         workspace_root: config.workspace_root.clone(),
         allowed_commands: config.mcp_allowed_commands.clone(),
@@ -113,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
         execution_mode: config.execution_mode,
         container_executor: config.container_executor.clone(),
         wasi_executor: config.wasi_executor.clone(),
+        mass_refactor_executor: config.mass_refactor_executor.clone(),
         dense_backend: config.retrieval.backend,
         dense_qdrant_url: config.retrieval.qdrant_url.clone(),
         dense_store_path: config.retrieval.sqlite_path.clone(),
@@ -134,48 +155,129 @@ async fn main() -> anyhow::Result<()> {
         },
         hitl_gate: Some(Arc::clone(&hitl_gate)),
     });
-    let mcp_server = tokio::spawn(async move {
-        tonic::transport::Server::builder()
-            .add_service(GraphRetrievalServiceServer::new(mcp_service.clone()))
-            .add_service(ToolServiceServer::new(mcp_service))
-            .serve(mcp_addr)
-            .await
+    // Wakes both gRPC shutdown futures (same idea as `CancellationToken`; uses `tokio::sync::Notify`).
+    let shutdown_notify = Arc::new(Notify::new());
+
+    let mut collective_task = tokio::spawn({
+        let notify = shutdown_notify.clone();
+        let collective =
+            CollectiveServer::with_hitl_runtime(config.clone(), message_bus, hitl_gate, blackboard);
+        async move {
+            collective
+                .serve_with_shutdown(async move {
+                    notify.notified().await;
+                })
+                .await
+        }
     });
 
-    let collective =
-        CollectiveServer::with_hitl_runtime(config.clone(), message_bus, hitl_gate, blackboard);
-    let collective_task = tokio::spawn(async move { collective.serve().await });
+    let mut mcp_task = tokio::spawn({
+        let notify = shutdown_notify.clone();
+        async move {
+            tonic::transport::Server::builder()
+                .add_service(GraphRetrievalServiceServer::new(mcp_service.clone()))
+                .add_service(ToolServiceServer::new(mcp_service))
+                .add_service(LivingDocsReviewServiceServer::new(livingdocs_review))
+                .serve_with_shutdown(mcp_addr, async move {
+                    notify.notified().await;
+                })
+                .await
+        }
+    });
 
     info!("OPENAKTA Daemon started successfully");
 
     tokio::select! {
-        collective = collective_task => {
-            match collective {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
-                    error!("Collective server error: {}", e);
-                    return Err(e.into());
-                }
-                Err(e) => {
-                    error!("Collective task error: {}", e);
-                    return Err(e.into());
-                }
-            }
+        _ = shutdown_signal() => {
+            info!("shutdown signal received, stopping Collective and MCP servers");
+            livingdocs_shutdown.store(true, Ordering::SeqCst);
+            shutdown_notify.notify_waiters();
+            let (c, m) = tokio::join!(collective_task, mcp_task);
+            let res = merge_shutdown_results(c, m);
+            join_livingdocs(livingdocs_handle);
+            info!("OPENAKTA Daemon shut down");
+            res
         }
-        mcp = mcp_server => {
-            match mcp {
-                Ok(Ok(())) => {}
-                Ok(Err(e)) => {
-                    error!("MCP server error: {}", e);
-                    return Err(e.into());
-                }
-                Err(e) => {
-                    error!("MCP task join error: {}", e);
-                    return Err(e.into());
+        collective = &mut collective_task => {
+            warn!("Collective server task finished before shutdown signal; stopping MCP");
+            livingdocs_shutdown.store(true, Ordering::SeqCst);
+            shutdown_notify.notify_waiters();
+            let mcp = mcp_task.await;
+            let res = merge_shutdown_results(collective, mcp);
+            join_livingdocs(livingdocs_handle);
+            res
+        }
+        mcp = &mut mcp_task => {
+            warn!("MCP server task finished before shutdown signal; stopping Collective");
+            livingdocs_shutdown.store(true, Ordering::SeqCst);
+            shutdown_notify.notify_waiters();
+            let collective = collective_task.await;
+            let res = merge_shutdown_results(collective, mcp);
+            join_livingdocs(livingdocs_handle);
+            res
+        }
+    }
+}
+
+fn merge_shutdown_results(
+    collective: Result<Result<(), CoreError>, tokio::task::JoinError>,
+    mcp: Result<Result<(), tonic::transport::Error>, tokio::task::JoinError>,
+) -> anyhow::Result<()> {
+    flatten_join("Collective", collective).and(flatten_join("MCP", mcp))
+}
+
+fn flatten_join<E: std::fmt::Display>(
+    label: &'static str,
+    res: Result<Result<(), E>, tokio::task::JoinError>,
+) -> anyhow::Result<()> {
+    match res {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(e)) => {
+            error!("{label} server error: {e}");
+            Err(anyhow::anyhow!("{label}: {e}"))
+        }
+        Err(e) if e.is_cancelled() => Ok(()),
+        Err(e) => {
+            error!("{label} task join error: {e}");
+            Err(e.into())
+        }
+    }
+}
+
+fn join_livingdocs(handle: std::thread::JoinHandle<()>) {
+    if handle.join().is_err() {
+        warn!("livingdocs engine thread panicked");
+    }
+}
+
+/// Wait for SIGINT (Ctrl+C) or, on Unix, SIGTERM — used for coordinated daemon shutdown (V-009).
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        let mut sigterm = match tokio::signal::unix::signal(
+            tokio::signal::unix::SignalKind::terminate(),
+        ) {
+            Ok(s) => s,
+            Err(err) => {
+                warn!(error = %err, "failed to install SIGTERM handler; only Ctrl+C will stop the daemon");
+                return tokio::signal::ctrl_c()
+                    .await
+                    .expect("failed to listen for ctrl+c");
+            }
+        };
+
+        tokio::select! {
+            res = tokio::signal::ctrl_c() => {
+                if let Err(err) = res {
+                    warn!(error = %err, "failed to listen for ctrl+c");
                 }
             }
+            _ = sigterm.recv() => {}
         }
     }
 
-    Ok(())
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
 }

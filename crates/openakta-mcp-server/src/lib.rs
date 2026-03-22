@@ -1,8 +1,13 @@
 //! MCP gRPC tool sandbox server for OPENAKTA.
 
 pub mod execution;
+pub mod mass_refactor;
 
 use execution::{CommandRequest, ExecutorRouter, PatchRequest, ToolExecutor};
+use mass_refactor::{
+    next_mass_refactor_session_id, MassRefactorRequest, MassRefactorTool,
+    MASS_REFACTOR_CONSENT_APPROVED,
+};
 use openakta_agents::hitl::MissionHitlGate;
 use openakta_cache::UnifiedDiff;
 use openakta_embeddings::CodeEmbeddingConfig;
@@ -35,14 +40,17 @@ use tokio::sync::{broadcast, mpsc};
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 
-pub use execution::{ContainerExecutorConfig, ExecutionMode, WasiExecutorConfig};
+pub use execution::{
+    ContainerExecutorConfig, ExecutionMode, MassRefactorExecutorConfig, SandboxedToolExecutionMode,
+    WasiExecutorConfig,
+};
 
 /// MCP errors.
 #[derive(Debug, Error)]
 pub enum McpError {
-    /// Scope denied by RBAC.
-    #[error("scope denied: {0}")]
-    ScopeDenied(String),
+    /// Request violates machine-local tool capability / workspace bounds (not tenant RBAC).
+    #[error("capability denied: {0}")]
+    CapabilityDenied(String),
 
     /// Unknown tool requested.
     #[error("unknown tool: {0}")]
@@ -62,12 +70,14 @@ pub struct McpServiceConfig {
     pub allowed_commands: Vec<String>,
     /// Default timeout for command execution.
     pub default_max_execution_seconds: u32,
-    /// Execution routing mode for mutating tools.
-    pub execution_mode: ExecutionMode,
+    /// Sandboxed execution routing for mutating tools (never raw host shell from config).
+    pub execution_mode: SandboxedToolExecutionMode,
     /// Container execution settings.
     pub container_executor: ContainerExecutorConfig,
     /// WASI execution settings.
     pub wasi_executor: WasiExecutorConfig,
+    /// Dedicated container settings for sandboxed mass-refactor scripts.
+    pub mass_refactor_executor: MassRefactorExecutorConfig,
     /// Dense backend selection.
     pub dense_backend: VectorBackendKind,
     /// Shared Qdrant endpoint.
@@ -97,9 +107,10 @@ impl Default for McpServiceConfig {
                 "rustc".to_string(),
             ],
             default_max_execution_seconds: 30,
-            execution_mode: ExecutionMode::Hybrid,
+            execution_mode: SandboxedToolExecutionMode::Hybrid,
             container_executor: ContainerExecutorConfig::default(),
             wasi_executor: WasiExecutorConfig::default(),
+            mass_refactor_executor: MassRefactorExecutorConfig::default(),
             dense_backend: VectorBackendKind::Qdrant,
             dense_qdrant_url: "http://127.0.0.1:6334".to_string(),
             dense_store_path: PathBuf::from(".openakta/vectors.db"),
@@ -112,12 +123,12 @@ impl Default for McpServiceConfig {
     }
 }
 
-/// Capability evaluator for tool requests.
+/// Enforces machine-local tool capabilities and workspace-relative tool scopes from [`CapabilityPolicy`].
 #[derive(Debug, Default, Clone)]
-pub struct RbacEngine;
+pub struct MachineToolPolicyEngine;
 
-impl RbacEngine {
-    /// Validate access for a tool call.
+impl MachineToolPolicyEngine {
+    /// Validate tool invocation against optional policy bounds.
     pub fn validate(
         &self,
         policy: Option<&CapabilityPolicy>,
@@ -129,21 +140,22 @@ impl RbacEngine {
             return Ok(());
         };
 
+        let profile = policy.role.as_str();
+
         if !policy.allowed_actions.is_empty()
             && !policy
                 .allowed_actions
                 .iter()
                 .any(|action| action == tool_name)
         {
-            return Err(McpError::ScopeDenied(format!(
-                "tool '{tool_name}' not allowed for role '{}'",
-                policy.role
+            return Err(McpError::CapabilityDenied(format!(
+                "tool '{tool_name}' not allowed for capability profile '{profile}'",
             )));
         }
 
         if !scope.starts_with(workspace_root) {
-            return Err(McpError::ScopeDenied(format!(
-                "scope '{}' escapes workspace '{}'",
+            return Err(McpError::CapabilityDenied(format!(
+                "tool scope '{}' escapes workspace '{}'",
                 scope.display(),
                 workspace_root.display()
             )));
@@ -155,8 +167,8 @@ impl RbacEngine {
             .iter()
             .any(|pattern| scope_string.contains(pattern.trim_start_matches('!')))
         {
-            return Err(McpError::ScopeDenied(format!(
-                "scope '{}' denied by policy",
+            return Err(McpError::CapabilityDenied(format!(
+                "tool scope '{}' denied by capability policy",
                 scope.display()
             )));
         }
@@ -167,8 +179,8 @@ impl RbacEngine {
                 .iter()
                 .any(|pattern| scope_string.contains(pattern.trim_matches('*')))
         {
-            return Err(McpError::ScopeDenied(format!(
-                "scope '{}' not in allowlist",
+            return Err(McpError::CapabilityDenied(format!(
+                "tool scope '{}' not in capability allowlist",
                 scope.display()
             )));
         }
@@ -235,11 +247,14 @@ pub struct EmbeddedToolRegistry {
 impl EmbeddedToolRegistry {
     /// Create the default native tool registry.
     pub fn builtin() -> Self {
-        Self::builtin_with_hitl(None)
+        Self::builtin_with_hitl(None, MassRefactorExecutorConfig::default())
     }
 
     /// Built-in tools plus optional `request_user_input` when `hitl_gate` is set.
-    pub fn builtin_with_hitl(hitl_gate: Option<Arc<MissionHitlGate>>) -> Self {
+    pub fn builtin_with_hitl(
+        hitl_gate: Option<Arc<MissionHitlGate>>,
+        mass_refactor_config: MassRefactorExecutorConfig,
+    ) -> Self {
         let mut tools: HashMap<String, Arc<dyn EmbeddedTool>> = HashMap::new();
         for tool in [
             Arc::new(ReadFileTool) as Arc<dyn EmbeddedTool>,
@@ -248,6 +263,7 @@ impl EmbeddedToolRegistry {
             Arc::new(AstChunkTool),
             Arc::new(SymbolLookupTool),
             Arc::new(RunCommandTool),
+            Arc::new(MassRefactorTool::new(mass_refactor_config)),
             Arc::new(GraphRetrieveSkillsTool),
             Arc::new(GraphRetrieveCodeTool),
         ] {
@@ -266,10 +282,12 @@ impl EmbeddedToolRegistry {
         self.tools.get(name).cloned()
     }
 
-    fn definitions_for_role(&self, role: &str) -> Vec<ToolDefinition> {
+    fn definitions_for_capability_profile(&self, capability_profile: &str) -> Vec<ToolDefinition> {
         self.tools
             .values()
-            .filter(|tool| role_allows_tool(role, &tool.definition().name))
+            .filter(|tool| {
+                capability_profile_allows_tool(capability_profile, &tool.definition().name)
+            })
             .map(|tool| tool.definition())
             .collect()
     }
@@ -279,7 +297,7 @@ impl EmbeddedToolRegistry {
 #[derive(Clone)]
 pub struct McpService {
     registry: EmbeddedToolRegistry,
-    rbac: RbacEngine,
+    tool_policy: MachineToolPolicyEngine,
     audit: AuditLog,
     config: McpServiceConfig,
     executor: Arc<ExecutorRouter>,
@@ -444,7 +462,10 @@ impl McpService {
 
     /// Create a new MCP service with explicit configuration.
     pub fn with_config(config: McpServiceConfig) -> Self {
-        let registry = EmbeddedToolRegistry::builtin_with_hitl(config.hitl_gate.clone());
+        let registry = EmbeddedToolRegistry::builtin_with_hitl(
+            config.hitl_gate.clone(),
+            config.mass_refactor_executor.clone(),
+        );
         Self::with_registry(config, registry)
     }
 
@@ -456,10 +477,45 @@ impl McpService {
         config.workspace_root = workspace_root.clone();
         Self {
             registry,
-            rbac: RbacEngine,
+            tool_policy: MachineToolPolicyEngine,
             audit: AuditLog::new(),
             executor: Arc::new(ExecutorRouter::new(
                 config.execution_mode,
+                config.container_executor.clone(),
+                config.wasi_executor.clone(),
+            )),
+            retrieval_router: Arc::new(RetrievalRouter {
+                skill: Arc::new(LazyPipelineSkillRetriever::new(config.skill_config.clone())),
+                code: Arc::new(LazyStructuralCodeRetriever::new(config.clone())),
+            }),
+            config,
+        }
+    }
+
+    /// **Tests only** — same as [`Self::with_config`] but forces the insecure direct-host executor
+    /// (ambient shell). Production code cannot obtain this through configuration.
+    #[cfg(test)]
+    pub fn with_config_insecure_direct_host_for_tests(config: McpServiceConfig) -> Self {
+        let registry = EmbeddedToolRegistry::builtin_with_hitl(
+            config.hitl_gate.clone(),
+            config.mass_refactor_executor.clone(),
+        );
+        Self::with_registry_insecure_direct_host_for_tests(config, registry)
+    }
+
+    #[cfg(test)]
+    fn with_registry_insecure_direct_host_for_tests(
+        mut config: McpServiceConfig,
+        registry: EmbeddedToolRegistry,
+    ) -> Self {
+        let workspace_root = std::fs::canonicalize(&config.workspace_root)
+            .unwrap_or_else(|_| config.workspace_root.clone());
+        config.workspace_root = workspace_root.clone();
+        Self {
+            registry,
+            tool_policy: MachineToolPolicyEngine,
+            audit: AuditLog::new(),
+            executor: Arc::new(ExecutorRouter::new_insecure_direct_host_for_tests(
                 config.container_executor.clone(),
                 config.wasi_executor.clone(),
             )),
@@ -490,7 +546,7 @@ impl McpService {
 
         Self {
             registry,
-            rbac: RbacEngine,
+            tool_policy: MachineToolPolicyEngine,
             audit: AuditLog::new(),
             config,
             executor,
@@ -553,7 +609,9 @@ impl ToolService for McpService {
     ) -> Result<Response<ListToolsResponse>, Status> {
         let req = request.into_inner();
         Ok(Response::new(ListToolsResponse {
-            tools: self.registry.definitions_for_role(&req.role),
+            tools: self
+                .registry
+                .definitions_for_capability_profile(&req.role),
         }))
     }
 
@@ -567,20 +625,20 @@ impl ToolService for McpService {
             .get(&req.tool_name)
             .ok_or_else(|| Status::not_found(format!("tool '{}' not found", req.tool_name)))?;
 
-        if !role_allows_tool(&req.role, &req.tool_name) {
+        if !capability_profile_allows_tool(&req.role, &req.tool_name) {
             let workspace_root = self.config.workspace_root.clone();
             let audit = self.build_audit(
                 &req,
                 false,
                 format!(
-                    "tool '{}' is not registered for role '{}'",
+                    "tool '{}' is not registered for capability profile '{}'",
                     req.tool_name, req.role
                 ),
                 workspace_root.display().to_string(),
             );
             self.audit.push(audit);
             return Err(Status::permission_denied(format!(
-                "tool '{}' forbidden for role '{}'",
+                "tool '{}' forbidden for capability profile '{}'",
                 req.tool_name, req.role
             )));
         }
@@ -597,7 +655,7 @@ impl ToolService for McpService {
             Status::invalid_argument(err.to_string())
         })?;
 
-        self.rbac
+        self.tool_policy
             .validate(req.policy.as_ref(), &req.tool_name, &workspace_root, &scope)
             .map_err(|err| {
                 let audit =
@@ -955,6 +1013,98 @@ impl EmbeddedTool for RunCommandTool {
 }
 
 #[tonic::async_trait]
+impl EmbeddedTool for MassRefactorTool {
+    fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: "mass_refactor".to_string(),
+            description: "Run a sandboxed Python refactor against a staged workspace".to_string(),
+            required_actions: vec!["mass_refactor".to_string()],
+            allowed_scope_patterns: vec![".".to_string()],
+            supports_streaming: false,
+            is_destructive: true,
+            read_only: false,
+        }
+    }
+
+    async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
+        let script = required_argument(&ctx.request.arguments, "script")?;
+        let consent_mode = required_argument(&ctx.request.arguments, "consent_mode")?;
+        let target_paths = required_list_argument(&ctx.request.arguments, "target_paths")?;
+        let timeout_secs = extract_argument(&ctx.request.arguments, "timeout_secs")
+            .and_then(|value| value.parse::<u32>().ok())
+            .filter(|seconds| *seconds > 0)
+            .unwrap_or(ctx.config.mass_refactor_executor.timeout_secs);
+
+        let mut resolved_targets = Vec::new();
+        let tool_policy = MachineToolPolicyEngine;
+        for raw_path in &target_paths {
+            let resolved = resolve_target_path(ctx.workspace_root, raw_path)?;
+            tool_policy.validate(
+                ctx.request.policy.as_ref(),
+                "mass_refactor",
+                ctx.workspace_root,
+                &resolved,
+            )?;
+            resolved_targets.push(
+                resolved
+                    .strip_prefix(ctx.workspace_root)
+                    .map_err(|err| McpError::ToolExecution(err.to_string()))?
+                    .to_path_buf(),
+            );
+        }
+
+        let result = self
+            .execute(MassRefactorRequest {
+                session_id: next_mass_refactor_session_id(),
+                workspace_root: ctx.workspace_root.to_path_buf(),
+                target_paths: resolved_targets,
+                script,
+                timeout_secs,
+                consent_mode,
+            })
+            .await?;
+
+        let changed_files = Value {
+            kind: Some(Kind::ListValue(ListValue {
+                values: result
+                    .changed_files
+                    .iter()
+                    .cloned()
+                    .map(string_value)
+                    .collect(),
+            })),
+        };
+        let mut output_fields = vec![
+            (
+                "rollback_performed".to_string(),
+                bool_value(result.rollback_performed),
+            ),
+            ("changed_files".to_string(), changed_files),
+        ];
+        if result.success {
+            output_fields.push(("diff".to_string(), string_value(result.diff.clone())));
+        } else {
+            output_fields.push((
+                "consent_mode".to_string(),
+                string_value(MASS_REFACTOR_CONSENT_APPROVED),
+            ));
+        }
+
+        Ok(ToolCallResult {
+            request_id: ctx.request.request_id.clone(),
+            success: result.success,
+            stdout: result.execution.stdout,
+            stderr: result.stderr,
+            exit_code: result.execution.exit_code,
+            output: Some(Struct {
+                fields: output_fields.into_iter().collect(),
+            }),
+            audit_event: None,
+        })
+    }
+}
+
+#[tonic::async_trait]
 impl EmbeddedTool for GraphRetrieveSkillsTool {
     fn definition(&self) -> ToolDefinition {
         ToolDefinition {
@@ -997,6 +1147,7 @@ impl EmbeddedTool for GraphRetrieveSkillsTool {
             execution_mode: ctx.config.execution_mode,
             container_executor: ctx.config.container_executor.clone(),
             wasi_executor: ctx.config.wasi_executor.clone(),
+            mass_refactor_executor: ctx.config.mass_refactor_executor.clone(),
             dense_backend: ctx.config.dense_backend,
             dense_qdrant_url: ctx.config.dense_qdrant_url.clone(),
             dense_store_path: ctx.config.dense_store_path.clone(),
@@ -1478,6 +1629,17 @@ fn required_argument(arguments: &Option<Struct>, key: &str) -> Result<String, Mc
         .ok_or_else(|| McpError::ToolExecution(format!("missing required argument '{}'", key)))
 }
 
+fn required_list_argument(arguments: &Option<Struct>, key: &str) -> Result<Vec<String>, McpError> {
+    let values = list_argument(arguments, key);
+    if values.is_empty() {
+        return Err(McpError::ToolExecution(format!(
+            "missing required list argument '{}'",
+            key
+        )));
+    }
+    Ok(values)
+}
+
 fn extract_string_list_argument(arguments: &Option<Struct>, key: &str) -> Option<Vec<String>> {
     arguments
         .as_ref()
@@ -1540,6 +1702,41 @@ fn resolve_scope(workspace_root: &Path, arguments: &Option<Struct>) -> Result<Pa
     } else {
         workspace_root.to_path_buf()
     };
+
+    Ok(resolved)
+}
+
+fn resolve_target_path(workspace_root: &Path, raw_path: &str) -> Result<PathBuf, McpError> {
+    let candidate = PathBuf::from(raw_path);
+    let candidate = if candidate.is_absolute() {
+        candidate
+    } else {
+        workspace_root.join(candidate)
+    };
+
+    let resolved = if candidate.exists() {
+        candidate
+            .canonicalize()
+            .map_err(|err| McpError::ToolExecution(err.to_string()))?
+    } else {
+        let parent = candidate.parent().ok_or_else(|| {
+            McpError::ToolExecution(format!("invalid target path '{}'", raw_path))
+        })?;
+        let resolved_parent = parent
+            .canonicalize()
+            .map_err(|err| McpError::ToolExecution(err.to_string()))?;
+        resolved_parent.join(candidate.file_name().ok_or_else(|| {
+            McpError::ToolExecution(format!("invalid target path '{}'", raw_path))
+        })?)
+    };
+
+    if !resolved.starts_with(workspace_root) {
+        return Err(McpError::CapabilityDenied(format!(
+            "target '{}' escapes workspace '{}'",
+            raw_path,
+            workspace_root.display()
+        )));
+    }
 
     Ok(resolved)
 }
@@ -1618,9 +1815,12 @@ fn relative_to_workspace(workspace_root: &Path, path: &Path) -> String {
         .to_string()
 }
 
-fn role_allows_tool(role: &str, tool_name: &str) -> bool {
-    match role {
-        "" => true,
+/// Named capability profiles (`architect`, `coder`, …) gate which embedded tools are exposed.
+/// This is **not** multi-tenant RBAC — profiles are local machine/runtime labels only.
+fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> bool {
+    match capability_profile {
+        // Deny-by-default: unknown profile falls back to read-only — V-008.
+        "" => tool_name == "read_file",
         "architect" => matches!(
             tool_name,
             "read_file"
@@ -1640,6 +1840,14 @@ fn role_allows_tool(role: &str, tool_name: &str) -> bool {
                 | "graph_retrieve_skills"
                 | "graph_retrieve_code"
                 | "request_user_input"
+        ),
+        "refactorer" => matches!(
+            tool_name,
+            "read_file"
+                | "graph_retrieve_skills"
+                | "graph_retrieve_code"
+                | "request_user_input"
+                | "mass_refactor"
         ),
         "tester" => matches!(
             tool_name,
@@ -1720,9 +1928,10 @@ mod tests {
             workspace_root: root.clone(),
             allowed_commands: vec!["cargo".to_string()],
             default_max_execution_seconds: 5,
-            execution_mode: ExecutionMode::Hybrid,
+            execution_mode: SandboxedToolExecutionMode::Hybrid,
             container_executor: ContainerExecutorConfig::default(),
             wasi_executor: WasiExecutorConfig::default(),
+            mass_refactor_executor: MassRefactorExecutorConfig::default(),
             dense_backend: VectorBackendKind::SqliteVec,
             dense_qdrant_url: "http://127.0.0.1:6334".to_string(),
             dense_store_path: root.join(".openakta/vectors.db"),
@@ -1805,6 +2014,98 @@ mod tests {
             .call_tool(Request::new(req))
             .await
             .expect_err("architect must not invoke apply_patch");
+        assert_eq!(err.code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn empty_role_denies_tools_other_than_read_file() {
+        let service = McpService::new();
+        let req = ToolCallRequest {
+            request_id: "req-empty-role".into(),
+            agent_id: "a1".into(),
+            role: String::new(),
+            tool_name: "apply_patch".into(),
+            arguments: Some(struct_from_map([
+                ("path", string_value("x.rs")),
+                ("patch", string_value("--- x.rs\n+++ x.rs\n")),
+            ])),
+            policy: Some(CapabilityPolicy {
+                agent_id: "a1".into(),
+                role: String::new(),
+                allowed_actions: vec!["apply_patch".into()],
+                allowed_scope_patterns: vec!["/tmp".into()],
+                denied_scope_patterns: vec![],
+                max_execution_seconds: 5,
+            }),
+            workspace_root: "/tmp".into(),
+            mission_id: String::new(),
+        };
+        let err = service
+            .call_tool(Request::new(req))
+            .await
+            .expect_err("empty role must not invoke apply_patch");
+        assert_eq!(err.code(), tonic::Code::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn empty_role_list_tools_only_includes_read_file() {
+        let service = McpService::new();
+        let response = service
+            .list_tools(Request::new(ListToolsRequest {
+                agent_id: "agent-1".to_string(),
+                role: String::new(),
+            }))
+            .await
+            .unwrap()
+            .into_inner();
+        let names = response
+            .tools
+            .into_iter()
+            .map(|tool| tool.name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["read_file".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn mass_refactor_is_refactorer_only() {
+        let temp_dir = TempDir::new().unwrap();
+        let service = McpService::with_config(test_mcp_config(temp_dir.path().to_path_buf()));
+        let req = ToolCallRequest {
+            request_id: "req-mass-refactor-role".into(),
+            agent_id: "a1".into(),
+            role: "coder".into(),
+            tool_name: "mass_refactor".into(),
+            arguments: Some(Struct {
+                fields: [
+                    ("script".to_string(), string_value("print('hi')")),
+                    (
+                        "target_paths".to_string(),
+                        Value {
+                            kind: Some(Kind::ListValue(ListValue {
+                                values: vec![string_value("src/lib.rs")],
+                            })),
+                        },
+                    ),
+                    (
+                        "consent_mode".to_string(),
+                        string_value("mass_script_approved"),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            }),
+            policy: Some(policy(
+                &temp_dir.path().display().to_string(),
+                &["mass_refactor"],
+            )),
+            workspace_root: temp_dir.path().display().to_string(),
+            mission_id: String::new(),
+        };
+
+        let err = service
+            .call_tool(Request::new(req))
+            .await
+            .expect_err("coder must not invoke mass_refactor");
         assert_eq!(err.code(), tonic::Code::PermissionDenied);
     }
 
@@ -1921,10 +2222,9 @@ mod tests {
     async fn run_command_executes_only_in_direct_mode() {
         let temp_dir = TempDir::new().unwrap();
         let mut config = test_mcp_config(temp_dir.path().to_path_buf());
-        config.execution_mode = ExecutionMode::Direct;
         config.allowed_commands = vec!["rustc".to_string()];
 
-        let service = McpService::with_config(config);
+        let service = McpService::with_config_insecure_direct_host_for_tests(config);
         let req = ToolCallRequest {
             request_id: "req-direct".to_string(),
             agent_id: "agent-1".to_string(),

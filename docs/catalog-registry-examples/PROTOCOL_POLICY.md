@@ -1,59 +1,59 @@
-# Política de Protocolos
+# Protocol policy
 
-## Princípio Fundamental
+## Core principle
 
-**Anthropic/Claude usa protocolo nativo. Todo mundo else usa OpenAI-compatible.**
+**Anthropic/Claude uses the native protocol. Everyone else uses OpenAI-compatible.**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Anthropic/Claude  →  anthropic_messages_v1  (nativo)      │
-│  Todos os outros   →  open_ai_chat_completions (padrão)    │
+│  Anthropic/Claude  →  anthropic_messages_v1  (native)       │
+│  All others        →  open_ai_chat_completions (default)    │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Por que?
+## Why?
 
 ### Anthropic Messages API
-- ✅ Prompt caching (mais barato)
-- ✅ PDF input nativo
-- ✅ 200k context otimizado
-- ⚠️ Menos tooling disponível
+- ✅ Prompt caching (lower cost)
+- ✅ Native PDF input
+- ✅ 200k context tuned for Claude
+- ⚠️ Less third-party tooling
 
 ### OpenAI Chat Completions
-- ✅ Padrão de fato desde 2023
-- ✅ Tooling universal (LangChain, LiteLLM, etc.)
-- ✅ Documentação abundante
-- ✅ Todos os providers oferecem
+- ✅ De facto standard since 2023
+- ✅ Universal tooling (LangChain, LiteLLM, etc.)
+- ✅ Plenty of documentation
+- ✅ Supported by all listed providers
 
-## Mapeamento
+## Mapping
 
-| Provider | Wire Profile | Por que |
-|----------|-------------|---------|
-| **Anthropic** | `AnthropicMessagesV1` | É o único que vale a pena ter protocolo nativo |
-| **OpenAI** | `OpenAiChatCompletions` | O padrão original |
-| **DeepSeek** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Qwen/Alibaba** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Moonshot** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Kimi** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Gemini** | `OpenAiChatCompletions` | OpenAI-compatible é mais estável |
-| **Mistral** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Ollama** | `OpenAiChatCompletions` | É OpenAI-compatible |
-| **OpenRouter** | `OpenAiChatCompletions` | É o produto deles |
-| **Groq** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Together** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Fireworks** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
-| **Perplexity** | `OpenAiChatCompletions` | Só oferecem OpenAI-compatible |
+| Provider | Wire profile | Rationale |
+|----------|--------------|------------|
+| **Anthropic** | `AnthropicMessagesV1` | Only provider worth a native wire protocol |
+| **OpenAI** | `OpenAiChatCompletions` | Original standard |
+| **DeepSeek** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Qwen/Alibaba** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Moonshot** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Kimi** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Gemini** | `OpenAiChatCompletions` | OpenAI-compatible is more stable |
+| **Mistral** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Ollama** | `OpenAiChatCompletions` | OpenAI-compatible |
+| **OpenRouter** | `OpenAiChatCompletions` | Core product surface |
+| **Groq** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Together** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Fireworks** | `OpenAiChatCompletions` | OpenAI-compatible only |
+| **Perplexity** | `OpenAiChatCompletions` | OpenAI-compatible only |
 
-## Configuração
+## Configuration
 
 ```toml
-# Anthropic - único que usa nativo
+# Anthropic — only provider using native wire
 [providers.instances.anthropic]
 profile = "anthropic_messages_v1"
 base_url = "https://api.anthropic.com"
 api_key_file = ".secrets/anthropic.key"
 
-# Todos os outros usam open_ai_compatible
+# Everyone else uses open_ai_compatible
 [providers.instances.deepseek]
 profile = "open_ai_compatible"
 base_url = "https://api.deepseek.com"
@@ -75,9 +75,9 @@ base_url = "http://localhost:11434"
 is_local = true
 ```
 
-## Implementação
+## Implementation
 
-O código decide automaticamente:
+The code chooses automatically:
 
 ```rust
 match wire_profile {
@@ -86,4 +86,4 @@ match wire_profile {
 }
 ```
 
-Simples assim.
+That is the whole rule.

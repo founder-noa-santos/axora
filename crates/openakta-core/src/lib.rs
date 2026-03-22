@@ -15,7 +15,7 @@ pub use bootstrap::{RuntimeBootstrap, RuntimeBootstrapOptions};
 pub use config::CoreConfig;
 pub use frame::{Frame, FrameContext, FrameExecutor};
 pub use runtime_services::{DocSyncService, MemoryServices};
-pub use server::CollectiveServer;
+pub use server::{stream_messages_lagged_total, CollectiveServer};
 
 use thiserror::Error;
 

@@ -201,6 +201,11 @@ impl Dispatcher {
         self.completions.lock().await.push_back(completion);
     }
 
+    #[cfg(test)]
+    pub(crate) async fn pending_completions_len(&self) -> usize {
+        self.completions.lock().await.len()
+    }
+
     /// Dispatch pending tasks to idle workers.
     pub async fn dispatch_loop(
         &self,
@@ -213,13 +218,23 @@ impl Dispatcher {
             .iter_mut()
             .filter(|task| task.status == TaskStatus::Pending)
         {
-            let Some(worker) = workers
-                .iter_mut()
-                .find(|worker| worker.status == DispatchWorkerStatus::Idle)
-            else {
+            let preferred_worker_id = task.assigned_to.clone();
+            let preferred_index = preferred_worker_id
+                .as_ref()
+                .and_then(|preferred_worker_id| {
+                    workers.iter().position(|worker| {
+                        worker.status == DispatchWorkerStatus::Idle
+                            && &worker.id == preferred_worker_id
+                    })
+                });
+            let fallback_index = workers
+                .iter()
+                .position(|worker| worker.status == DispatchWorkerStatus::Idle);
+            let Some(worker_index) = preferred_index.or(fallback_index) else {
                 report.skipped += 1;
                 continue;
             };
+            let worker = &mut workers[worker_index];
 
             task.assign(&worker.id);
             task.start();
@@ -267,16 +282,29 @@ impl Dispatcher {
         let mut queue = self.completions.lock().await;
         let mut report = CompletionReport::default();
 
-        while let Some(completion) = queue.pop_front() {
+        while !queue.is_empty() {
+            let (task_id, worker_id) = {
+                let front = queue.front().expect("queue non-empty");
+                (front.task_id.clone(), front.worker_id.clone())
+            };
+
+            if !tasks.iter().any(|task| task.id == task_id) {
+                return Err(DispatcherError::TaskNotFound(task_id));
+            }
+            if !workers.iter().any(|w| w.id == worker_id) {
+                return Err(DispatcherError::WorkerNotFound(worker_id));
+            }
+
+            let completion = queue.pop_front().expect("queue non-empty");
+
             let task = tasks
                 .iter_mut()
                 .find(|task| task.id == completion.task_id)
-                .ok_or_else(|| DispatcherError::TaskNotFound(completion.task_id.clone()))?;
-
+                .expect("task validated above");
             let worker = workers
                 .iter_mut()
                 .find(|worker| worker.id == completion.worker_id)
-                .ok_or_else(|| DispatcherError::WorkerNotFound(completion.worker_id.clone()))?;
+                .expect("worker validated above");
 
             if completion.success {
                 task.complete();
@@ -365,6 +393,28 @@ mod tests {
         assert_eq!(report.skipped, 1);
         assert_eq!(tasks[0].status, TaskStatus::Pending);
         assert_eq!(dispatcher.active_assignment_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn dispatch_loop_prefers_assigned_worker_when_present() {
+        let dispatcher = Dispatcher::new();
+        let mut assigned_task = task("rename provider labels");
+        assigned_task.assigned_to = Some("refactorer".to_string());
+        let mut tasks = vec![assigned_task];
+        let mut workers = vec![worker("coder"), worker("refactorer")];
+
+        let report = dispatcher
+            .dispatch_loop(&mut tasks, &mut workers)
+            .await
+            .unwrap();
+
+        assert_eq!(report.dispatched, 1);
+        assert_eq!(tasks[0].assigned_to.as_deref(), Some("refactorer"));
+        assert_eq!(workers[1].status, DispatchWorkerStatus::Busy);
+        assert_eq!(
+            workers[1].current_task.as_deref(),
+            Some(tasks[0].id.as_str())
+        );
     }
 
     #[tokio::test]
@@ -457,7 +507,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_completions_rejects_unknown_task() {
+    async fn handle_completions_rejects_unknown_task_without_dropping_completion() {
         let dispatcher = Dispatcher::new();
         let mut tasks = Vec::new();
         let mut workers = vec![worker("worker-1")];
@@ -479,5 +529,40 @@ mod tests {
             error,
             DispatcherError::TaskNotFound("missing-task".to_string())
         );
+        assert_eq!(dispatcher.pending_completions_len().await, 1);
+
+        let mut fixed = vec![task("task-1")];
+        fixed[0].id = "missing-task".to_string();
+        fixed[0].status = TaskStatus::InProgress;
+
+        let report = dispatcher
+            .handle_completions(&mut fixed, &mut workers)
+            .await
+            .unwrap();
+        assert_eq!(report.completed, 1);
+        assert_eq!(dispatcher.pending_completions_len().await, 0);
+    }
+
+    #[tokio::test]
+    async fn handle_completions_rejects_unknown_worker_without_dropping_completion() {
+        let dispatcher = Dispatcher::new();
+        let mut tasks = vec![task("task-1")];
+        tasks[0].id = "t1".to_string();
+        tasks[0].status = TaskStatus::InProgress;
+        let mut workers = vec![worker("worker-other")];
+
+        dispatcher
+            .submit_completion(DispatchCompletion::success("t1", "worker-expected", "done"))
+            .await;
+
+        let err = dispatcher
+            .handle_completions(&mut tasks, &mut workers)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err,
+            DispatcherError::WorkerNotFound("worker-expected".to_string())
+        );
+        assert_eq!(dispatcher.pending_completions_len().await, 1);
     }
 }

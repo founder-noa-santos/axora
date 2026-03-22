@@ -35,14 +35,27 @@ impl MemoryServices {
     /// Create runtime-managed memory services and sync the built-in skill corpus.
     pub async fn new(config: &CoreConfig) -> anyhow::Result<Self> {
         let episodic_path = config.database_path.with_extension("episodic.db");
+        info!(
+            "Opening episodic store at: {}",
+            episodic_path.display()
+        );
         let episodic_store = EpisodicStore::new(EpisodicStoreConfig::persistent(
             &episodic_path.display().to_string(),
         ))
         .await?;
-        let skill_catalog = SkillCatalog::new(config.skill_index_root.join("skill-catalog.db"))?;
+        let skill_catalog_path = config.skill_index_root.join("skill-catalog.db");
+        info!(
+            "Opening skill catalog at: {}",
+            skill_catalog_path.display()
+        );
+        let skill_catalog = SkillCatalog::new(&skill_catalog_path)?;
         SkillCorpusIngestor::sync_builtin_skills(&skill_catalog, builtin_skill_root())
             .await
             .map_err(anyhow::Error::msg)?;
+        info!(
+            "Opening dual vector store (backend: {:?})",
+            config.retrieval.backend
+        );
         let dual_store = match config.retrieval.backend {
             openakta_indexing::VectorBackendKind::Qdrant => DualVectorStore::new_qdrant(
                 &config.retrieval.qdrant_url,
@@ -105,6 +118,10 @@ impl MemoryServices {
             .sync_if_needed()
             .await
             .map_err(anyhow::Error::msg)?;
+        info!(
+            "Opening semantic store at: {}",
+            config.semantic_store_path.display()
+        );
         let semantic_store = PersistentSemanticStore::new(&config.semantic_store_path, 384)
             .map_err(anyhow::Error::msg)?;
 

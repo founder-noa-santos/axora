@@ -1,7 +1,7 @@
-//! Living Documentation system for auto-updating docs when code changes.
+//! Living Documentation: in-process doc update suggestions when workspace sources change.
 //!
-//! This module provides automatic documentation updates when source code
-//! changes are detected, ensuring documentation stays synchronized with code.
+//! Consumers (the daemon) enqueue work on the **Rust/SQLite** job queue; this module does not
+//! spawn Node or watch the filesystem directly.
 
 use crate::index::DocIndex;
 use crate::schema::{DocId, Document};

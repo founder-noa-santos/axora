@@ -1,0 +1,41 @@
+---
+description: OPENAKTA repo commands and sources of truth for efficient, safe changes
+alwaysApply: true
+---
+
+# OPENAKTA — tooling context
+
+## Before you edit
+
+- Living architecture: `docs/active_architecture/` and index in `DOCS-INDEX.md`.
+- What the backend **actually** guarantees today: `business-core/` (code wins over stale docs).
+- Tasking and roadmaps live outside this repo (issue tracker); do not confuse docs with runtime contracts.
+
+## Rust (repo root)
+
+Aliases in `.cargo/config.toml` (aligned with `.github/workflows/rust-ci.yml`):
+
+- `cargo fmt-check` — same as CI.
+- `cargo lint` — clippy workspace, `-D warnings`.
+- `cargo test-all` — default suite (excludes `#[ignore]`).
+- `cargo test-slow` — ignored / heavy tests only.
+
+MSRV and policy: `CONTRIBUTING.md` and `docs/RUST_TOOLING_BASELINE.md`.
+
+## Desktop (Electron + Next)
+
+- App code: `apps/desktop/` (Prettier and ESLint are scoped to this app).
+- Do not relax rules outside `components/ai-elements/**` without aligning with code owners.
+
+## TypeScript SDKs / integrations
+
+- Packages under `sdks/**` and `integrations/**`: scripts in each `package.json`; `pnpm` from the root with filters (see root `package.json`).
+
+## Protocol buffers
+
+- Generation: `proto:gen` script at the repo root (`package.json`) — do not hand-edit generated output.
+
+## Avoid
+
+- Do not move folders or rename crates in this iteration (separate decision).
+- Do not assume production billing/tenancy/auth just because old Markdown mentions it — see `business-core/`.

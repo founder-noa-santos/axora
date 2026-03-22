@@ -1,0 +1,18 @@
+[package]
+name = "openakta-evaluator"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Evaluator Agent quality gate: schemas, weighted scoring, and deterministic decision matrix"
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+regex.workspace = true

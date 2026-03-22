@@ -475,15 +475,11 @@ serde_json = "1"
 
 ---
 
-## Related Documents
+## Related documents
 
-- [ADR-012: Context Management & RAG Strategy](../research/DECISIONS.md#adr-012)
-- [ADR-006: Embedding Model](../research/DECISIONS.md#adr-006)
-- [ADR-007: Vector Database](../research/DECISIONS.md#adr-007)
-- [ADR-013: Code Chunking Strategy](../research/DECISIONS.md#adr-013)
-- [ADR-014: Context Reordering](../research/DECISIONS.md#adr-014)
-- [ADR-015: State Synchronization](../research/DECISIONS.md#adr-015)
-- [R-01 Research Findings](../research/findings/context-management/R-01-result.md)
+- [Architecture ledger](./ARCHITECTURE-LEDGER.md) — recorded ADRs and baseline  
+- [Active architecture](./active_architecture/) — current narrative  
+- [Architecture communication](./architecture-communication.md) — protocol-oriented view  
 
 ---
 

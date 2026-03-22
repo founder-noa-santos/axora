@@ -8,7 +8,7 @@
 //! - Uses **StateMachine** for state tracking
 //! - Each agent receives minimal context needed
 
-use crate::agent::{Agent, BaseAgent, CoderAgent, TaskResult};
+use crate::agent::{Agent, BaseAgent, CoderAgent, RefactorerAgent, TaskResult};
 use crate::decomposer::{DecomposedMission, Dependency, DependencyType, TaskId};
 use crate::heartbeat::Heartbeat;
 use crate::state_machine::StateMachine;
@@ -196,6 +196,7 @@ impl ConcurrentExecutor {
     /// Register default agents
     pub fn register_default_agents(&mut self) {
         self.register_agent(Arc::new(Mutex::new(CoderAgent::new())));
+        self.register_agent(Arc::new(Mutex::new(RefactorerAgent::new())));
         self.register_agent(Arc::new(Mutex::new(BaseAgent::new(
             "Developer 2",
             "Developer",

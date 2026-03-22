@@ -49,9 +49,15 @@ use uuid::Uuid;
 /// Episodic memory errors
 #[derive(Error, Debug)]
 pub enum EpisodicError {
-    /// SQLite database error
-    #[error("database error: {0}")]
-    Database(#[from] rusqlite::Error),
+    /// SQLite database error with path context
+    #[error("database error at {path}: {source}")]
+    Database {
+        /// Path to the database file
+        path: String,
+        /// Underlying rusqlite error
+        #[source]
+        source: rusqlite::Error,
+    },
 
     /// Memory not found
     #[error("memory not found: {0}")]
@@ -68,6 +74,24 @@ pub enum EpisodicError {
 
 /// Result type for episodic memory operations
 pub type Result<T> = std::result::Result<T, EpisodicError>;
+
+/// Helper to wrap rusqlite errors with path context
+fn db_error(path: impl Into<String>, source: rusqlite::Error) -> EpisodicError {
+    EpisodicError::Database {
+        path: path.into(),
+        source,
+    }
+}
+
+impl From<rusqlite::Error> for EpisodicError {
+    fn from(err: rusqlite::Error) -> Self {
+        // For backward compatibility where path is not available
+        EpisodicError::Database {
+            path: "unknown".to_string(),
+            source: err,
+        }
+    }
+}
 
 /// Memory type for episodic logging
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -301,13 +325,14 @@ impl EpisodicStore {
     /// Create new episodic store with config
     pub async fn new(config: EpisodicStoreConfig) -> Result<Self> {
         let conn = if config.database_path == ":memory:" {
-            Connection::open_in_memory()?
+            Connection::open_in_memory().map_err(|e| db_error(":memory:", e))?
         } else {
             // Ensure directory exists
             if let Some(parent) = Path::new(&config.database_path).parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            Connection::open(&config.database_path)?
+            Connection::open(&config.database_path)
+                .map_err(|e| db_error(&config.database_path, e))?
         };
 
         #[allow(clippy::arc_with_non_send_sync)]

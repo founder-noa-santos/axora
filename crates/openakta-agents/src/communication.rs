@@ -1,4 +1,8 @@
-//! Inter-agent communication using NATS
+//! In-process inter-agent message bus.
+//!
+//! Messages are held in a [`std::collections::HashMap`] and subscribers are notified synchronously in the
+//! sender's context. This is **not** a distributed transport; a future out-of-process
+//! backend (for example NATS) could replace the internals while preserving the API.
 
 use crate::patch_protocol::{
     ContextPack, PatchEnvelope, PatchReceipt, ValidationResult as PatchValidationResult,
@@ -103,7 +107,7 @@ pub struct Envelope {
 
 type AgentMessageHandler = Box<dyn Fn(&AgentMessage) + Send + Sync>;
 
-/// NATS-based message bus
+/// In-process message bus (pending envelopes and in-memory subscriptions).
 pub struct MessageBus {
     /// Pending messages
     pending: HashMap<String, Envelope>,
@@ -200,11 +204,9 @@ impl MessageBus {
         Ok(())
     }
 
-    /// Publish to a subject (broadcast)
+    /// Publish to a subject (broadcast). Currently equivalent to [`Self::send`].
     pub fn publish(&mut self, subject: &str, message: AgentMessage) -> Result<(), String> {
         info!("Publishing to {}: {}", subject, message.message_id);
-        // In a full implementation, this would use NATS subjects
-        // For now, just send the message
         self.send(message)
     }
 
@@ -302,12 +304,17 @@ impl MessageBus {
         }
     }
 
-    /// Notify subscribers
+    /// Notify subscribers (invoke all handlers registered via [`Self::subscribe`]).
     fn notify_subscribers(&self, message_id: &str) {
-        if let Some(_envelope) = self.pending.get(message_id) {
-            // In a full NATS implementation, this would publish to NATS
-            // For now, just log
-            debug!("Notifying subscribers of message {}", message_id);
+        let Some(envelope) = self.pending.get(message_id) else {
+            return;
+        };
+        let msg = &envelope.message;
+        debug!("Notifying subscribers of message {}", message_id);
+        for handlers in self.subscriptions.values() {
+            for h in handlers {
+                h(msg);
+            }
         }
     }
 
@@ -630,6 +637,8 @@ fn validate_message_structure(message: &AgentMessage) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[test]
     fn test_message_creation() {
@@ -714,6 +723,24 @@ mod tests {
 
         let result = protocol.broadcast_status("Ready for tasks");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn subscribe_handlers_are_invoked_on_send() {
+        let mut bus = MessageBus::new();
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c = Arc::clone(&counter);
+        bus.subscribe("events", move |_msg: &AgentMessage| {
+            c.fetch_add(1, Ordering::SeqCst);
+        });
+        let message = bus.create_message(
+            "agent1",
+            Some("agent2"),
+            MessageType::TaskAssign,
+            "hello",
+        );
+        bus.send(message).unwrap();
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
     }
 
     #[test]

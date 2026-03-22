@@ -7,25 +7,27 @@ concurrency:
 on:
   pull_request:
     paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'crates/**'
-      - 'proto/**'
-      - '.cargo/**'
-      - 'rustfmt.toml'
-      - 'clippy.toml'
-      - '.github/workflows/rust-ci.yml'
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "proto/**"
+      - ".cargo/**"
+      - "rustfmt.toml"
+      - "clippy.toml"
+      - "deny.toml"
+      - ".github/workflows/rust-ci.yml"
   push:
     branches: [main]
     paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'crates/**'
-      - 'proto/**'
-      - '.cargo/**'
-      - 'rustfmt.toml'
-      - 'clippy.toml'
-      - '.github/workflows/rust-ci.yml'
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**"
+      - "proto/**"
+      - ".cargo/**"
+      - "rustfmt.toml"
+      - "clippy.toml"
+      - "deny.toml"
+      - ".github/workflows/rust-ci.yml"
 
 permissions:
   contents: read
@@ -34,7 +36,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # MSRV gate: compile-only, parallel with main job. Must match [workspace.package].rust-version.
+  # MSRV gate: compile-only, parallel with main job. Must match [workspace.package].rust-version and rust-toolchain.toml.
   msrv:
     name: MSRV check
     runs-on: ubuntu-latest
@@ -42,13 +44,22 @@ jobs:
       RUSTFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: dtolnay/rust-toolchain@1.94.0
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          prefix-key: msrv-1.88
+          prefix-key: msrv-1.94
       - name: cargo check (MSRV)
         run: cargo check --workspace --all-targets --all-features --locked
+
+  deny:
+    name: cargo deny (advisories)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories
 
   quality:
     name: fmt, clippy, test

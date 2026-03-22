@@ -178,6 +178,47 @@ impl Agent for CoderAgent {
     }
 }
 
+/// Refactorer agent - responsible for staged, scripted codebase refactors.
+pub struct RefactorerAgent {
+    base: BaseAgent,
+}
+
+impl RefactorerAgent {
+    pub fn new() -> Self {
+        Self {
+            base: BaseAgent::new("Refactorer", "Refactor Specialist"),
+        }
+    }
+}
+
+impl Default for RefactorerAgent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Agent for RefactorerAgent {
+    fn id(&self) -> &str {
+        self.base.id()
+    }
+
+    fn name(&self) -> &str {
+        self.base.name()
+    }
+
+    fn role(&self) -> &str {
+        self.base.role()
+    }
+
+    fn execute(&mut self, task: Task) -> Result<TaskResult> {
+        Ok(TaskResult {
+            success: true,
+            output: format!("Sandboxed refactor prepared for: {}", task.description),
+            error: None,
+        })
+    }
+}
+
 /// Reviewer agent - responsible for code review
 pub struct ReviewerAgent {
     base: BaseAgent,

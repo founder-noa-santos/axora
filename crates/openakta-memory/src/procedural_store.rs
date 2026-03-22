@@ -32,9 +32,15 @@ pub enum ProceduralError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// SQLite error.
-    #[error("database error: {0}")]
-    Database(#[from] rusqlite::Error),
+    /// SQLite error with path context.
+    #[error("database error at {path}: {source}")]
+    Database {
+        /// Path to the database file.
+        path: String,
+        /// Underlying rusqlite error.
+        #[source]
+        source: rusqlite::Error,
+    },
 
     /// Serialization error.
     #[error("serialization error: {0}")]
@@ -55,6 +61,24 @@ pub enum ProceduralError {
 
 /// Result type for procedural-memory operations.
 pub type Result<T> = std::result::Result<T, ProceduralError>;
+
+/// Helper to wrap rusqlite errors with path context
+fn db_error(path: impl Into<String>, source: rusqlite::Error) -> ProceduralError {
+    ProceduralError::Database {
+        path: path.into(),
+        source,
+    }
+}
+
+impl From<rusqlite::Error> for ProceduralError {
+    fn from(err: rusqlite::Error) -> Self {
+        // For backward compatibility where path is not available
+        ProceduralError::Database {
+            path: "unknown".to_string(),
+            source: err,
+        }
+    }
+}
 
 /// Skill outcome for utility tracking.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -360,7 +384,7 @@ impl SkillCatalog {
     }
 
     fn ensure_schema(&self) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS skill_documents (
@@ -385,13 +409,14 @@ impl SkillCatalog {
                 file_size_bytes INTEGER NOT NULL
             );
             "#,
-        )?;
+        )
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         Ok(())
     }
 
     /// Upsert a canonical document.
     pub fn upsert_document(&self, document: &SkillDocument) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             r#"
             INSERT INTO skill_documents (
@@ -423,13 +448,14 @@ impl SkillCatalog {
                 document.checksum,
                 document.updated_at as i64,
             ],
-        )?;
+        )
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         Ok(())
     }
 
     /// Fetch a document by id.
     pub fn get_document(&self, skill_id: &str) -> Result<Option<SkillDocument>> {
-        let conn = Connection::open(&self.db_path)?;
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.query_row(
             r#"
             SELECT skill_id, title, summary, body_markdown, source_path, domain,
@@ -441,54 +467,61 @@ impl SkillCatalog {
             map_row_to_document,
         )
         .optional()
-        .map_err(ProceduralError::from)
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))
     }
 
     /// List all documents.
     pub fn list_documents(&self) -> Result<Vec<SkillDocument>> {
-        let conn = Connection::open(&self.db_path)?;
-        let mut stmt = conn.prepare(
-            r#"
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let mut stmt = conn
+            .prepare(
+                r#"
             SELECT skill_id, title, summary, body_markdown, source_path, domain,
                    tags, token_cost, checksum, updated_at
             FROM skill_documents
             ORDER BY skill_id
             "#,
-        )?;
-        let rows = stmt.query_map([], map_row_to_document)?;
+            )
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let rows = stmt
+            .query_map([], map_row_to_document)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         let mut documents = Vec::new();
         for row in rows {
-            documents.push(row?);
+            documents.push(row.map_err(|e| db_error(self.db_path.display().to_string(), e))?);
         }
         Ok(documents)
     }
 
     /// Delete a document.
     pub fn delete_document(&self, skill_id: &str) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             "DELETE FROM skill_documents WHERE skill_id = ?1",
             [skill_id],
-        )?;
+        )
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             "DELETE FROM skill_source_state WHERE skill_id = ?1",
             [skill_id],
-        )?;
+        )
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         Ok(())
     }
 
     /// Mark a document as indexed.
     pub fn mark_indexed(&self, skill_id: &str) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             "UPDATE skill_documents SET indexed_at = ?2 WHERE skill_id = ?1",
             params![skill_id, current_unix_ts() as i64],
-        )?;
+        )
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         Ok(())
     }
 
     fn upsert_source_state(&self, state: &SkillSourceState) -> Result<()> {
-        let conn = Connection::open(&self.db_path)?;
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             r#"
             INSERT INTO skill_source_state (
@@ -507,21 +540,25 @@ impl SkillCatalog {
                 state.modified_at_ns as i64,
                 state.file_size_bytes as i64,
             ],
-        )?;
+        )
+        .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         Ok(())
     }
 
     fn list_source_states(&self) -> Result<Vec<SkillSourceState>> {
-        let conn = Connection::open(&self.db_path)?;
-        let mut stmt = conn.prepare(
-            r#"
+        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let mut stmt = conn
+            .prepare(
+                r#"
             SELECT skill_id, source_path, checksum, modified_at_ns, file_size_bytes
             FROM skill_source_state
             ORDER BY source_path
             "#,
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok(SkillSourceState {
+            )
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(SkillSourceState {
                 skill_id: row.get(0)?,
                 source_path: row.get(1)?,
                 checksum: row.get(2)?,

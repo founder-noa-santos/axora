@@ -1,7 +1,8 @@
 //! Containerized execution backend.
 
 use crate::execution::{
-    CommandRequest, ContainerExecutorConfig, ExecutionOutcome, PatchRequest, ToolExecutor,
+    CommandRequest, ContainerExecutorConfig, ContainerMount, ExecutionOutcome, PatchRequest,
+    ToolExecutor,
 };
 use crate::McpError;
 use async_trait::async_trait;
@@ -83,16 +84,49 @@ impl ContainerExecutor {
             })),
         })
     }
+
+    /// Execute a command with additional bind mounts and an optional working directory override.
+    pub async fn run_command_with_mounts(
+        &self,
+        request: CommandRequest,
+        extra_mounts: &[ContainerMount],
+        working_dir: Option<&str>,
+    ) -> Result<ExecutionOutcome, McpError> {
+        let mut args = vec![
+            "run".to_string(),
+            "--rm".to_string(),
+            "-w".to_string(),
+            working_dir
+                .unwrap_or(&self.config.workspace_mount_path)
+                .to_string(),
+            "-v".to_string(),
+            format!(
+                "{}:{}",
+                request.workspace_root.display(),
+                self.config.workspace_mount_path
+            ),
+        ];
+        args.extend(self.config.extra_args.clone());
+        for mount in extra_mounts {
+            let mut spec = format!("{}:{}", mount.host_path.display(), mount.container_path);
+            if mount.read_only {
+                spec.push_str(":ro");
+            }
+            args.extend(["-v".to_string(), spec]);
+        }
+        args.push(self.config.image.clone());
+        args.push(request.program);
+        args.extend(request.args);
+
+        self.invoke(&request.workspace_root, request.timeout_secs, args)
+            .await
+    }
 }
 
 #[async_trait]
 impl ToolExecutor for ContainerExecutor {
     async fn run_command(&self, request: CommandRequest) -> Result<ExecutionOutcome, McpError> {
-        let mut args = self.base_args(&request.workspace_root);
-        args.push(request.program);
-        args.extend(request.args);
-        self.invoke(&request.workspace_root, request.timeout_secs, args)
-            .await
+        self.run_command_with_mounts(request, &[], None).await
     }
 
     async fn apply_patch(&self, request: PatchRequest) -> Result<ExecutionOutcome, McpError> {

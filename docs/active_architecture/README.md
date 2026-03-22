@@ -1,193 +1,53 @@
-# Active Architecture Documentation
+# Active architecture documentation
 
-**Status:** ✅ Active & Enforced  
-**Last Updated:** 2026-03-18  
-**Owner:** Architect Agent  
-
----
-
-## 🎯 Purpose
-
-This folder contains the **Single Source of Truth** for OPENAKTA architecture.
-
-All documents here are:
-- ✅ **Aligned with strategic pivot** (Cloud APIs + Local RAG)
-- ✅ **Implementation-ready** (not just research)
-- ✅ **Actively maintained** (updated on each sprint)
-- ✅ **White-listed concepts only** (no deprecated ideas)
+**Status:** Active  
+**Last updated:** 2026-03-21  
 
 ---
 
-## 📁 Document Structure
+## Purpose
 
-```
-active_architecture/
-├── 01_CORE_ARCHITECTURE.md       ← Blackboard, Dual-Thread ReAct, NATS, Protobuf
-├── 02_LOCAL_RAG_AND_MEMORY.md    ← Jina, Qdrant/sqlite-vec, Tripartite Memory, AST Chunking
-├── 03_CONTEXT_AND_TOKEN_OPTIMIZATION.md ← Prefix Caching, MetaGlyph, Diff-based comms, SCIP
-└── README.md                     ← This file (navigation)
-```
+This folder is the **primary narrative** for OPENAKTA architecture: how the system is meant to work and which crates implement which ideas. When code and these docs disagree, **verify in code and tests**, then update the docs.
 
 ---
 
-## 🏗️ Architecture Pillars
+## Documents (read in order)
 
-### Pillar 1: Core Architecture (`01_CORE_ARCHITECTURE.md`)
-
-**Covers:**
-- Blackboard Architecture (shared state, pub/sub)
-- Dual-Thread ReAct Loops (Planning vs. Acting threads)
-- Code Influence Graph (dependency-aware retrieval)
-- NATS JetStream + Protobuf (binary protocol)
-- State Machine Orchestration (deterministic execution)
-
-**Key Components:**
-- `crates/openakta-cache/src/blackboard/v2.rs`
-- `crates/openakta-indexing/src/influence.rs`
-- `crates/openakta-agents/src/worker.rs`
+| File | Topics |
+|------|--------|
+| [01_CORE_ARCHITECTURE.md](./01_CORE_ARCHITECTURE.md) | Blackboard, ReAct, influence graph, coordination |
+| [02_LOCAL_RAG_AND_MEMORY.md](./02_LOCAL_RAG_AND_MEMORY.md) | Local RAG, embeddings, memory, chunking |
+| [03_CONTEXT_AND_TOKEN_OPTIMIZATION.md](./03_CONTEXT_AND_TOKEN_OPTIMIZATION.md) | Prefix cache, diff communication, context pruning |
+| [plan-06-ssot-conflict-resolution-ui-spec.md](./plan-06-ssot-conflict-resolution-ui-spec.md) | Plan 6: SSOT conflict resolver, review queue UI, gRPC contracts (LivingDocsReviewService) |
+| [plan-06-llm-continuation-handoff.md](./plan-06-llm-continuation-handoff.md) | Plan 6: LLM/engineer handoff — gaps, risks, file map, master prompt for production completion |
 
 ---
 
-### Pillar 2: Local RAG & Memory (`02_LOCAL_RAG_AND_MEMORY.md`)
+## Strategic pivot (summary)
 
-**Covers:**
-- Jina Code Embeddings v2 (137M params, ~550MB RAM)
-- Qdrant Embedded / sqlite-vec (local vector stores)
-- Tripartite Memory (Semantic, Episodic, Procedural)
-- AST-Based Chunking (Tree-sitter)
-- Merkle Trees for incremental indexing
+| Deprecated direction | Current direction |
+|---------------------|-------------------|
+| Local-only LLM hosting as default | Cloud APIs (Anthropic, OpenAI, etc.) where configured |
+| Cloud-managed vector SaaS as default | Local-friendly stores where implemented |
+| Purely conversational “swarms” | Deterministic orchestration + graph workflows |
 
-**Key Components:**
-- `crates/openakta-embeddings/src/jina.rs`
-- `crates/openakta-rag/src/vector_store.rs`
-- `crates/openakta-indexing/src/chunker.rs`
-- `crates/openakta-indexing/src/merkle.rs`
+Older experiments (Ollama-only, certain DDD agent-team models, etc.) are **not** documented here as current product truth. Use git history if you need the old research tree.
 
 ---
 
-### Pillar 3: Context & Token Optimization (`03_CONTEXT_AND_TOKEN_OPTIMIZATION.md`)
+## Related
 
-**Covers:**
-- Prefix Caching (50-90% input savings)
-- Diff-Based Communication (89-98% output savings)
-- Graph-Based Context Pruning (95-99% context savings)
-- MetaGlyph (symbolic operators)
-- Q-Codes (abbreviation protocols)
-- Cache-to-Cache / Latent Semantic Communication
-
-**Key Components:**
-- `crates/openakta-cache/src/prefix_cache.rs`
-- `crates/openakta-cache/src/diff.rs`
-- `crates/openakta-rag/src/graph_retriever.rs`
+| Resource | Role |
+|----------|------|
+| [../ARCHITECTURE-LEDGER.md](../ARCHITECTURE-LEDGER.md) | Ledger, desktop ADR summary |
+| [../adr/](../adr/) | Desktop shell ADRs |
+| [../../business-core/](../../business-core/) | Business rules grounded in implementation |
+| [../../DOCS-INDEX.md](../../DOCS-INDEX.md) | Full documentation map |
 
 ---
 
-## 🚀 Strategic Pivot
+## For contributors
 
-### What Changed
-
-| Before | After |
-|--------|-------|
-| Local LLM inference | Cloud APIs (Anthropic, OpenAI) |
-| Cloud vector DBs (Turbopuffer) | Local vector stores (Qdrant Embedded) |
-| Conversational agent swarms | Deterministic state machines |
-| DDD agent teams | Blackboard + Graph workflow |
-
-### What Stayed
-
-- ✅ Token efficiency focus
-- ✅ Local-first RAG
-- ✅ Multi-agent coordination
-- ✅ Business rule traceability
-
----
-
-## 📚 Deprecated Concepts (Moved to `research/OUTDATED/`)
-
-The following concepts have been **deprecated** and moved to `research/OUTDATED/`:
-
-### Local LLM Inference
-- ❌ Ollama
-- ❌ llama.cpp
-- ❌ vLLM
-- ❌ Qwen 2.5 Coder local hosting
-- ❌ Llama 3.3 local hosting
-
-### Cloud Vector Databases
-- ❌ Turbopuffer
-- ❌ Pinecone
-- ❌ Weaviate Cloud
-
-### Conversational Agent Swarms
-- ❌ AutoGen GroupChat
-- ❌ Bag of Agents
-- ❌ Unstructured agent negotiations
-
-### Domain-Driven Design
-- ❌ DDD Bounded Contexts for agents
-- ❌ Anti-Corruption Layers
-- ❌ Agent team organization by domain
-
----
-
-## 🔗 Related Folders
-
-| Folder | Purpose |
-|--------|---------|
-| `docs/active_architecture/` | ✅ **Current architecture** (Single Source of Truth) |
-| `research/findings/` | ✅ **Active research** (Local-First RAG, Multi-Agent Optimization) |
-| `research/OUTDATED/` | ❌ **Deprecated research** (moved from active folders) |
-| `planning/` | 📋 **Sprint plans** (agent assignments) |
-
----
-
-## 📊 Implementation Status
-
-| Document | Components | Status | Next Review |
-|----------|------------|--------|-------------|
-| `01_CORE_ARCHITECTURE.md` | Blackboard, Influence Graph | ✅ 60% implemented | After MVP |
-| `02_LOCAL_RAG_AND_MEMORY.md` | Jina, Qdrant, AST Chunking | 🔄 30% implemented | After Sprint B5 |
-| `03_CONTEXT_AND_TOKEN_OPTIMIZATION.md` | Prefix Cache, Diff | ✅ 50% implemented | After Sprint C7 |
-
----
-
-## 🎯 Getting Started
-
-### For New Developers
-
-1. **Read in order:**
-   - `01_CORE_ARCHITECTURE.md` (foundation)
-   - `02_LOCAL_RAG_AND_MEMORY.md` (RAG pipeline)
-   - `03_CONTEXT_AND_TOKEN_OPTIMIZATION.md` (optimizations)
-
-2. **Explore code:**
-   - Follow component locations in each document
-   - Run examples locally
-
-3. **Contribute:**
-   - Propose changes via PR
-   - Update document if architecture changes
-
-### For Agents (AI Contributors)
-
-1. **Check your assignment:** `planning/agent-*/current_task.md`
-2. **Read relevant architecture doc:** Depends on sprint
-3. **Implement:** Follow specifications in docs
-4. **Update doc:** If implementation differs from design
-
----
-
-## ✅ Definition of Organized
-
-- ✅ All active architecture in `docs/active_architecture/`
-- ✅ All deprecated concepts in `research/OUTDATED/`
-- ✅ All research findings in `research/findings/`
-- ✅ Clear navigation (this README)
-- ✅ Single Source of Truth (no duplication)
-
----
-
-**This folder is the Single Source of Truth for OPENAKTA architecture.**
-
-**Last Reviewed:** 2026-03-18  
-**Next Review:** After MVP launch
+1. Read the three pillar docs above.  
+2. Cross-check against `crates/` and tests.  
+3. Update this folder when you change architecture meaningfully.  

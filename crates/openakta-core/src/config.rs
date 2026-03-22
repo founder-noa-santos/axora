@@ -6,9 +6,16 @@ use openakta_agents::{
 };
 use openakta_embeddings::{CodeEmbeddingConfig, FallbackEmbeddingConfig, SkillEmbeddingConfig};
 use openakta_indexing::{CollectionSpec, VectorBackendKind};
-use openakta_mcp_server::{ContainerExecutorConfig, ExecutionMode, WasiExecutorConfig};
+use openakta_mcp_server::{
+    ContainerExecutorConfig, MassRefactorExecutorConfig, SandboxedToolExecutionMode,
+    WasiExecutorConfig,
+};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+fn default_broadcast_lag_streak_limit() -> u32 {
+    3
+}
 
 /// Shared retrieval configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,12 +236,15 @@ pub struct CoreConfig {
     pub mcp_allowed_commands: Vec<String>,
     /// Maximum execution time for MCP commands.
     pub mcp_command_timeout_secs: u64,
-    /// Execution mode for mutating MCP tools.
-    pub execution_mode: ExecutionMode,
+    /// Sandboxed execution mode for mutating MCP tools (never raw host shell from config).
+    pub execution_mode: SandboxedToolExecutionMode,
     /// Container backend configuration.
     pub container_executor: ContainerExecutorConfig,
     /// WASI backend configuration.
     pub wasi_executor: WasiExecutorConfig,
+    /// Dedicated configuration for sandboxed mass-refactor scripts.
+    #[serde(default)]
+    pub mass_refactor_executor: MassRefactorExecutorConfig,
     /// Background pruning cadence in seconds.
     pub pruning_interval_secs: u64,
     /// Background doc sync cadence in seconds.
@@ -247,6 +257,12 @@ pub struct CoreConfig {
     pub provider_retrieval_share: f32,
     /// Enable debug mode
     pub debug: bool,
+    /// Consecutive `RecvError::Lagged` on broadcast streams before failing (V-004); Collective + ReAct interrupt channel.
+    #[serde(default = "default_broadcast_lag_streak_limit")]
+    pub broadcast_lag_streak_limit: u32,
+    /// Optional outbound web search (Serper / Tavily BYOK); see [`openakta_research::ResearchConfig`].
+    #[serde(default)]
+    pub research: Option<openakta_research::ResearchConfig>,
 }
 
 impl Default for CoreConfig {
@@ -282,15 +298,18 @@ impl Default for CoreConfig {
                 "rustc".to_string(),
             ],
             mcp_command_timeout_secs: 30,
-            execution_mode: ExecutionMode::Hybrid,
+            execution_mode: SandboxedToolExecutionMode::Hybrid,
             container_executor: ContainerExecutorConfig::default(),
             wasi_executor: WasiExecutorConfig::default(),
+            mass_refactor_executor: MassRefactorExecutorConfig::default(),
             pruning_interval_secs: 3600,
             doc_sync_interval_secs: 60,
             provider_context_use_ratio: 0.8,
             provider_context_margin_tokens: 512,
             provider_retrieval_share: 0.35,
             debug: false,
+            broadcast_lag_streak_limit: default_broadcast_lag_streak_limit(),
+            research: None,
         }
     }
 }
@@ -342,6 +361,24 @@ impl CoreConfig {
         Ok(config)
     }
 
+    /// Load `openakta.toml` at the project root merged with [`Self::for_workspace`] defaults.
+    ///
+    /// Prefer this for `workspace_root/openakta.toml` so unset paths (for example `database_path`)
+    /// resolve under `.openakta/` instead of being pulled from [`Self::file_defaults`] (`openakta.db`
+    /// in the current directory).
+    pub fn from_project_file(path: &PathBuf) -> anyhow::Result<Self> {
+        let workspace_root = path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        let content = std::fs::read_to_string(path)?;
+        let mut base = toml::Value::try_from(Self::for_workspace(workspace_root))?;
+        let overlay: toml::Value = toml::from_str(&content)?;
+        merge_toml(&mut base, overlay);
+        let config: Self = base.try_into()?;
+        Ok(config)
+    }
+
     /// Save configuration to a TOML file
     pub fn to_file(&self, path: &PathBuf) -> anyhow::Result<()> {
         let content = toml::to_string_pretty(self)?;
@@ -385,6 +422,20 @@ impl CoreConfig {
         }
         Ok(())
     }
+
+    /// Build [`openakta_research::ResearchRuntime`] when `[research]` is present in config.
+    pub fn research_runtime(
+        &self,
+    ) -> anyhow::Result<Option<openakta_research::ResearchRuntime>> {
+        match &self.research {
+            None => Ok(None),
+            Some(rc) => openakta_research::ResearchRuntime::from_workspace(
+                &self.workspace_root,
+                rc,
+            )
+            .map(Some),
+        }
+    }
 }
 
 fn merge_toml(base: &mut toml::Value, overlay: toml::Value) {
@@ -418,6 +469,8 @@ mod tests {
         assert_eq!(config.max_concurrent_agents, 10);
         assert_eq!(config.frame_duration_ms, 16);
         assert_eq!(config.mcp_command_timeout_secs, 30);
+        assert!(config.research.is_none());
+        assert!(config.research_runtime().unwrap().is_none());
     }
 
     #[test]
@@ -471,6 +524,27 @@ default_model = "qwen2.5-coder:7b"
                 .and_then(|local| local.default_model.as_deref()),
             Some("qwen2.5-coder:7b")
         );
+    }
+
+    #[test]
+    fn test_from_project_file_defaults_database_under_openakta_dir() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let config_path = tempdir.path().join("openakta.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+fallback_policy = "explicit"
+routing_enabled = false
+"#,
+        )
+        .unwrap();
+
+        let config = CoreConfig::from_project_file(&config_path).unwrap();
+        assert_eq!(
+            config.database_path,
+            tempdir.path().join(".openakta").join("openakta.db")
+        );
+        assert_eq!(config.workspace_root, tempdir.path());
     }
 
     #[test]

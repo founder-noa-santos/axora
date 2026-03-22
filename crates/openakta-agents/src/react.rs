@@ -18,7 +18,11 @@ use std::sync::{
 use tokio::sync::{broadcast, mpsc, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
-use tracing::info;
+use tracing::{info, warn};
+
+/// Default for [`DualThreadReactAgent`] interrupt-channel lag streak (V-004); override via
+/// [`DualThreadReactAgent::spawn_with_interrupt_lag_limit`].
+pub const DEFAULT_INTERRUPT_LAG_STREAK_LIMIT: u32 = 3;
 
 /// ReAct cycle (Thought → Action → Observation)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -428,7 +432,15 @@ impl DualThreadReactAgent {
         blackboard: Arc<Mutex<RuntimeBlackboard>>,
         tools: ToolSet,
     ) -> Result<Self> {
-        Self::spawn_internal(task, blackboard, tools, ACIFormatter::new(), None).await
+        Self::spawn_internal(
+            task,
+            blackboard,
+            tools,
+            ACIFormatter::new(),
+            None,
+            DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
+        )
+        .await
     }
 
     /// Spawn dual-thread agent with custom ACI config
@@ -444,6 +456,7 @@ impl DualThreadReactAgent {
             tools,
             ACIFormatter::with_config(aci_config),
             None,
+            DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
         )
         .await
     }
@@ -461,6 +474,25 @@ impl DualThreadReactAgent {
             tools,
             ACIFormatter::new(),
             Some(episodic_store_path),
+            DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
+        )
+        .await
+    }
+
+    /// Same as [`Self::spawn`], with a configurable interrupt-channel lag streak limit (align with `CoreConfig::broadcast_lag_streak_limit`).
+    pub async fn spawn_with_interrupt_lag_limit(
+        task: Task,
+        blackboard: Arc<Mutex<RuntimeBlackboard>>,
+        tools: ToolSet,
+        interrupt_lag_streak_limit: u32,
+    ) -> Result<Self> {
+        Self::spawn_internal(
+            task,
+            blackboard,
+            tools,
+            ACIFormatter::new(),
+            None,
+            interrupt_lag_streak_limit,
         )
         .await
     }
@@ -471,6 +503,7 @@ impl DualThreadReactAgent {
         tools: ToolSet,
         aci_formatter: ACIFormatter,
         episodic_store_path: Option<String>,
+        interrupt_lag_streak_limit: u32,
     ) -> Result<Self> {
         let (planning_tx, planning_rx) = mpsc::channel(32);
         let (proposal_tx, proposal_rx) = mpsc::channel(32);
@@ -491,12 +524,14 @@ impl DualThreadReactAgent {
             planning_rx,
             proposal_tx,
             interrupt_tx.subscribe(),
+            interrupt_lag_streak_limit,
         ));
         let actor_handle = tokio::spawn(actor_loop(
             tools,
             acting_rx,
             execution_tx,
             interrupt_tx.subscribe(),
+            interrupt_lag_streak_limit,
         ));
         let blackboard_watch_handle = tokio::spawn(planner_interrupt_loop(
             version_rx,
@@ -850,7 +885,9 @@ async fn planner_loop(
     mut planning_rx: mpsc::Receiver<u32>,
     proposal_tx: mpsc::Sender<Result<ActionProposal>>,
     mut interrupt_rx: broadcast::Receiver<InterruptSignal>,
+    interrupt_lag_streak_limit: u32,
 ) -> Result<()> {
+    let mut interrupt_lag_streak: u32 = 0;
     loop {
         tokio::select! {
             maybe_request = planning_rx.recv() => {
@@ -882,9 +919,25 @@ async fn planner_loop(
                     Ok(InterruptSignal::Stop { reason, terminate_agent, .. }) if terminate_agent => {
                         return Err(AgentError::ExecutionFailed(format!("planner interrupted: {}", reason)).into());
                     }
-                    Ok(_) => {}
+                    Ok(_) => {
+                        interrupt_lag_streak = 0;
+                    }
                     Err(broadcast::error::RecvError::Closed) => break,
-                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        interrupt_lag_streak = interrupt_lag_streak.saturating_add(1);
+                        warn!(
+                            skipped,
+                            interrupt_lag_streak,
+                            limit = interrupt_lag_streak_limit,
+                            "planner interrupt channel lagged behind broadcast"
+                        );
+                        if interrupt_lag_streak >= interrupt_lag_streak_limit {
+                            return Err(AgentError::ExecutionFailed(
+                                "interrupt channel lagged (subscriber_lagged)".into(),
+                            )
+                            .into());
+                        }
+                    }
                 }
             }
         }
@@ -897,7 +950,9 @@ async fn actor_loop(
     mut acting_rx: mpsc::Receiver<ActionProposal>,
     execution_tx: mpsc::Sender<Result<ActionExecution>>,
     mut interrupt_rx: broadcast::Receiver<InterruptSignal>,
+    interrupt_lag_streak_limit: u32,
 ) -> Result<()> {
+    let mut interrupt_lag_streak: u32 = 0;
     'outer: loop {
         tokio::select! {
             maybe_request = acting_rx.recv() => {
@@ -913,6 +968,7 @@ async fn actor_loop(
                         interrupt = interrupt_rx.recv() => {
                             match interrupt {
                                 Ok(InterruptSignal::Stop { reason, cycle_number, terminate_agent }) => {
+                                    interrupt_lag_streak = 0;
                                     if terminate_agent {
                                         return Err(AgentError::ExecutionFailed(format!(
                                             "actor interrupted during tool execution: {}",
@@ -931,9 +987,25 @@ async fn actor_loop(
                                         );
                                     }
                                 }
-                                Ok(_) => {}
+                                Ok(_) => {
+                                    interrupt_lag_streak = 0;
+                                }
                                 Err(broadcast::error::RecvError::Closed) => break 'outer,
-                                Err(broadcast::error::RecvError::Lagged(_)) => {}
+                                Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                                    interrupt_lag_streak = interrupt_lag_streak.saturating_add(1);
+                                    warn!(
+                                        skipped,
+                                        interrupt_lag_streak,
+                                        limit = interrupt_lag_streak_limit,
+                                        "actor interrupt channel lagged during tool execution"
+                                    );
+                                    if interrupt_lag_streak >= interrupt_lag_streak_limit {
+                                        return Err(AgentError::ExecutionFailed(
+                                            "interrupt channel lagged (subscriber_lagged)".into(),
+                                        )
+                                        .into());
+                                    }
+                                }
                             }
                         }
                     };
@@ -947,9 +1019,25 @@ async fn actor_loop(
                     Ok(InterruptSignal::Stop { reason, terminate_agent, .. }) if terminate_agent => {
                         return Err(AgentError::ExecutionFailed(format!("actor interrupted: {}", reason)).into());
                     }
-                    Ok(_) => {}
+                    Ok(_) => {
+                        interrupt_lag_streak = 0;
+                    }
                     Err(broadcast::error::RecvError::Closed) => break,
-                    Err(broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        interrupt_lag_streak = interrupt_lag_streak.saturating_add(1);
+                        warn!(
+                            skipped,
+                            interrupt_lag_streak,
+                            limit = interrupt_lag_streak_limit,
+                            "actor interrupt channel lagged"
+                        );
+                        if interrupt_lag_streak >= interrupt_lag_streak_limit {
+                            return Err(AgentError::ExecutionFailed(
+                                "interrupt channel lagged (subscriber_lagged)".into(),
+                            )
+                            .into());
+                        }
+                    }
                 }
             }
         }

@@ -7,7 +7,7 @@ This repository is a Cargo workspace (see root `Cargo.toml`). Binaries such as `
 ### Toolchain
 
 - **Edition:** 2021  
-- **MSRV:** `1.88` (see `[workspace.package]` in the root `Cargo.toml`). CI runs a parallel `msrv` job with that toolchain; day-to-day development typically uses stable Rust.
+- **MSRV:** `1.94` (see `[workspace.package]` in the root `Cargo.toml` and `rust-toolchain.toml`). CI runs a parallel `msrv` job with that toolchain; day-to-day development typically uses stable Rust.
 
 ### Standard commands
 
@@ -23,6 +23,10 @@ From the repository root:
 | `cargo test-all` | Full workspace tests with all features, locked (skips `#[ignore]` slow tests). |
 | `cargo test-slow` | Run only ignored/slow tests (`-- --ignored`). |
 | `cargo build --release -p openakta-cli` | Optimized CLI build. |
+
+### Dependency advisories (optional)
+
+Install [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) and run `cargo deny check advisories` before large dependency bumps. CI runs this on every Rust workflow.
 
 ### Before opening a PR (Rust changes)
 

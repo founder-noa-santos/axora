@@ -155,7 +155,7 @@ For each task, provide:\n\
 2. Task Description (clear, actionable)\n\
 3. Dependencies (list of task IDs this task depends on)\n\
 4. Estimated Duration (in minutes)\n\
-5. Required Capabilities (coding, testing, documentation, etc.)\n\
+5. Required Capabilities (coding, testing, documentation, refactorer for broad scripted codebase changes, etc.)\n\
 \n\
 Output format (JSON):\n\
 {{\"tasks\":[{{\"id\":\"task-1\",\"description\":\"...\",\"dependencies\":[],\"estimated_duration\":10,\"capabilities\":[\"coding\"],\"target_files\":[]}}]}}\n\
@@ -280,6 +280,18 @@ fn capabilities_for_description(description: &str) -> Vec<String> {
 
     if lower.contains("test") {
         capabilities.push("testing".to_string());
+    }
+    if [
+        "rename",
+        "codebase-wide",
+        "across files",
+        "systematic refactor",
+        "mass refactor",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+    {
+        capabilities.push("refactorer".to_string());
     }
     if lower.contains("document") {
         capabilities.push("documentation".to_string());

@@ -33,13 +33,37 @@ pub enum SemanticError {
     #[error("serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
-    /// Storage error
-    #[error("storage error: {0}")]
-    Storage(String),
+    /// Storage error with path context
+    #[error("storage error at {path}: {source}")]
+    Storage {
+        /// Path to the database file
+        path: String,
+        /// Underlying rusqlite error
+        #[source]
+        source: rusqlite::Error,
+    },
 }
 
 /// Result type for semantic memory operations
 pub type Result<T> = std::result::Result<T, SemanticError>;
+
+/// Helper to wrap rusqlite errors with path context
+fn db_error(path: impl Into<String>, source: rusqlite::Error) -> SemanticError {
+    SemanticError::Storage {
+        path: path.into(),
+        source,
+    }
+}
+
+impl From<rusqlite::Error> for SemanticError {
+    fn from(err: rusqlite::Error) -> Self {
+        // For backward compatibility where path is not available
+        SemanticError::Storage {
+            path: "unknown".to_string(),
+            source: err,
+        }
+    }
+}
 
 /// Document type for semantic memory
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -346,23 +370,32 @@ impl InMemorySemanticStore {
 pub struct PersistentSemanticStore {
     db: Arc<RwLock<Connection>>,
     embedding_dim: usize,
+    path: String,
 }
 
 impl PersistentSemanticStore {
     /// Create a persistent semantic store at a SQLite path.
     pub fn new(path: impl AsRef<Path>, embedding_dim: usize) -> Result<Self> {
+        let path_str = path.as_ref().display().to_string();
         if let Some(parent) = path.as_ref().parent() {
             if !parent.as_os_str().is_empty() {
                 std::fs::create_dir_all(parent)
-                    .map_err(|e| SemanticError::Storage(e.to_string()))?;
+                    .map_err(|e| SemanticError::Storage {
+                        path: path_str.clone(),
+                        source: rusqlite::Error::SqliteFailure(
+                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                            Some(format!("failed to create directory: {}", e)),
+                        ),
+                    })?;
             }
         }
 
-        let conn = Connection::open(path).map_err(|e| SemanticError::Storage(e.to_string()))?;
+        let conn = Connection::open(path.as_ref()).map_err(|e| db_error(&path_str, e))?;
         #[allow(clippy::arc_with_non_send_sync)]
         let store = Self {
             db: Arc::new(RwLock::new(conn)),
             embedding_dim,
+            path: path_str,
         };
         store.run_migrations()?;
         Ok(store)
@@ -383,7 +416,7 @@ impl PersistentSemanticStore {
             CREATE INDEX IF NOT EXISTS idx_semantic_updated_at ON semantic_memories(updated_at);
             "#,
         )
-        .map_err(|e| SemanticError::Storage(e.to_string()))?;
+        .map_err(|e| db_error(&self.path, e))?;
         Ok(())
     }
 
@@ -421,7 +454,7 @@ impl PersistentSemanticStore {
                 memory.metadata.updated_at as i64,
             ],
         )
-        .map_err(|e| SemanticError::Storage(e.to_string()))?;
+        .map_err(|e| db_error(&self.path, e))?;
 
         Ok(())
     }
@@ -447,7 +480,7 @@ impl PersistentSemanticStore {
                 },
             )
             .optional()
-            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+            .map_err(|e| db_error(&self.path, e))?;
         Ok(memory)
     }
 
@@ -463,7 +496,7 @@ impl PersistentSemanticStore {
         let db = self.db.read().unwrap();
         let mut stmt = db
             .prepare("SELECT id, content, embedding, metadata FROM semantic_memories")
-            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+            .map_err(|e| db_error(&self.path, e))?;
 
         let rows = stmt
             .query_map([], |row| {
@@ -478,12 +511,12 @@ impl PersistentSemanticStore {
                     }),
                 ))
             })
-            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+            .map_err(|e| db_error(&self.path, e))?;
 
         let mut results = Vec::new();
         for row in rows {
             let (id, content, embedding, metadata) =
-                row.map_err(|e| SemanticError::Storage(e.to_string()))?;
+                row.map_err(|e| db_error(&self.path, e))?;
             if embedding.len() != self.embedding_dim {
                 continue;
             }
@@ -510,7 +543,7 @@ impl PersistentSemanticStore {
         let db = self.db.write().unwrap();
         let count = db
             .execute("DELETE FROM semantic_memories WHERE id = ?", params![id])
-            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+            .map_err(|e| db_error(&self.path, e))?;
         Ok(count > 0)
     }
 
@@ -521,7 +554,7 @@ impl PersistentSemanticStore {
             .query_row("SELECT COUNT(*) FROM semantic_memories", [], |row| {
                 row.get(0)
             })
-            .map_err(|e| SemanticError::Storage(e.to_string()))?;
+            .map_err(|e| db_error(&self.path, e))?;
         let count = count.max(0) as u64;
         Ok(CollectionStats {
             point_count: count,

@@ -8,6 +8,7 @@ fn main() -> Result<()> {
             &[
                 "../../proto/collective/v1/core.proto",
                 "../../proto/mcp/v1/mcp.proto",
+                "../../proto/livingdocs/v1/review.proto",
             ],
             &["../../proto"],
         )?;

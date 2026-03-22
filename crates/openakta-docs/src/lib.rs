@@ -43,7 +43,12 @@
 //! ```
 
 pub mod adr;
+pub mod ast;
+pub mod changelog;
+pub mod confidence;
+pub mod drift;
 pub mod index;
+pub mod linter;
 pub mod living;
 pub mod reconciler;
 pub mod schema;
@@ -54,8 +59,31 @@ pub use schema::{
 };
 
 pub use index::{DocIndex, DocQuery, IndexError, SearchResult};
+pub use linter::{
+    format_diagnostics, Diagnostic, LintError, LintResult, LintSummary, MarkdownLinter, RuleId,
+    Severity,
+};
 
 pub use living::{DiffStats, DocUpdate, LivingDocs, LivingDocsError, UpdateType};
 pub use reconciler::{DocPatch, DocReconciler, DocReconcilerConfig, ReconcileDecision};
 
+pub use changelog::{
+    append_changelog_entry, changelog_entry_line, compute_sha256_16, migration_filename,
+    migration_relative_path, parse_toon_payload_yaml, sanitize_segment, verify_sha256_16,
+    write_external_migration_file, AppendChangelogError, ChangelogValidationError,
+    MigrationChangeKind, MigrationMetadata, ToonChangelogPayload, ToonPayloadParseError,
+};
+pub use confidence::{
+    ConfidenceBreakdown, ConfidenceReconcileDecision, ConfidenceScorer, ConfidenceScorerConfig,
+    DocumentRiskProfile,
+};
+
 pub use adr::{Adr, AdrError, AdrLog, AdrStatus};
+pub use ast::{
+    AnnotationTag, AstError, AstFileSnapshot, AstSpan, AstSymbol, AstSymbolKind,
+    IncrementalAstParser, ParserMemoryStats, SourceLanguage, SymbolSignature,
+};
+pub use drift::{
+    CodeRealityIndex, DocExpectationIndex, DocSymbolExpectation, DriftDetector, DriftDomain,
+    DriftError, DriftKind, DriftReport, DriftSeverity, InconsistencyFlag,
+};

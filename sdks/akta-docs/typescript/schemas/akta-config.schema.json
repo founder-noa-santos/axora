@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openakta.dev/schemas/akta-config.schema.json",
+  "title": "AktaConfig",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project", "paths", "linter"],
+  "properties": {
+    "schema_version": { "type": "string", "minLength": 1 },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "slug": { "type": "string", "minLength": 1 }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["docs_root"],
+      "properties": {
+        "docs_root": { "type": "string", "minLength": 1 },
+        "include_globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/*.md"]
+        },
+        "exclude_globs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/node_modules/**", "**/.git/**", "**/99-archive/**"]
+        }
+      }
+    },
+    "linter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "default_severity": {
+          "type": "string",
+          "enum": ["error", "warn", "off"],
+          "default": "error"
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "severity": { "type": "string", "enum": ["error", "warn", "off"] },
+              "min_words": { "type": "integer", "minimum": 1 },
+              "max_words": { "type": "integer", "minimum": 1 },
+              "min_question_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+              "heading_levels": {
+                "type": "array",
+                "items": { "type": "integer", "enum": [2, 3] }
+              }
+            }
+          },
+          "default": {}
+        }
+      }
+    },
+    "scaffold": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create_readme_in_each_folder": { "type": "boolean", "default": true },
+        "gitkeep": { "type": "boolean", "default": false }
+      }
+    },
+    "changelog": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_target": { "type": "string" },
+        "entry_template": { "type": "string", "enum": ["compact", "detailed"], "default": "compact" },
+        "summary_max_length": { "type": "integer", "minimum": 1, "default": 200 }
+      }
+    }
+  }
+}

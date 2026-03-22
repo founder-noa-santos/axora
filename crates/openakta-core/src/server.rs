@@ -1,11 +1,12 @@
 //! gRPC server implementation
 
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use openakta_agents::blackboard_runtime::{BlackboardEntry, RuntimeBlackboard};
@@ -20,6 +21,14 @@ use openakta_proto::collective::v1::{
 };
 
 use crate::{CoreConfig, CoreError, Result};
+
+/// Total `RecvError::Lagged` events observed on `stream_messages` (best-effort counter).
+static STREAM_MESSAGES_LAGGED_TOTAL: AtomicU64 = AtomicU64::new(0);
+
+/// Total lag events on the Collective `stream_messages` RPC (V-004 observability).
+pub fn stream_messages_lagged_total() -> u64 {
+    STREAM_MESSAGES_LAGGED_TOTAL.load(Ordering::Relaxed)
+}
 
 /// Collective service implementation
 pub struct CollectiveServer {
@@ -69,7 +78,7 @@ impl CollectiveServer {
         CollectiveServiceServer::new(self)
     }
 
-    /// Start the server
+    /// Start the server (runs until the process is killed or the runtime is torn down).
     pub async fn serve(self) -> Result<()> {
         let addr = self
             .config
@@ -82,6 +91,28 @@ impl CollectiveServer {
         tonic::transport::Server::builder()
             .add_service(self.into_service())
             .serve(addr)
+            .await
+            .map_err(|e| CoreError::Server(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Start the server and stop accepting new RPCs when `shutdown` completes (graceful shutdown).
+    pub async fn serve_with_shutdown<F>(self, shutdown: F) -> Result<()>
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let addr = self
+            .config
+            .server_address()
+            .parse()
+            .map_err(|e| CoreError::Server(format!("Invalid address: {}", e)))?;
+
+        info!("Starting Collective server on {}", addr);
+
+        tonic::transport::Server::builder()
+            .add_service(self.into_service())
+            .serve_with_shutdown(addr, shutdown)
             .await
             .map_err(|e| CoreError::Server(e.to_string()))?;
 
@@ -219,17 +250,35 @@ impl CollectiveService for CollectiveServer {
         request: Request<StreamMessagesRequest>,
     ) -> std::result::Result<Response<Self::StreamMessagesStream>, Status> {
         let agent_id = request.into_inner().agent_id;
+        let lag_streak_limit = self.config.broadcast_lag_streak_limit;
         let mut rx = self.message_bus.subscribe();
 
         let stream = async_stream::stream! {
+            let mut lagged_streak: u32 = 0;
             loop {
                 match rx.recv().await {
                     Ok(msg) => {
+                        lagged_streak = 0;
                         if message_visible_to_subscriber(&msg, &agent_id) {
                             yield Ok(msg);
                         }
                     }
-                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        STREAM_MESSAGES_LAGGED_TOTAL.fetch_add(1, Ordering::Relaxed);
+                        lagged_streak = lagged_streak.saturating_add(1);
+                        let limit = lag_streak_limit;
+                        warn!(
+                            %agent_id,
+                            skipped,
+                            lagged_streak,
+                            limit,
+                            "stream_messages subscriber lagged behind broadcast"
+                        );
+                        if lagged_streak >= limit {
+                            yield Err(Status::resource_exhausted("subscriber_lagged"));
+                            break;
+                        }
+                    }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
             }

@@ -1,3 +1,5 @@
+mod doc;
+
 use anyhow::Context;
 use clap::{Parser, Subcommand, ValueEnum};
 use openakta_agents::{FallbackPolicy, ProviderInstanceId};
@@ -40,6 +42,38 @@ enum Commands {
         /// Override the fallback policy.
         #[arg(long, value_enum)]
         fallback_policy: Option<FallbackPolicyArg>,
+    },
+    /// Initialize AI-optimized project documentation.
+    Doc {
+        #[command(subcommand)]
+        command: DocCommands,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum DocCommands {
+    /// Scaffold the standard akta-docs structure and config.
+    Init {
+        /// Override the workspace root.
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+        /// Explicit project name written into .akta-config.yaml.
+        #[arg(long)]
+        project_name: Option<String>,
+        /// Allow reuse of a non-empty akta-docs directory.
+        #[arg(long)]
+        allow_non_empty: bool,
+        /// Replace managed scaffold files that already exist.
+        #[arg(long)]
+        overwrite: bool,
+    },
+    /// Lint akta-docs markdown using strict GEO rules.
+    Lint {
+        /// Override the workspace root.
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+        /// Optional files or directories to lint. Defaults to `akta-docs/`.
+        targets: Vec<PathBuf>,
     },
 }
 
@@ -105,6 +139,56 @@ async fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         }
+        Commands::Doc { command } => match command {
+            DocCommands::Init {
+                workspace,
+                project_name,
+                allow_non_empty,
+                overwrite,
+            } => {
+                let workspace_root = workspace.unwrap_or(
+                    std::env::current_dir().context("failed to determine current directory")?,
+                );
+
+                let report = doc::scaffold::run_doc_init(doc::scaffold::DocInitOptions {
+                    workspace_root,
+                    allow_non_empty,
+                    overwrite,
+                    project_name,
+                })
+                .await?;
+
+                println!("Initialized {}", report.docs_root.display());
+                println!(
+                    "Created {} documentation directories",
+                    report.created_directories.len()
+                );
+                if !report.overwritten_files.is_empty() {
+                    println!("Overwrote {} managed files", report.overwritten_files.len());
+                }
+                for (template_id, source) in report.template_sources {
+                    println!("template:{template_id} source:{}", source.as_str());
+                }
+                for warning in report.warnings {
+                    eprintln!("warning:{warning}");
+                }
+            }
+            DocCommands::Lint { workspace, targets } => {
+                let workspace_root = workspace.unwrap_or(
+                    std::env::current_dir().context("failed to determine current directory")?,
+                );
+
+                let result = doc::lint::run_doc_lint(doc::lint::DocLintOptions {
+                    workspace_root: workspace_root.clone(),
+                    targets,
+                })?;
+
+                print!("{}", doc::lint::render_doc_lint(&result, &workspace_root));
+                if result.summary.error_count > 0 {
+                    std::process::exit(1);
+                }
+            }
+        },
     }
 
     Ok(())

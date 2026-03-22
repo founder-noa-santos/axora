@@ -52,6 +52,6 @@ tokio-test.workspace = true
 openakta-cache.workspace = true
 openakta-docs.workspace = true
 openakta-mcp-server = { path = "../openakta-mcp-server" }
-tempfile = "3.10"
+tempfile = "3.27"
 tracing-subscriber.workspace = true
 tokio-stream = { workspace = true, features = ["net"] }

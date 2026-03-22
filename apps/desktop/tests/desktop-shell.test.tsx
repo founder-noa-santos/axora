@@ -75,6 +75,14 @@ vi.mock("@/components/ui/sidebar", () => ({
   SidebarGroupLabel: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
+  SidebarGroupAction: ({
+    children,
+    ...props
+  }: React.ComponentProps<"button"> & { children?: React.ReactNode }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   SidebarGroupContent: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),
@@ -91,6 +99,18 @@ vi.mock("@/components/ui/sidebar", () => ({
     children: React.ReactNode;
     onClick?: () => void;
   }) => <button onClick={onClick}>{children}</button>,
+  SidebarMenuAction: ({
+    children,
+    ...props
+  }: React.ComponentProps<"button"> & {
+    children?: React.ReactNode;
+    showOnHover?: boolean;
+    hoverScope?: string;
+  }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
   SidebarInset: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),

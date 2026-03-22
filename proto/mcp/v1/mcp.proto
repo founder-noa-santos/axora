@@ -19,6 +19,7 @@ service GraphRetrievalService {
 
 message ListToolsRequest {
   string agent_id = 1;
+  // Machine-local tool capability profile id (not tenant RBAC). Legacy name: role.
   string role = 2;
 }
 
@@ -40,6 +41,7 @@ message ToolDefinition {
 
 message CapabilityPolicy {
   string agent_id = 1;
+  // Profile id selecting allowed_actions / scope patterns for this machine session.
   string role = 2;
   repeated string allowed_actions = 3;
   repeated string allowed_scope_patterns = 4;
@@ -50,6 +52,7 @@ message CapabilityPolicy {
 message ToolCallRequest {
   string request_id = 1;
   string agent_id = 2;
+  // Capability profile for tool allowlists (not customer/tenant RBAC).
   string role = 3;
   string tool_name = 4;
   google.protobuf.Struct arguments = 5;
@@ -77,6 +80,7 @@ message AuditEvent {
   string event_id = 1;
   string request_id = 2;
   string agent_id = 3;
+  // Capability profile id echoed for audit (same wire as ListToolsRequest.role).
   string role = 4;
   string tool_name = 5;
   string action = 6;
@@ -89,6 +93,7 @@ message AuditEvent {
 message RetrieveSkillsRequest {
   string request_id = 1;
   string agent_id = 2;
+  // Capability profile for retrieval budgets (not tenant RBAC).
   string role = 3;
   string task_id = 4;
   string workspace_root = 5;
@@ -115,6 +120,7 @@ message RetrievedSkill {
 message RetrieveCodeContextRequest {
   string request_id = 1;
   string agent_id = 2;
+  // Capability profile for retrieval budgets (not tenant RBAC).
   string role = 3;
   string task_id = 4;
   string workspace_root = 5;

@@ -32,6 +32,8 @@ pub enum SquadRole {
     Architect,
     /// Implements code changes.
     Coder,
+    /// Executes broad staged refactors through the sandboxed script path.
+    Refactorer,
     /// Verifies behavior through tests.
     Tester,
     /// Runs bounded local commands and patch actions.
@@ -46,6 +48,7 @@ impl SquadRole {
         match self {
             SquadRole::Architect => "architect",
             SquadRole::Coder => "coder",
+            SquadRole::Refactorer => "refactorer",
             SquadRole::Tester => "tester",
             SquadRole::Executor => "executor",
             SquadRole::Reviewer => "reviewer",
@@ -57,6 +60,7 @@ impl SquadRole {
         match self {
             SquadRole::Architect => "Architect",
             SquadRole::Coder => "Coder",
+            SquadRole::Refactorer => "Refactorer",
             SquadRole::Tester => "Tester",
             SquadRole::Executor => "Executor",
             SquadRole::Reviewer => "Reviewer",
@@ -133,6 +137,10 @@ impl BaseSquadBootstrapper {
                 Self::profile(SquadRole::Coder, retry_budget, retrieval_budget),
             ),
             WorkerInfo::with_profile(
+                "refactorer",
+                Self::profile(SquadRole::Refactorer, retry_budget, retrieval_budget),
+            ),
+            WorkerInfo::with_profile(
                 "tester",
                 Self::profile(SquadRole::Tester, retry_budget, retrieval_budget),
             ),
@@ -147,9 +155,10 @@ impl BaseSquadBootstrapper {
         ];
 
         if max_workers > workers.len() {
+            let base_len = workers.len();
             for idx in workers.len()..max_workers {
                 workers.push(WorkerInfo::with_profile(
-                    format!("executor-{}", idx - 3),
+                    format!("executor-{}", idx - base_len + 1),
                     Self::profile(SquadRole::Executor, retry_budget, retrieval_budget),
                 ));
             }
@@ -189,6 +198,21 @@ impl BaseSquadBootstrapper {
                 retry_budget,
                 retrieval_budget,
                 output_contract: OutputContract::Patch,
+            },
+            SquadRole::Refactorer => WorkerProfile {
+                name: role.display_name().to_string(),
+                role,
+                tool_permissions: vec![
+                    "read_file".to_string(),
+                    "graph_retrieve_skills".to_string(),
+                    "graph_retrieve_code".to_string(),
+                    "request_user_input".to_string(),
+                    "mass_refactor".to_string(),
+                ],
+                planning_policy: PlanningActingPolicy::SandboxedExecution,
+                retry_budget,
+                retrieval_budget,
+                output_contract: OutputContract::ExecutionReceipt,
             },
             SquadRole::Tester => WorkerProfile {
                 name: role.display_name().to_string(),
@@ -521,14 +545,21 @@ mod tests {
 
     #[test]
     fn base_squad_bootstrapper_returns_canonical_roles() {
-        let workers = BaseSquadBootstrapper::build(5, 1, 2_000);
+        let workers = BaseSquadBootstrapper::build(6, 1, 2_000);
         let roles = workers
             .iter()
             .map(|worker| worker.profile.role.as_str())
             .collect::<Vec<_>>();
         assert_eq!(
             roles,
-            vec!["architect", "coder", "tester", "executor", "reviewer"]
+            vec![
+                "architect",
+                "coder",
+                "refactorer",
+                "tester",
+                "executor",
+                "reviewer"
+            ]
         );
     }
 }

@@ -14,9 +14,9 @@ use std::time::Duration;
 /// Partial config patch sourced from a workspace-global file.
 pub type CoreConfigPatch = toml::Value;
 
-/// Load project config from a specific path.
+/// Load project config from a specific path (`workspace_root/openakta.toml`).
 pub fn load_project_config(path: &Path) -> anyhow::Result<CoreConfig> {
-    CoreConfig::from_file(&path.to_path_buf())
+    CoreConfig::from_project_file(&path.to_path_buf())
 }
 
 /// Load an optional workspace-global config overlay.
@@ -114,6 +114,20 @@ fn resolve_secret_ref(
         } else {
             project_root.join(path)
         };
+        
+        if !resolved.exists() {
+            anyhow::bail!(
+                "API key file not found at: {}\n\n\
+                 To fix this:\n\
+                 1. Create the file: mkdir -p {}\n\
+                 2. Add your API key: echo 'your-api-key-here' > {}\n\n\
+                 Or configure the API key directly in openakta.toml using api_key instead of api_key_file.",
+                resolved.display(),
+                resolved.parent().unwrap_or(project_root).display(),
+                resolved.display()
+            );
+        }
+        
         let value = std::fs::read_to_string(&resolved)
             .with_context(|| format!("failed to read api key file {}", resolved.display()))?;
         return Ok(Some(SecretString::new(value.trim().to_string())));

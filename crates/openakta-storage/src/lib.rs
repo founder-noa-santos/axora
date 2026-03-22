@@ -15,9 +15,15 @@ use thiserror::Error;
 /// Storage-related errors
 #[derive(Error, Debug)]
 pub enum StorageError {
-    /// Database error
-    #[error("database error: {0}")]
-    Database(#[from] rusqlite::Error),
+    /// Database error with path context
+    #[error("database error at {path}: {source}")]
+    Database {
+        /// Path to the database file
+        path: String,
+        /// Underlying rusqlite error
+        #[source]
+        source: rusqlite::Error,
+    },
 
     /// Migration error
     #[error("migration error: {0}")]
@@ -30,6 +36,16 @@ pub enum StorageError {
     /// Not found
     #[error("not found: {0}")]
     NotFound(String),
+}
+
+impl From<rusqlite::Error> for StorageError {
+    fn from(err: rusqlite::Error) -> Self {
+        // For backward compatibility where path is not available
+        StorageError::Database {
+            path: "unknown".to_string(),
+            source: err,
+        }
+    }
 }
 
 /// Result type for storage operations

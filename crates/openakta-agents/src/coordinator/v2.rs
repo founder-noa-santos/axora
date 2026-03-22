@@ -38,8 +38,9 @@ use crate::communication::CommunicationProtocol;
 use crate::decomposer::MissionDecomposer;
 use crate::diagnostics::WideEvent;
 use crate::patch_protocol::{
-    AstSummary, ContextPack, ContextSpan, DeterministicPatchApplier, DiffOutputValidator,
-    PatchApplyStatus, PatchEnvelope, PatchFormat, RetrievalHit, SymbolMap, ValidationFact,
+    resolve_workspace_relative_path, AstSummary, ContextPack, ContextSpan,
+    DeterministicPatchApplier, DiffOutputValidator, PatchApplyStatus, PatchEnvelope, PatchFormat,
+    RetrievalHit, SymbolMap, ValidationFact,
 };
 use crate::prompt_assembly::PromptAssembly;
 use crate::provider::{CacheRetention, ModelRequest, ModelResponse, ProviderUsage};
@@ -68,6 +69,7 @@ use std::time::{Duration, Instant};
 use thiserror::Error;
 use tokio::sync::Mutex;
 use tokio::time::{sleep, timeout};
+use tracing::warn;
 use uuid::Uuid;
 
 pub use self::v2_core::{
@@ -750,7 +752,7 @@ impl Coordinator {
         let mut attempt = 0u32;
         loop {
             attempt += 1;
-            let _ = self.communication.send_typed_progress_update(
+            if let Err(err) = self.communication.send_typed_progress_update(
                 worker_id,
                 &crate::transport::InternalProgressUpdate {
                     task_id: task.id.clone(),
@@ -758,7 +760,15 @@ impl Coordinator {
                     message: format!("attempt {attempt}"),
                     completion_ratio: 0.25,
                 },
-            );
+            ) {
+                self.metrics.protocol_validation_failures += 1;
+                tracing::warn!(
+                    task_id = %task.id,
+                    worker_id = %worker_id,
+                    error = %err,
+                    "failed to send typed progress update"
+                );
+            }
 
             match timeout(
                 self.config.task_timeout,
@@ -767,9 +777,18 @@ impl Coordinator {
             .await
             {
                 Ok(Ok(result_submission)) => {
-                    let _ = self
+                    if let Err(err) = self
                         .communication
-                        .send_typed_result_submission(worker_id, &result_submission);
+                        .send_typed_result_submission(worker_id, &result_submission)
+                    {
+                        self.metrics.protocol_validation_failures += 1;
+                        tracing::warn!(
+                            task_id = %task.id,
+                            worker_id = %worker_id,
+                            error = %err,
+                            "failed to send typed result submission"
+                        );
+                    }
                     self.emit_transition(
                         worker_id,
                         &task.id,
@@ -789,7 +808,7 @@ impl Coordinator {
                 Ok(Err(err)) => {
                     let message = err.to_string();
                     let result = self.failure_result_submission(task, Some(&assignment), &message);
-                    let _ = self.communication.send_typed_blocker_alert(
+                    if let Err(send_err) = self.communication.send_typed_blocker_alert(
                         worker_id,
                         &crate::transport::InternalBlockerAlert {
                             task_id: task.id.clone(),
@@ -797,10 +816,27 @@ impl Coordinator {
                             message: message.clone(),
                             retryable: false,
                         },
-                    );
-                    let _ = self
+                    ) {
+                        self.metrics.protocol_validation_failures += 1;
+                        tracing::warn!(
+                            task_id = %task.id,
+                            worker_id = %worker_id,
+                            error = %send_err,
+                            "failed to send typed blocker alert"
+                        );
+                    }
+                    if let Err(send_err) = self
                         .communication
-                        .send_typed_result_submission(worker_id, &result);
+                        .send_typed_result_submission(worker_id, &result)
+                    {
+                        self.metrics.protocol_validation_failures += 1;
+                        tracing::warn!(
+                            task_id = %task.id,
+                            worker_id = %worker_id,
+                            error = %send_err,
+                            "failed to send typed result submission (failure path)"
+                        );
+                    }
                     self.emit_transition(
                         worker_id,
                         &task.id,
@@ -825,7 +861,7 @@ impl Coordinator {
                     self.metrics.retry_exhaustions += 1;
                     let message = format!("task timed out after {:?}", self.config.task_timeout);
                     let result = self.failure_result_submission(task, Some(&assignment), &message);
-                    let _ = self.communication.send_typed_blocker_alert(
+                    if let Err(send_err) = self.communication.send_typed_blocker_alert(
                         worker_id,
                         &crate::transport::InternalBlockerAlert {
                             task_id: task.id.clone(),
@@ -833,10 +869,27 @@ impl Coordinator {
                             message: message.clone(),
                             retryable: false,
                         },
-                    );
-                    let _ = self
+                    ) {
+                        self.metrics.protocol_validation_failures += 1;
+                        tracing::warn!(
+                            task_id = %task.id,
+                            worker_id = %worker_id,
+                            error = %send_err,
+                            "failed to send typed blocker alert (timeout path)"
+                        );
+                    }
+                    if let Err(send_err) = self
                         .communication
-                        .send_typed_result_submission(worker_id, &result);
+                        .send_typed_result_submission(worker_id, &result)
+                    {
+                        self.metrics.protocol_validation_failures += 1;
+                        tracing::warn!(
+                            task_id = %task.id,
+                            worker_id = %worker_id,
+                            error = %send_err,
+                            "failed to send typed result submission (timeout path)"
+                        );
+                    }
                     self.emit_transition(
                         worker_id, &task.id, "running", "failed", &message, attempt, true,
                     );
@@ -1133,14 +1186,15 @@ impl Coordinator {
                 ))
             })?;
         Ok(
-            PromptAssembly::for_task(task, assignment).into_model_request(
-                target.request_provider(),
-                target.model_label().to_string(),
-                max_output_tokens,
-                Some(0.0),
-                false,
-                CacheRetention::Extended,
-            ),
+            PromptAssembly::for_worker_task(task, assignment, task.assigned_to.as_deref())
+                .into_model_request(
+                    target.request_provider(),
+                    target.model_label().to_string(),
+                    max_output_tokens,
+                    Some(0.0),
+                    false,
+                    CacheRetention::Extended,
+                ),
         )
     }
 
@@ -1314,7 +1368,9 @@ impl Coordinator {
         let mut validation_facts = Vec::new();
 
         for file in target_files {
-            let path = self.config.workspace_root.join(file);
+            let path = resolve_workspace_relative_path(&self.config.workspace_root, file).map_err(
+                |e| CoordinatorV2Error::ProtocolViolation(e.to_string()),
+            )?;
             if let Ok(content) = fs::read_to_string(&path) {
                 let line_count = content.lines().count().max(1);
                 let base_revision = revision_for_content(&content);
@@ -1732,7 +1788,14 @@ fn load_documents(
         if documents.contains_key(&file_path) {
             continue;
         }
-        if let Ok(content) = fs::read_to_string(workspace_root.join(&file_path)) {
+        let Ok(resolved) = resolve_workspace_relative_path(workspace_root, &file_path) else {
+            warn!(
+                file_path = %file_path,
+                "skipping SCIP path outside workspace (patch protocol boundary)"
+            );
+            continue;
+        };
+        if let Ok(content) = fs::read_to_string(resolved) {
             documents.insert(file_path, content);
         }
     }
@@ -1842,7 +1905,10 @@ fn current_revision_for_path(
     workspace_root: &Path,
     file_path: &str,
 ) -> std::result::Result<String, std::io::Error> {
-    let content = fs::read_to_string(workspace_root.join(file_path))?;
+    let path = resolve_workspace_relative_path(workspace_root, file_path).map_err(|e| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, e.to_string())
+    })?;
+    let content = fs::read_to_string(path)?;
     Ok(revision_for_content(&content))
 }
 
@@ -2670,5 +2736,22 @@ mod tests {
             other => panic!("unexpected error: {other:?}"),
         }
         assert_eq!(cloud.calls(), 1);
+    }
+
+    /// Same path rules as `DeterministicPatchApplier` / V-005 (`resolve_workspace_relative_path`).
+    #[test]
+    fn coordinator_context_reads_use_patch_protocol_path_boundary() {
+        let root = tempdir().unwrap();
+        assert!(
+            crate::patch_protocol::resolve_workspace_relative_path(root.path(), "../../../etc/passwd")
+                .is_err()
+        );
+        assert!(
+            crate::patch_protocol::resolve_workspace_relative_path(root.path(), "src/../../../etc/passwd")
+                .is_err()
+        );
+        assert!(
+            crate::patch_protocol::resolve_workspace_relative_path(root.path(), "src/lib.rs").is_ok()
+        );
     }
 }

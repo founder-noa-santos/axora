@@ -489,7 +489,7 @@ impl MissionDecomposer {
             task.description = raw_task.description.clone();
             task.priority = priority_from_capabilities(&raw_task.capabilities);
             task.status = TaskStatus::Pending;
-            task.assigned_to = None;
+            task.assigned_to = preferred_worker_for_raw_task(raw_task);
             task.parent_task = None;
             task.task_type = infer_task_type(raw_task);
             tasks[runtime_id] = task;
@@ -588,6 +588,9 @@ fn infer_task_type(raw_task: &RawTask) -> TaskType {
         .iter()
         .any(|keyword| description.contains(keyword));
     let has_implementation_intent = description.contains("implement");
+    let is_refactorer_task = capabilities
+        .iter()
+        .any(|value| value.contains("refactorer") || value.contains("mass_refactor"));
 
     if capabilities.iter().any(|value| value.contains("review")) || description.contains("review") {
         TaskType::Review
@@ -599,14 +602,43 @@ fn infer_task_type(raw_task: &RawTask) -> TaskType {
     } else if has_explicit_target
         && (has_edit_intent
             || has_implementation_intent
+            || is_refactorer_task
             || capabilities
                 .iter()
                 .any(|value| value.contains("developer") || value.contains("executor")))
     {
         TaskType::CodeModification
+    } else if is_refactorer_task && (has_edit_intent || description.contains("rename")) {
+        TaskType::CodeModification
     } else {
         TaskType::General
     }
+}
+
+fn preferred_worker_for_raw_task(raw_task: &RawTask) -> Option<String> {
+    if raw_task
+        .capabilities
+        .iter()
+        .any(|cap| cap.eq_ignore_ascii_case("refactorer"))
+    {
+        return Some("refactorer".to_string());
+    }
+
+    let description = raw_task.description.to_lowercase();
+    if [
+        "rename",
+        "codebase-wide",
+        "across files",
+        "systematic refactor",
+        "mass refactor",
+    ]
+    .iter()
+    .any(|needle| description.contains(needle))
+    {
+        return Some("refactorer".to_string());
+    }
+
+    None
 }
 
 #[cfg(test)]

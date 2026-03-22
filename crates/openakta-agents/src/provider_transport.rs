@@ -1,5 +1,6 @@
 //! Provider runtime transports for live and synthetic execution.
 
+use crate::patch_protocol::resolve_workspace_relative_path;
 use crate::provider::{
     AnthropicProvider, CacheMetrics, ModelRequest, ModelResponse, OpenAiProvider, ProviderClient,
     ProviderKind, ProviderUsage,
@@ -921,7 +922,8 @@ fn synthetic_patch_output(
     target_file: Option<&str>,
 ) -> std::result::Result<String, String> {
     let target_file = target_file.ok_or_else(|| "missing target file".to_string())?;
-    let path = workspace_root.join(target_file);
+    let path = resolve_workspace_relative_path(workspace_root, target_file)
+        .map_err(|e| e.to_string())?;
     let content = fs::read_to_string(&path)
         .map_err(|err| format!("failed reading {}: {err}", path.display()))?;
     if content.is_empty() {

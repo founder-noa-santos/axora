@@ -739,12 +739,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 
 ## Related Documents
 
-- [ADR-009: Inter-Agent Communication Protocol](../research/DECISIONS.md#adr-009)
-- [ADR-016: Message Schema Design](../research/DECISIONS.md#adr-016)
-- [ADR-017: Token Efficiency](../research/DECISIONS.md#adr-017)
-- [ADR-018: Agent Orchestration Pattern](../research/DECISIONS.md#adr-018)
-- [ADR-019: Security Model](../research/DECISIONS.md#adr-019)
-- [ADR-020: Tool Interface (MCP)](../research/DECISIONS.md#adr-020)
+- Historical ADR references: see [`ARCHITECTURE-LEDGER.md`](./ARCHITECTURE-LEDGER.md) and [`adr/`](./adr/) for recorded decisions.
 - [R-02 Research Findings](./findings/inter-agent-communication/R-02-result.md)
 
 ---

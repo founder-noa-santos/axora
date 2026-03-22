@@ -48,4 +48,4 @@ tiktoken-rs.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true
-tempfile = "3.10"
+tempfile = "3.27"

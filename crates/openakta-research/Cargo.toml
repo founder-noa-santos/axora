@@ -1,0 +1,53 @@
+[package]
+name = "openakta-research"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Multi-provider web search with fallback for OPENAKTA research mode"
+
+[lints]
+workspace = true
+
+[features]
+default = ["local-memory"]
+local-memory = [
+  "dep:rusqlite",
+  "dep:uuid",
+  "dep:sha2",
+  "dep:hex",
+  "dep:openakta-embeddings",
+]
+# Wiremock / local mock HTTP servers for integration tests — never enable in production.
+search-provider-mock-endpoints = []
+
+[dependencies]
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+secrecy.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+rusqlite = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+openakta-embeddings = { workspace = true, optional = true }
+
+[[test]]
+name = "wiremock_fallback"
+required-features = ["search-provider-mock-endpoints"]
+
+[[test]]
+name = "brave_exa_wiremock"
+required-features = ["search-provider-mock-endpoints"]
+
+[dev-dependencies]
+tokio-test.workspace = true
+tempfile = "3.27"
+wiremock = "0.6"

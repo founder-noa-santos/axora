@@ -18,7 +18,16 @@ path = "src/main.rs"
 [dependencies]
 openakta-agents.workspace = true
 openakta-core.workspace = true
+openakta-docs.workspace = true
 anyhow.workspace = true
-clap = { version = "4.4", features = ["derive", "env"] }
+chrono.workspace = true
+clap = { version = "4.6", features = ["derive", "env"] }
+serde.workspace = true
 serde_json.workspace = true
+serde_yaml = "0.9"
 tokio.workspace = true
+tracing.workspace = true
+walkdir = "2.5"
+
+[dev-dependencies]
+tempfile = "3.27"

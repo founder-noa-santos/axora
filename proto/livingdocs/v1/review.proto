@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package livingdocs.v1;
+
+option go_package = "github.com/openakta/aktacode/proto/livingdocs/v1";
+
+// Review queue + SSOT resolution (Plan 6). Implemented by openakta-daemon.
+service LivingDocsReviewService {
+  rpc ListPendingReviews (ListPendingReviewsRequest) returns (ReviewQueueListResponse);
+  rpc GetPendingReviewCount (GetPendingReviewCountRequest) returns (GetPendingReviewCountResponse);
+  rpc GetReviewDetail (GetReviewDetailRequest) returns (GetReviewDetailResponse);
+  rpc SubmitResolution (SubmitResolutionRequest) returns (SubmitResolutionResponse);
+}
+
+enum SsotChoice {
+  SSOT_CHOICE_UNSPECIFIED = 0;
+  SSOT_CHOICE_UPDATE_DOC = 1;
+  SSOT_CHOICE_UPDATE_CODE = 2;
+}
+
+enum ResolutionOutcome {
+  RESOLUTION_OUTCOME_UNSPECIFIED = 0;
+  RESOLUTION_OUTCOME_OK = 1;
+  RESOLUTION_OUTCOME_REJECTED = 2;
+  RESOLUTION_OUTCOME_CONFLICT = 3;
+  RESOLUTION_OUTCOME_DUPLICATE = 4;
+  RESOLUTION_OUTCOME_INTERNAL_ERROR = 5;
+}
+
+message ListPendingReviewsRequest {
+  string workspace_root = 1;
+  uint32 page_size = 2;
+  uint32 page_offset = 3;
+}
+
+message ReviewQueueItem {
+  string review_id = 1;
+  string report_id = 2;
+  string workspace_root = 3;
+  int64 created_at_ms = 4;
+  double confidence_score = 5;
+  string primary_doc_path = 6;
+  optional string highest_severity = 7;
+  optional string summary = 8;
+}
+
+message ReviewQueueListResponse {
+  repeated ReviewQueueItem items = 1;
+  int32 total_pending = 2;
+}
+
+message GetPendingReviewCountRequest {
+  string workspace_root = 1;
+}
+
+message GetPendingReviewCountResponse {
+  int32 count = 1;
+}
+
+message GetReviewDetailRequest {
+  string review_id = 1;
+}
+
+message ReviewDriftFlagView {
+  string fingerprint = 1;
+  string domain = 2;
+  string kind = 3;
+  string severity = 4;
+  string doc_path = 5;
+  optional string code_path = 6;
+  optional string symbol_name = 7;
+  repeated string rule_ids = 8;
+  string message = 9;
+  string expected_excerpt = 10;
+  string actual_excerpt = 11;
+}
+
+message GetReviewDetailResponse {
+  ReviewQueueItem header = 1;
+  repeated ReviewDriftFlagView flags = 2;
+  string breakdown_json = 3;
+  optional string confidence_audit_action_id = 4;
+}
+
+message SubmitResolutionRequest {
+  string review_id = 1;
+  SsotChoice choice = 2;
+  string client_resolution_id = 3;
+  optional string user_note = 4;
+}
+
+message SubmitResolutionResponse {
+  string server_resolution_id = 1;
+  ResolutionOutcome outcome = 2;
+  optional string patch_receipt_id = 3;
+  optional string toon_changelog_entry_id = 4;
+}

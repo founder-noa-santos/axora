@@ -21,6 +21,7 @@ openakta-indexing.workspace = true
 openakta-mcp-server.workspace = true
 openakta-memory.workspace = true
 openakta-rag = { path = "../openakta-rag" }
+openakta-research.workspace = true
 prost-types.workspace = true
 
 tokio.workspace = true
@@ -49,7 +50,7 @@ async-stream = "0.3"
 [dev-dependencies]
 tokio-test.workspace = true
 criterion.workspace = true
-tempfile = "3.10"
+tempfile = "3.27"
 
 [[bench]]
 name = "frame_bench"

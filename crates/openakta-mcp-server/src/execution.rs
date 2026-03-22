@@ -15,17 +15,42 @@ pub use container::ContainerExecutor;
 pub use direct::DirectExecutor;
 pub use wasi::WasiExecutor;
 
-/// Execution mode for mutating tools.
+/// Sandboxed routing for mutating MCP tools — **only** hybrid (WASI patches + container commands)
+/// or fully containerized. This is the only mode family exposed through [`crate::McpServiceConfig`]:
+/// raw host shell cannot be selected via configuration.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
+pub enum SandboxedToolExecutionMode {
+    /// Route commands through containers and patches through WASI.
+    #[default]
+    Hybrid,
+    /// Route both commands and patches through the container backend.
+    Containerized,
+}
+
+/// Internal routing including a **direct host** path. Not constructible from TOML / service config;
+/// used only inside [`ExecutorRouter`] and `#[cfg(test)]` escape hatches.
+///
+/// This type is exposed only so [`ExecutorRouter::mode`] can report runtime routing; it is **not**
+/// deserializable from configuration (use [`SandboxedToolExecutionMode`] for config).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExecutionMode {
     /// Route commands through containers and patches through WASI.
     #[default]
     Hybrid,
     /// Route both commands and patches through the container backend.
     Containerized,
-    /// Execute directly on the host with ambient authority.
+    /// Execute directly on the host with ambient authority (tests only).
     Direct,
+}
+
+impl From<SandboxedToolExecutionMode> for ExecutionMode {
+    fn from(m: SandboxedToolExecutionMode) -> Self {
+        match m {
+            SandboxedToolExecutionMode::Hybrid => ExecutionMode::Hybrid,
+            SandboxedToolExecutionMode::Containerized => ExecutionMode::Containerized,
+        }
+    }
 }
 
 /// Configuration for containerized execution.
@@ -47,6 +72,36 @@ impl Default for ContainerExecutorConfig {
             runtime_binary: "docker".to_string(),
             image: "ghcr.io/openakta/aktacode-mcp-sandbox:latest".to_string(),
             workspace_mount_path: "/workspace".to_string(),
+            extra_args: Vec::new(),
+        }
+    }
+}
+
+/// Configuration for containerized mass-refactor execution.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MassRefactorExecutorConfig {
+    /// Container runtime binary, such as `docker`.
+    pub runtime_binary: String,
+    /// OCI image used for sandboxed Python execution.
+    pub image: String,
+    /// Mount path exposed inside the container.
+    pub workspace_mount_path: String,
+    /// Python interpreter path inside the container.
+    pub python_bin: String,
+    /// Default timeout for mass-refactor scripts.
+    pub timeout_secs: u32,
+    /// Extra runtime flags injected before the image.
+    pub extra_args: Vec<String>,
+}
+
+impl Default for MassRefactorExecutorConfig {
+    fn default() -> Self {
+        Self {
+            runtime_binary: "docker".to_string(),
+            image: "python:3.12-alpine".to_string(),
+            workspace_mount_path: "/workspace".to_string(),
+            python_bin: "python3".to_string(),
+            timeout_secs: 120,
             extra_args: Vec::new(),
         }
     }
@@ -111,6 +166,17 @@ pub struct ExecutionOutcome {
     pub metadata: Option<Value>,
 }
 
+/// Additional bind mount injected into a containerized command execution.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainerMount {
+    /// Host path to mount.
+    pub host_path: PathBuf,
+    /// Container path to expose.
+    pub container_path: String,
+    /// Whether the mount is read-only.
+    pub read_only: bool,
+}
+
 /// Tool executor contract.
 #[async_trait]
 pub trait ToolExecutor: Send + Sync {
@@ -131,21 +197,35 @@ pub struct ExecutorRouter {
 }
 
 impl ExecutorRouter {
-    /// Create a new router.
+    /// Create a sandboxed router (no raw host shell — configuration cannot select [`ExecutionMode::Direct`]).
     pub fn new(
-        mode: ExecutionMode,
+        mode: SandboxedToolExecutionMode,
         container_config: ContainerExecutorConfig,
         wasi_config: WasiExecutorConfig,
     ) -> Self {
         Self {
-            mode,
+            mode: ExecutionMode::from(mode),
             direct: Arc::new(DirectExecutor),
             container: Arc::new(ContainerExecutor::new(container_config)),
             wasi: Arc::new(WasiExecutor::new(wasi_config)),
         }
     }
 
-    /// Current execution mode.
+    /// **Tests only** — routes commands and patches through [`DirectExecutor`] (ambient host authority).
+    #[cfg(test)]
+    pub fn new_insecure_direct_host_for_tests(
+        container_config: ContainerExecutorConfig,
+        wasi_config: WasiExecutorConfig,
+    ) -> Self {
+        Self {
+            mode: ExecutionMode::Direct,
+            direct: Arc::new(DirectExecutor),
+            container: Arc::new(ContainerExecutor::new(container_config)),
+            wasi: Arc::new(WasiExecutor::new(wasi_config)),
+        }
+    }
+
+    /// Current execution mode (includes direct only when built via test-only constructor).
     pub fn mode(&self) -> ExecutionMode {
         self.mode
     }
@@ -192,7 +272,7 @@ mod tests {
     async fn hybrid_apply_patch_routes_to_wasi() {
         let temp_dir = TempDir::new().unwrap();
         let router = ExecutorRouter::new(
-            ExecutionMode::Hybrid,
+            SandboxedToolExecutionMode::Hybrid,
             ContainerExecutorConfig::default(),
             WasiExecutorConfig::default(),
         );
@@ -213,8 +293,7 @@ mod tests {
     #[tokio::test]
     async fn direct_apply_patch_routes_to_direct() {
         let temp_dir = TempDir::new().unwrap();
-        let router = ExecutorRouter::new(
-            ExecutionMode::Direct,
+        let router = ExecutorRouter::new_insecure_direct_host_for_tests(
             ContainerExecutorConfig::default(),
             WasiExecutorConfig::default(),
         );
@@ -232,7 +311,7 @@ mod tests {
     async fn hybrid_run_command_routes_to_container_backend() {
         let temp_dir = TempDir::new().unwrap();
         let router = ExecutorRouter::new(
-            ExecutionMode::Hybrid,
+            SandboxedToolExecutionMode::Hybrid,
             ContainerExecutorConfig {
                 runtime_binary: "definitely-missing-container-runtime".to_string(),
                 ..ContainerExecutorConfig::default()
@@ -256,8 +335,7 @@ mod tests {
     #[tokio::test]
     async fn direct_run_command_routes_to_host_backend() {
         let temp_dir = TempDir::new().unwrap();
-        let router = ExecutorRouter::new(
-            ExecutionMode::Direct,
+        let router = ExecutorRouter::new_insecure_direct_host_for_tests(
             ContainerExecutorConfig::default(),
             WasiExecutorConfig::default(),
         );

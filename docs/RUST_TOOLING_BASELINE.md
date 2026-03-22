@@ -1,7 +1,7 @@
 # Rust tooling baseline (OPENAKTA)
 
 **Status:** Active  
-**Last updated:** 2026-03-20  
+**Last updated:** 2026-03-21  
 
 This document is the canonical description of Rust formatting, linting, Cargo usage, and CI for the OPENAKTA workspace. It complements [CONTRIBUTING.md](../CONTRIBUTING.md).
 
@@ -27,7 +27,7 @@ This document is the canonical description of Rust formatting, linting, Cargo us
 |------|-----------|
 | **Format** | `rustfmt`, stable options, `newline_style = "Unix"` in `rustfmt.toml`. |
 | **Lint** | `clippy` with `-D warnings` on `--workspace --all-targets --all-features` and `--locked`. |
-| **MSRV** | `1.88`, declared in `[workspace.package]` and mirrored in `clippy.toml` (matches current `Cargo.lock` / `time` crate requirements). |
+| **MSRV** | `1.94`, declared in `[workspace.package]`, `rust-toolchain.toml`, and mirrored in `clippy.toml`. |
 | **Lockfile** | `Cargo.lock` committed; CI uses `--locked`. |
 | **Workspace lints** | `[workspace.lints.rust]` with `unsafe_op_in_unsafe_fn = "warn"`; each member has `[lints] workspace = true`. |
 | **Docs on public API** | Not denied in CI (see tradeoffs). Prefer documenting new exports. |
@@ -40,7 +40,9 @@ This document is the canonical description of Rust formatting, linting, Cargo us
 | Path | Role |
 |------|------|
 | `rustfmt.toml` | Minimal rustfmt overrides. |
-| `clippy.toml` | `msrv = "1.88"`. |
+| `clippy.toml` | `msrv = "1.94"` (aligned with workspace MSRV). |
+| `deny.toml` | `cargo deny` policy: advisories (`unmaintained = "workspace"`), optional `ignore` for known transitive blocks (see comments in file). Licenses left unset until SPDX policy is chosen. |
+| Root `Cargo.toml` | `wasmtime` / `wasmtime-wasi` pinned to **24.0.6** (25.x had no patched releases for several RustSec advisories). |
 | `.cargo/config.toml` | Aliases: `fmt-check`, `lint`, `check-all`, `test-all`. |
 | `.github/workflows/rust-ci.yml` | `fmt --check`, `clippy`, `test` on Rust path changes. |
 | `Cargo.toml` | `[workspace.lints]`, `[profile.release]`, comments. |
@@ -77,6 +79,7 @@ Workflow: **`.github/workflows/rust-ci.yml`**
 - **Triggers:** `push` to `main` and `pull_request` when Rust-related paths change (workspace, crates, proto, Cargo files, this workflow).
 - **Jobs:**
   - **`msrv`:** `cargo check --workspace --all-targets --all-features --locked` on the MSRV toolchain (parallel with `quality`).
+  - **`deny`:** `cargo deny check advisories` via [EmbarkStudios/cargo-deny-action](https://github.com/EmbarkStudios/cargo-deny-action) (parallel with other jobs).
   - **`quality`:** `fmt` → `clippy -D warnings` → `cargo test` (default suite; excludes `#[ignore]` slow tests in `openakta-agents`).
   - **`slow-tests`:** On **`push` to `main` only**, runs `cargo test ... -- --ignored` after `quality` succeeds (keeps PR CI fast while still exercising slow tests on the default branch).
 - **Environment:** `RUSTFLAGS=-Dwarnings` on compile steps.
@@ -108,10 +111,10 @@ Avoids a large deny-list/allow-list; `-D warnings` remains the main gate.
 
 ## 7. Follow-up recommendations (high value only)
 
-1. **Optional:** Add a scheduled weekly `cargo audit` / `cargo deny` job (not enabled by default to keep CI minimal).  
-2. **Re-enable `missing_docs` gradually:** Start with leaf crates or run `cargo doc --document-private-items` in CI as a non-blocking job.  
-3. **`cargo deny` / supply-chain:** Consider [cargo-deny](https://github.com/EmbarkStudios/cargo-deny) later for licenses and advisories; not added now to keep the baseline minimal.  
-4. **Split long-running tests:** Some tests exceed 60s; consider marking with `#[ignore]` for default `cargo test` or lowering sleeps for CI speed.
+1. **Re-enable `missing_docs` gradually:** Start with leaf crates or run `cargo doc --document-private-items` in CI as a non-blocking job.  
+2. **`cargo deny` licenses:** Add a `[licenses]` section in `deny.toml` when SPDX allow/deny policy is defined (advisories are already checked in CI).  
+3. **Split long-running tests:** Some tests exceed 60s; consider marking with `#[ignore]` for default `cargo test` or lowering sleeps for CI speed.  
+4. **Remove `advisories.ignore` for RUSTSEC-2026-0049** when `async-nats` (or its `rustls-webpki` range) allows a fixed `rustls-webpki` release.
 
 ---
 

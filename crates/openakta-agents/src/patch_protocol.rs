@@ -6,7 +6,7 @@ use blake3::hash;
 use openakta_cache::{apply_patch, parse_unified_diff, Schema, ToonSerializer};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 /// Compact control plane opcode.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -447,7 +447,12 @@ impl DeterministicPatchApplier {
 
         for target in diff.target_files() {
             let rel_path = normalize_diff_path(&target);
-            let path = workspace_root.join(&rel_path);
+            let path = resolve_workspace_relative_path(workspace_root, &rel_path)?;
+            let rel_for_receipt = path
+                .strip_prefix(workspace_root)
+                .expect("path resolved under workspace root")
+                .to_string_lossy()
+                .replace('\\', "/");
             let original = fs::read_to_string(&path).map_err(|e| {
                 AgentError::PatchApplication(format!("failed reading {}: {}", path.display(), e))
             })?;
@@ -483,7 +488,7 @@ impl DeterministicPatchApplier {
             })?;
 
             new_revision = revision_for_content(&patched.content);
-            affected_files.push(rel_path);
+            affected_files.push(rel_for_receipt);
         }
 
         Ok(PatchReceipt {
@@ -504,7 +509,7 @@ impl DeterministicPatchApplier {
         let mut final_revision = envelope.base_revision.clone();
 
         for block in &envelope.search_replace_blocks {
-            let path = workspace_root.join(&block.file_path);
+            let path = resolve_workspace_relative_path(workspace_root, &block.file_path)?;
             let original = fs::read_to_string(&path).map_err(|e| {
                 AgentError::PatchApplication(format!("failed reading {}: {}", path.display(), e))
             })?;
@@ -543,7 +548,12 @@ impl DeterministicPatchApplier {
                 AgentError::PatchApplication(format!("failed writing {}: {}", path.display(), e))
             })?;
             final_revision = revision_for_content(&updated);
-            affected_files.push(block.file_path.clone());
+            affected_files.push(
+                path.strip_prefix(workspace_root)
+                    .expect("path resolved under workspace root")
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
         }
 
         Ok(PatchReceipt {
@@ -560,6 +570,53 @@ fn normalize_diff_path(path: &str) -> String {
     path.trim_start_matches("a/")
         .trim_start_matches("b/")
         .to_string()
+}
+
+/// Resolves a user-supplied path to a location under `workspace_root`, rejecting absolute
+/// paths and `..` traversal above the workspace.
+pub(crate) fn resolve_workspace_relative_path(
+    workspace_root: &Path,
+    user_path: &str,
+) -> Result<PathBuf> {
+    let path = Path::new(user_path);
+    if path.is_absolute() {
+        return Err(AgentError::PatchApplication(format!(
+            "path must be relative to workspace, got: {}",
+            user_path
+        ))
+        .into());
+    }
+    let mut rel = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => rel.push(part),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if !rel.pop() {
+                    return Err(AgentError::PatchApplication(format!(
+                        "path escapes workspace: {}",
+                        user_path
+                    ))
+                    .into());
+                }
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(AgentError::PatchApplication(format!(
+                    "path must be relative to workspace, got: {}",
+                    user_path
+                ))
+                .into());
+            }
+        }
+    }
+    if rel.as_os_str().is_empty() {
+        return Err(AgentError::PatchApplication(format!(
+            "path resolves to workspace root; refusing: {}",
+            user_path
+        ))
+        .into());
+    }
+    Ok(workspace_root.join(rel))
 }
 
 fn revision_for_content(content: &str) -> String {
@@ -718,5 +775,55 @@ fn new() {}
 
         assert_eq!(receipt.status, PatchApplyStatus::Applied);
         assert_eq!(fs::read_to_string(&file_path).unwrap(), "fn new() {}\n");
+    }
+
+    #[test]
+    fn resolve_workspace_relative_path_rejects_parent_traversal() {
+        let temp = TempDir::new().unwrap();
+        let err = resolve_workspace_relative_path(temp.path(), "src/../../../etc/passwd")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("escapes"));
+    }
+
+    #[test]
+    fn resolve_workspace_relative_path_rejects_absolute() {
+        let temp = TempDir::new().unwrap();
+        let err = resolve_workspace_relative_path(temp.path(), "/etc/passwd")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("relative"));
+    }
+
+    #[test]
+    fn deterministic_patch_applier_rejects_traversal_in_search_replace() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("src/lib.rs");
+        fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+        let original = "fn old() {}\n";
+        fs::write(&file_path, original).unwrap();
+
+        let envelope = PatchEnvelope {
+            task_id: "task-1".to_string(),
+            target_files: vec!["src/lib.rs".to_string()],
+            format: PatchFormat::AstSearchReplace,
+            patch_text: None,
+            search_replace_blocks: vec![SearchReplaceBlock {
+                file_path: "../../../etc/passwd".to_string(),
+                symbol_path: None,
+                start_line: None,
+                end_line: None,
+                search: "x".to_string(),
+                replace: "y".to_string(),
+            }],
+            base_revision: revision_for_content(original),
+            validation: Vec::new(),
+        };
+
+        let err = DeterministicPatchApplier
+            .apply_to_workspace(temp_dir.path(), &envelope)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("escapes"));
     }
 }

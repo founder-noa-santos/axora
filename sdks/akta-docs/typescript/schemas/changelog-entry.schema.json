@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://openakta.dev/schemas/changelog-entry.schema.json",
+  "title": "AktaChangelogEntry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "doc_id",
+    "timestamp",
+    "change_type",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "minLength": 1 },
+    "doc_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "minLength": 1 },
+    "change_type": {
+      "type": "string",
+      "enum": ["added", "changed", "fixed", "deprecated", "removed", "security"]
+    },
+    "summary": { "type": "string", "minLength": 1 },
+    "details": { "type": "string" },
+    "scope": { "type": "string" },
+    "refs": { "type": "array", "items": { "type": "string" } }
+  }
+}

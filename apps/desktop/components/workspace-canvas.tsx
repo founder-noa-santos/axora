@@ -8,6 +8,7 @@ import type {
   ShellState,
 } from "@/shared/contracts/desktop";
 
+import { ReviewQueueDemo } from "@/components/review/review-queue-demo";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,8 @@ export function WorkspaceCanvas({
                 </div>
               </div>
             </div>
+
+            <ReviewQueueDemo />
 
             <div className="grid gap-4 lg:grid-cols-2">
               <EmptyState

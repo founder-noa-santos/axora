@@ -25,7 +25,7 @@ petgraph = "0.6"
 prost.workspace = true
 
 # Directory walking
-walkdir = "2.4"
+walkdir = "2.5"
 
 # Vector search
 qdrant-client.workspace = true
@@ -55,7 +55,7 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml = "0.9"
 toml = "0.8"
-regex = "1.10"
+regex = "1.12"
 
 # Error handling
 thiserror.workspace = true
@@ -71,4 +71,4 @@ openakta-embeddings = { path = "../openakta-embeddings" }
 [dev-dependencies]
 tokio-test.workspace = true
 criterion.workspace = true
-tempfile = "3.10"
+tempfile = "3.27"

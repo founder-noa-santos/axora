@@ -14,10 +14,12 @@ workspace = true
 [dependencies]
 # Indexing support
 openakta-indexing.workspace = true
+openakta-evaluator.workspace = true
 
 # Serialization
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml = "0.9"
 
 # Async
 tokio.workspace = true
@@ -30,10 +32,15 @@ anyhow.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
+regex = "1.12"
+pulldown-cmark = "0.13"
+tree-sitter.workspace = true
+tree-sitter-typescript.workspace = true
 
 # Hashing
 blake3.workspace = true
+sha2.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true
-tempfile = "3.10"
+tempfile = "3.27"

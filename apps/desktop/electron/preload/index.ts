@@ -6,6 +6,10 @@ import {
   type DesktopApi,
   type DesktopPreferences,
   type DesktopPreferencesPatch,
+  type ReviewDetail,
+  type ReviewQueueList,
+  type ReviewResolutionRequest,
+  type ReviewResolutionResponse,
   type ShellState,
 } from "@/shared/contracts/desktop";
 
@@ -38,6 +42,28 @@ const api: DesktopApi = {
         ipcChannels.updatePreferences,
         patch satisfies DesktopPreferencesPatch,
       ) as Promise<DesktopPreferences>,
+  },
+  reviews: {
+    getPendingCount: (workspaceRoot) =>
+      ipcRenderer.invoke(
+        ipcChannels.getPendingReviewCount,
+        workspaceRoot,
+      ) as Promise<number>,
+    listPending: (input) =>
+      ipcRenderer.invoke(
+        ipcChannels.listPendingReviews,
+        input,
+      ) as Promise<ReviewQueueList>,
+    getDetail: (reviewId) =>
+      ipcRenderer.invoke(
+        ipcChannels.getReviewDetail,
+        reviewId,
+      ) as Promise<ReviewDetail>,
+    submitResolution: (input) =>
+      ipcRenderer.invoke(
+        ipcChannels.submitReviewResolution,
+        input satisfies ReviewResolutionRequest,
+      ) as Promise<ReviewResolutionResponse>,
   },
 };
 

@@ -1,364 +1,112 @@
-# OPENAKTA Architecture Ledger
+# OPENAKTA — agent and contributor instructions
 
-**Last Updated:** 2026-03-20
-**Maintained By:** Architect Agent
-**Status:** Active — Living Document (auto-updated on sprint completion)
+This file tells **coding agents** and **human contributors** how to work safely and consistently in this repository. It is modeled after upstream projects that separate **how to edit code** from **product roadmaps**.
 
----
+For architecture baseline, ADR summaries, and narrative docs, use:
 
-## 📋 Overview
-
-This is the **OPENAKTA Architecture Ledger** — a living document that tracks:
-- Current agent assignments and status
-- Active constraints (token budgets, concurrency limits)
-- Execution graph (dependencies between sprints)
-- Recent architectural changes
-- Sprint history with metrics
-- Performance metrics
-
-**Purpose:** Provide architectural visibility and constraint enforcement.
+- [`docs/ARCHITECTURE-LEDGER.md`](./docs/ARCHITECTURE-LEDGER.md) — architecture baseline and ADRs  
+- [`docs/active_architecture/`](./docs/active_architecture/) — current system narrative  
+- [`docs/README.md`](./docs/README.md) — documentation map  
+- [`business-core/`](./business-core/) — **what the backend actually implements today** (code wins over aspirational docs)
 
 ---
 
-## 👥 Current Agent Assignments
+## Repository map
 
-### Coordinator Agent
-- **Role:** Decompose missions, dispatch tasks, validate outputs
-- **State:** `planning/README.md` (structure + current assignments)
-- **Constraints:**
-  - Max 10 concurrent tasks
-  - 50K token budget per day
-  - Rate limit: 100 requests/minute
-
-### Worker Agents
-
-| Agent | Role | Current Sprint | Status | Focus Area |
-|-------|------|----------------|--------|------------|
-| **Agent A** | Documentation Specialist | — | ✅ **READY** | Available for New Mission |
-| **Agent B** | Storage + Context Specialist | — | ✅ **READY** | Available for New Mission |
-| **Agent C** | Implementation Specialist | — | ✅ **READY** | Available for New Mission |
+| Area | Path | Notes |
+|------|------|--------|
+| Rust workspace | `crates/` | Crates are prefixed `openakta-*` (e.g. `openakta-core`, `openakta-agents`) |
+| Desktop shell | `apps/desktop/` | Electron + Next.js App Router; privileged APIs only in main/preload |
+| Protocol | `proto/` | Protobuf sources; regenerate with root `pnpm proto:gen` (see `package.json`) |
+| SDKs | `sdks/`, `integrations/` | TypeScript/Python/Java/C# packages; see per-package `package.json` |
+| Business truth | `business-core/` | Documented behavior grounded in implementation |
 
 ---
 
-## 🔒 Active Constraints
+## Source of truth
 
-### Token Budget
+1. **Runtime code** in `crates/`, `proto/`, and `apps/desktop/` (as applicable).  
+2. **Tests** that exercise that behavior.  
+3. **Example config** (`openakta.example.toml`) when backed by parsers in code.  
+4. Markdown under `docs/` and `business-core/` — **only when consistent with (1)**.  
+5. Older planning files — **may be stale**; never implement from them without verifying code.
 
-| Level | Limit | Enforcement | Status |
-|-------|-------|-------------|--------|
-| **Per-Task** | 2,500 tokens | Hard stop (circuit breaker) | ✅ Enforced |
-| **Per-Agent (Daily)** | 50,000 tokens | Hard stop + alert | ✅ Enforced |
-| **Per-Session** | 100,000 tokens | Warning at 80% | ✅ Enforced |
-
-**Enforcement Code:**
-```rust
-// Enforced by ContextManager
-if context.estimate_tokens() > max_tokens {
-    return Err(Error::TokenBudgetExceeded);
-}
-```
-
-### Concurrency Limits
-
-| Limit | Value | Enforcement | Status |
-|-------|-------|-------------|--------|
-| **Max Parallel Tasks** | 10 | Sliding-window semaphore | ✅ Enforced |
-| **Rate Limit** | 100 req/min | Token bucket | ✅ Enforced |
-| **Max Context Size** | 8,000 tokens | Hard limit | ✅ Enforced |
-
-**Enforcement Code:**
-```rust
-// Enforced by ConcurrentExecutor
-let permit = semaphore.acquire_owned().await?;
-// Task executes...
-drop(permit); // Release
-```
-
-### Duplicate Execution Prevention
-
-| Mechanism | Pattern | Status |
-|-----------|---------|--------|
-| **Atomic Checkout** | Paperclip (FOR UPDATE SKIP LOCKED) | ✅ Implemented |
-| **Single Assignee** | TaskQueue enforces | ✅ Implemented |
-| **Idempotency Keys** | Per-task unique key | ✅ Implemented |
+Do **not** assume production billing, multi-tenant SaaS, or account systems exist because a doc mentions them — see `business-core/README.md`.
 
 ---
 
-## 🔗 Execution Graph
+## Rust (`crates/`)
 
-```
-Phase 2 Sprints (Token Optimization + Graph Workflow)
-═══════════════════════════════════════════════════════
+- **Naming:** Workspace crates use the `openakta-*` prefix (e.g. `openakta-cli`, `openakta-agents`). Internal module names stay lowercase/snake_case.
+- **MSRV:** Declared in root `Cargo.toml` / `rust-toolchain.toml`; CI enforces it (`cargo check` with the MSRV toolchain). Match that version when reasoning about language features.
+- **Formatting:** `rustfmt` per root `rustfmt.toml`. After substantive Rust edits, run `cargo fmt --all` (or `cargo fmt-check` before PRs).
+- **Clippy:** CI runs with `-D warnings` on the full workspace (`cargo lint` alias in `.cargo/config.toml`). Fix warnings; do not silence them without a documented reason.
+- **`format!`:** Inline variables in the format string when possible ([`uninlined_format_args`](https://rust-lang.github.io/rust-clippy/master/index.html#uninlined_format_args)).
+- **Control flow:** Prefer collapsing nested `if` where Clippy suggests ([`collapsible_if`](https://rust-lang.github.io/rust-clippy/master/index.html#collapsible_if)).
+- **Closures:** Prefer method references over redundant closures where Clippy suggests ([`redundant_closure_for_method_calls`](https://rust-lang.github.io/rust-clippy/master/index.html#redundant_closure_for_method_calls)).
+- **API shape:** Avoid `foo(false)` / `bar(None)` at public boundaries when enums, newtypes, or named methods would document intent better.
+- **`match`:** Prefer exhaustive matches; avoid catch-all arms unless unavoidable.
+- **Tests:** Prefer `assert_eq!` on whole values (structs, enums) when equality is meaningful; avoid mutating global environment in tests — pass config or handles explicitly.
+- **Modules:** Prefer new modules over unbounded growth of a single file. If a file is large and touch-heavy, add new behavior in a submodule unless there is a strong reason not to.
+- **Transport vs telemetry:** Do not conflate `WireProfile` (how HTTP requests are built) with `ProviderKind` (telemetry/metrics). See coordinator/provider code and `business-core/` for the current split.
 
-Agent A (Documentation):
-  Sprint 3  ─┬─→ Sprint 6  ─→ Sprint 9  ─→ Sprint 11 ─→ Sprint 12 ─→ Sprint 18 ─→ Sprint 25
-  (Minify)   │   (Docs)       (Benchmark)  (Pivot)     (ACONIC)    (Biz Rules)  (Ledger)
-             │
-Agent B (Storage/Context):   │
-  Sprint 5  ─┴─→ Sprint 8  ─→ Sprint 10 ─→ Sprint 11 ─→ Sprint 12 ─→ Sprint 16 ─→ Sprint 17
-  (TOON)       (Context)      (RAG)        (Graph)     (Blackboard) (SCIP)      (Influence)
-                                                                  ─→ Sprint 20 ─→ Sprint 21 ─→ Sprint 22 ─→ Sprint 24
-                                                                    (Pruning)   (Semaphore)  (Checkout)   (Repo Map)
+### Commands (from repo root)
 
-Agent C (Implementation):
-  Sprint 3B ─→ Sprint 7  ─→ Sprint 8  ─→ Sprint 9  ─→ Sprint 19 ─→ Sprint 23
-  (Heartbeat)  (Decomp)     (Graph)      (ReAct)     (Traceability) (ACI)
+Defined in `.cargo/config.toml` and aligned with `.github/workflows/rust-ci.yml`:
 
-Dependencies:
-  Sprint 9 (A) requires: Sprint 3 (A), Sprint 6 (A)
-  Sprint 11 (A) requires: R-10 validation
-  Sprint 12 (A) requires: Sprint 11 (A)
-  Sprint 18 (A) requires: Sprint 12 (A)
-  Sprint 24 (B) requires: Sprint 22 (B)
-  Sprint 25 (A) requires: Sprint 18 (A)
-```
+| Command | Purpose |
+|--------|---------|
+| `cargo fmt-check` | Format check (CI) |
+| `cargo lint` | Clippy workspace, all targets/features, `-D warnings`, `--locked` |
+| `cargo test-all` | Full test run excluding `#[ignore]` slow tests |
+| `cargo test-slow` | Only `#[ignore]` / slow tests |
 
----
+**Before a Rust PR:** `cargo fmt-check` → `cargo lint` → `cargo test-all` (or at least tests for touched crates).
 
-## 📝 Recent Changes
-
-### 2026-03-20
-- ✅ **Deep Audit Complete** — Dynamic Model Registry and Multi-Provider Configuration audited
-- ✅ **R1 Implemented** — `build_model_request` now returns `Result<_, CoordinatorV2Error>`, rejects unknown models
-- ✅ **R2 Implemented** — Bootstrap panics on missing provider config (fail-fast behavior)
-- ✅ **R3 Implemented** — `openakta.example.toml` updated with `[providers]` schema and file-based secrets
-- ✅ **D1-D5 Complete** — All business-core documentation synchronized with audit findings
-- ✅ **35/35 Tests Pass** — v2 coordinator tests updated with registry metadata
-- ✅ **R4 Implemented** — `WireProfile`/`ProviderKind` separation complete
-  - New `WireProfile` enum for transport selection (AnthropicMessagesV1, OpenAiChatCompletions, OpenAiResponses, OllamaChat)
-  - Expanded `ProviderKind` for telemetry (Anthropic, OpenAi, DeepSeek, Qwen, Moonshot, Ollama)
-  - `CloudModelRef` and `LocalModelRef` now have both `wire_profile` and `telemetry_kind`
-  - `ModelRequest.provider` changed from `ProviderKind` to `WireProfile`
-  - All tests updated and passing
-
-### 2026-03-17
-- ✅ **Frontend Reset Complete** — desktop shell now uses Electron + Next.js with preload isolation
-- ✅ **Legacy Tauri/Vite Frontend Removed** — obsolete renderer, tests, and docs discarded
-- ✅ **Secure IPC Boundary Added** — typed preload bridge with validated IPC handlers
-- ✅ **ALL PHASES 3 & 4 COMPLETE** — 100% done, all agents ready for next mission
-- ✅ **Sprint A3 Complete** — Progress Monitoring (Rust backend: ProgressTracker, BlockerDetector, StatusReporter, 18 tests)
-- ✅ **Sprint A5 Complete** — Progress Dashboard (TypeScript frontend: ProgressPanel, WebSocket, 42 tests)
-- ✅ **Full-Stack Progress System** — Backend (Rust) + Frontend (TypeScript) ready for integration
-- ✅ **Phase 3 Complete (Agent A)** — All Agent A Phase 3 sprints done (A1, A2, A3)
-- ✅ **Phase 4 UI Complete (Agent A)** — All Agent A Phase 4 sprints done (A4, A5)
-- ✅ **Sprint C6 Complete** — Phase 4 Integration (E2E tests, performance opt, release builds)
-- ✅ **Sprint C3 Complete** — Result Merging with conflict detection + auto-resolution (16 tests)
-- ✅ **Sprint A2 Complete** — Blackboard v2 with versioned context + subscribe/notify (12 tests)
-- ✅ **Sprint B2 Complete** — Task Queue Management (priority, DAG, load balancing, 15 tests)
-
-### 2026-03-16
-- ✅ **Adopted Repository Map** (Aider pattern) — 90%+ token reduction for file discovery
-- ✅ **Adopted ACI Formatting** (SWE-Agent pattern) — Standardized code blocks
-- ✅ **Adopted Atomic Checkout** (Paperclip pattern) — Prevents duplicate execution
-- ✅ **Adopted Sliding-Window Semaphores** (Dify pattern) — Resource throttling
-- ✅ **Created AGENTS.md Ledger** (Industry standard) — Architectural visibility
-
-### 2026-03-15
-- ✅ **Graph-Based Workflow Pivot** (R-10 validation) — DDD rejected, Graph adopted
-- ✅ **Implemented Dual-Thread ReAct Loops** — Reasoning + acting in parallel
-- ✅ **Implemented Snapshot Blackboard** — TOCTOU prevention
-
-### 2026-03-14
-- ✅ **Implemented Context Pruning** — 95-99% token reduction
-- ✅ **Implemented Influence Vector** — Code dependency tracking
+**Scoped testing:** After changes, prefer `cargo test -p <crate>` for the crate you edited before running the full workspace.
 
 ---
 
-## 📊 Sprint History
+## Protocol buffers
 
-### Agent A (Documentation Specialist)
-
-#### Phase 3 Sprints
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| **A1** | Context Compacting | ✅ Complete | 2026-03-17 | 60-80% |
-| **A2** | Blackboard v2 | ✅ Complete | 2026-03-17 | N/A |
-| **A3** | **Progress Monitoring** | ✅ **Complete** | **2026-03-17** | N/A |
-
-#### Phase 4 Sprints
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| **A4** | UI Components | ✅ Complete | 2026-03-17 | N/A |
-| **A5** | **Progress Dashboard** | ✅ **Complete** | **2026-03-17** | N/A |
-| **A6** | **Deep Audit & Docs** | ✅ **Complete** | **2026-03-20** | N/A |
-| **A7** | **WireProfile Separation** | ✅ **Complete** | **2026-03-20** | N/A |
-
-#### Legacy Sprints
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| 3 | Code Minification | ✅ Complete | 2026-03-14 | 62.7% |
-| 6 | Documentation Management | ✅ Complete | 2026-03-14 | N/A |
-| 9 | Integration & Benchmarking | ✅ Complete | 2026-03-14 | Validated 88.8% |
-| 11 | Graph Workflow Design | ✅ Complete | 2026-03-15 | N/A |
-| 12 | ACONIC Decomposition Docs | ✅ Complete | 2026-03-15 | N/A |
-| 18 | Business Rule Documentation | ✅ Complete | 2026-03-16 | N/A |
-| 25 | AGENTS.md Living Document | ✅ Complete | 2026-03-16 | N/A |
-
-### Agent B (Storage + Context Specialist)
-
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| 5 | TOON Serialization | ✅ Complete | 2026-03-14 | 50-60% |
-| 8 | Context Distribution | ✅ Complete | 2026-03-14 | N/A |
-| 10 | RAG Integration | ✅ Complete | 2026-03-14 | N/A |
-| 11 | Graph Workflow Implementation | ✅ Complete | 2026-03-15 | N/A |
-| 12 | Snapshot Blackboard | ✅ Complete | 2026-03-15 | N/A |
-| 16 | SCIP Indexing | ✅ Complete | 2026-03-15 | N/A |
-| 17 | Influence Vector | ✅ Complete | 2026-03-15 | N/A |
-| 20 | Context Pruning | ✅ Complete | 2026-03-16 | 95-99% |
-| 21 | Sliding-Window Semaphores | ✅ Complete | 2026-03-16 | N/A |
-| 22 | Atomic Checkout | ✅ Complete | 2026-03-16 | N/A |
-| 24 | Repository Map | ✅ Complete | 2026-03-16 | 90%+ |
-
-### Agent C (Implementation Specialist)
-
-#### Phase 3 Sprints
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| C1 | Coordinator Core | ✅ Complete | 2026-03-17 | N/A |
-| C2 | Task Decomposition | ✅ Complete | 2026-03-17 | N/A |
-| C3 | Result Merging | ✅ Complete | 2026-03-17 | N/A |
-
-#### Phase 4 Sprints
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| C4 | Tauri v2 Setup | ✅ Complete, later superseded | 2026-03-17 | N/A |
-| C5 | Chat Interface | ✅ Complete, later superseded | 2026-03-17 | N/A |
-| C6 | Integration + Polish | ✅ Complete, later superseded | 2026-03-17 | N/A |
-
-#### Legacy Sprints
-| Sprint | Title | Status | Date | Token Reduction |
-|--------|-------|--------|------|-----------------|
-| 3B | Heartbeat System | ✅ Complete | 2026-03-14 | N/A |
-| 7 | ACONIC Implementation | ✅ Complete | 2026-03-15 | N/A |
-| 8 | Graph Workflow | ✅ Complete | 2026-03-15 | N/A |
-| 9 | Dual-Thread ReAct | ✅ Complete | 2026-03-15 | N/A |
-| 19 | Bidirectional Traceability | ✅ Complete | 2026-03-16 | N/A |
-| 23 | ACI Formatting | ✅ Complete | 2026-03-16 | N/A |
+- **Do not** hand-edit generated Rust (or other) output from `buf`/`prost` unless the repo explicitly treats those files as hand-maintained (they usually are not).
+- After `.proto` changes, run `pnpm proto:gen` from the repo root and commit generated outputs if the project expects them tracked.
 
 ---
 
-## 📈 Performance Metrics
+## Desktop (`apps/desktop/`)
 
-| Metric | Target | Current | Status | Measured In |
-|--------|--------|---------|--------|-------------|
-| **Token Reduction** | 90%+ | 95-99% | ✅ Exceeded | Sprint 9, 20, 24 |
-| **Build Performance** | <1s | 342ms | ✅ Exceeded | Sprint C6 (Vite 8) |
-| **E2E Test Coverage** | 10+ tests | 15+ tests | ✅ Exceeded | Sprint C6 |
-| **Integration Tests** | 10+ tests | 76+ tests | ✅ Exceeded | Sprint A3, A5, C3, C6 |
-| **Progress Monitoring** | 10+ tests | 18 tests | ✅ Exceeded | Sprint A3 |
-| **Progress Dashboard** | 10+ tests | 42 tests | ✅ Exceeded | Sprint A5 |
-| **Concurrency Speedup** | 3-5x | TBD | 🔄 Pending | Sprint 21 |
-| **Context Allocation** | <10ms | TBD | 🔄 Pending | Sprint 20 |
-| **Race Conditions** | 0 | 0 | ✅ Pass | Sprint 21, 22 |
-| **Duplicate Execution** | 0% | 0% | ✅ Pass | Sprint 22 |
-| **Code Minification** | ≥20% | 62.7% | ✅ Exceeded | Sprint 3 |
-| **Prefix Caching** | 50-90% | TBD | 🔄 Pending | Sprint 1 |
-| **Diff Communication** | 89-98% | TBD | 🔄 Pending | Sprint 2 |
+- **Stack:** Electron main + Next.js (App Router) renderer + React + TypeScript + Tailwind v4 + shadcn/ui (see root `README.md`).
+- **Security:** Renderer code must not assume access to Node/OS APIs — use the **preload + IPC** surface only; keep new IPC typed and validated.
+- **Lint / format:** Use the app-local ESLint and Prettier configs (`eslint.config.mjs`, `prettier.config.mjs`). Registry-generated or vendored UI under `components/ai-elements/**` may intentionally relax specific rules — do not “fix” those files to satisfy stricter rules without an explicit request.
+- **Scripts:** `pnpm --filter @openakta/desktop lint|typecheck|test|build` from the repo root after `pnpm install`.
 
 ---
 
-## 🏛️ Architecture Decision Records (ADRs)
+## Documentation and config
 
-| ADR | Title | Status | Date | Sprint |
-|-----|-------|--------|------|--------|
-| **ADR-042** | Graph-Based Workflow | ✅ Active & Enforced | 2026-03-15 | 11 |
-| **ADR-043** | Sliding-Window Semaphores | ✅ Active & Enforced | 2026-03-16 | 21 |
-| **ADR-044** | Atomic Checkout | ✅ Active & Enforced | 2026-03-16 | 22 |
-| **ADR-045** | Repository Map | ✅ Active & Enforced | 2026-03-16 | 24 |
-| **ADR-046** | AGENTS.md Ledger | ✅ Active & Enforced | 2026-03-16 | 25 |
-| **ADR-050** | Use shadcn/ui for Desktop Components | ✅ Active & Updated | 2026-03-17 | Frontend Reset |
-| **ADR-051** | Use Electron as Desktop Shell | ✅ Active & Enforced | 2026-03-17 | Frontend Reset |
-| **ADR-052** | Use Next.js App Router as Renderer | ✅ Active & Enforced | 2026-03-17 | Frontend Reset |
-| **ADR-053** | Enforce Preload + IPC Boundary | ✅ Active & Enforced | 2026-03-17 | Frontend Reset |
-
-**See:** [`docs/ARCHITECTURE-LEDGER.md`](./docs/ARCHITECTURE-LEDGER.md) for detailed ADRs.
+- When behavior or public config **changes**, update:
+  - `docs/active_architecture/` if it affects the architecture narrative  
+  - `openakta.example.toml` (and any schema docs) for user-visible config  
+  - `business-core/` when the **implemented** business boundary changes  
+- Navigation index: [`DOCS-INDEX.md`](./DOCS-INDEX.md).
 
 ---
 
-## 🔧 Pattern Adoptions
+## Multi-agent / product context (for agents)
 
-| Pattern | Source | Status | Sprint | Benefit |
-|---------|--------|--------|--------|---------|
-| **Playwright E2E Testing** | Microsoft | ✅ Implemented | C6 | Cross-browser E2E tests |
-| **Code Splitting** | Rollup | ✅ Implemented | C6 | Better caching, faster loads |
-| **Release Build Automation** | Tauri | ✅ Implemented | C6 | Cross-platform builds |
-| **Sliding-Window Semaphores** | Dify | ✅ Implemented | 21 | Resource throttling |
-| **Atomic Checkout** | Paperclip | ✅ Implemented | 22 | Duplicate prevention |
-| **ACI Formatting** | SWE-Agent | ✅ Implemented | 23 | Standardized code blocks |
-| **Repository Map** | Aider | ✅ Implemented | 24 | 90%+ token reduction |
-| **AGENTS.md Ledger** | Industry Standard | ✅ Implemented | 25 | Architectural visibility |
+- **Coordinator / workers:** Orchestration concepts live in code (`openakta-agents` and related crates) and in `docs/active_architecture/` — not in this file’s bullet list.
+- **Token / concurrency targets** in older tables were planning aids; **enforce what the code actually checks**, not a number from a historical sprint doc.
 
 ---
 
-## 📚 Knowledge Navigation
+## What this file is not
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| **Architecture Ledger (Detailed)** | [`docs/ARCHITECTURE-LEDGER.md`](./docs/ARCHITECTURE-LEDGER.md) | Detailed ADRs, constraints |
-| **Graph Workflow Design** | [`planning/shared/GRAPH-WORKFLOW-DESIGN.md`](./planning/shared/GRAPH-WORKFLOW-DESIGN.md) | Graph architecture |
-| **ACONIC Decomposition** | [`planning/shared/ACONIC-DECOMPOSITION-DESIGN.md`](./planning/shared/ACONIC-DECOMPOSITION-DESIGN.md) | Task decomposition |
-| **RAG Expertise Design** | [`planning/shared/RAG-EXPERTISE-DESIGN.md`](./planning/shared/RAG-EXPERTISE-DESIGN.md) | RAG-based expertise |
-| **Business Rules** | [`docs/business_rules/`](./docs/business_rules/) | Business rule documentation |
-| **Research Summary** | [`planning/shared/RESEARCH-SUMMARY.md`](./planning/shared/RESEARCH-SUMMARY.md) | Research findings |
+- It is **not** a product roadmap or task tracker — use issue tracker / team process for status.  
+- It is **not** a substitute for `business-core/` or integration tests when deciding what the product does in production.
 
 ---
 
-## 🔄 Auto-Update Mechanism
+## License and contributions
 
-This ledger is **auto-updated** on sprint completion:
-
-```bash
-# Update ledger after sprint completion
-./scripts/update-agents-ledger.sh
-```
-
-**What gets updated:**
-- Sprint status (In Progress → Complete)
-- Sprint history table
-- Recent changes section
-- Performance metrics (if measured)
-
-**What stays manual:**
-- Architecture decisions (require ADR)
-- Constraint changes (require approval)
-- Pattern adoptions (require documentation)
-
----
-
-## ✅ Validation
-
-Run validation to ensure ledger consistency:
-
-```bash
-# Validate ledger format
-./scripts/validate-ledger.sh
-
-# Expected output:
-# ✓ All sprints accounted for
-# ✓ Dependencies valid
-# ✓ Metrics consistent
-```
-
----
-
-**This ledger provides ARCHITECTURAL VISIBILITY for all OPENAKTA agents.**
-
-**Last Automated Update:** 2026-03-16  
-**Next Scheduled Review:** 2026-03-17
-| 11 | A | Architecture Documentation Pivot | ✅ Complete | N/A |
-| 18 | A | Business Rule Documentation | ✅ Complete | N/A |
-| 3 | A | Code Minification | ✅ Complete | N/A |
-| 6 | A | Documentation Management System | ✅ Complete | N/A |
-| 9 | A | Phase 2 Integration & Benchmarking | ✅ Complete | N/A |
-| 10 | B | Phase 2 Consolidation & Documentation | ✅ Complete | N/A |
-| 11 | B | Context Distribution Pivot | ✅ Complete | N/A |
-| 12 | B | Snapshot Blackboard Implementation | ✅ Complete | N/A |
-| 16 | B | SCIP Indexing Implementation | ✅ Complete | N/A |
-| 17 | B | Influence Vector Calculation | ✅ Complete | N/A |
-| 5 | B | TOON Serialization | ✅ Complete | N/A |
-| 8 | B | Context Distribution System | ✅ Complete | N/A |
-| 19 | C | Bidirectional Traceability | ✅ Complete | N/A |
-| 7 | C | Task Decomposition & Concurrency | ✅ Complete | N/A |
-| 7 | C | Task Decomposition & Concurrency | ✅ Complete | N/A |
-| 9 | C | Dual-Thread ReAct Implementation | ✅ Complete | N/A |
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md). By contributing, you agree your contributions follow the project license (MIT OR Apache-2.0).

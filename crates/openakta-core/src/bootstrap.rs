@@ -25,6 +25,7 @@ use crate::config_resolve::{
 };
 use crate::{CoreConfig, DocSyncService, MemoryServices};
 use std::collections::HashMap;
+use tracing::info;
 
 /// Runtime bootstrap options for CLI entrypoints.
 #[derive(Debug, Clone)]
@@ -89,8 +90,8 @@ impl RuntimeBootstrap {
         config.ensure_runtime_layout()?;
 
         if config.providers.instances.is_empty() {
-            panic!(
-                "FATAL: No provider instances configured. OPENAKTA requires at least one provider \
+            anyhow::bail!(
+                "No provider instances configured. OPENAKTA requires at least one provider \
                  (cloud or local) to function. Update openakta.toml with provider configuration."
             );
         }
@@ -103,6 +104,10 @@ impl RuntimeBootstrap {
             path: config.database_path.to_string_lossy().to_string(),
             ..Default::default()
         });
+        info!(
+            "Initializing main database at: {}",
+            config.database_path.display()
+        );
         let _conn = db.init()?;
 
         let memory_services = MemoryServices::new(&config).await?;
@@ -456,6 +461,36 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn bootstrap_errors_when_no_provider_instances_configured() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("openakta.toml"),
+            r#"fallback_policy = "automatic"
+routing_enabled = true
+"#,
+        )
+        .unwrap();
+
+        let result = RuntimeBootstrap::new(RuntimeBootstrapOptions {
+            workspace_root: tmp.path().to_path_buf(),
+            start_background_services: false,
+            ..RuntimeBootstrapOptions::default()
+        })
+        .await;
+
+        let err = match result {
+            Ok(_) => panic!("expected error when providers.instances is empty"),
+            Err(e) => e,
+        };
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("No provider instances configured"),
+            "unexpected error: {msg}"
+        );
+    }
+
     #[test]
     fn runtime_overrides_apply_local_retry_budget() {
         let mut config = CoreConfig::file_defaults();
@@ -485,6 +520,7 @@ async fn start_embedded_mcp_server(
         execution_mode: config.execution_mode,
         container_executor: config.container_executor.clone(),
         wasi_executor: config.wasi_executor.clone(),
+        mass_refactor_executor: config.mass_refactor_executor.clone(),
         dense_backend: config.retrieval.backend,
         dense_qdrant_url: config.retrieval.qdrant_url.clone(),
         dense_store_path: config.retrieval.sqlite_path.clone(),

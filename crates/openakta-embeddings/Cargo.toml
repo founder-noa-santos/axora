@@ -29,10 +29,14 @@ serde_json.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
 
+# Research test embedder (SHA-256 seed)
+sha2.workspace = true
+
 # Utilities
 tracing.workspace = true
 once_cell.workspace = true
 parking_lot.workspace = true
+tokenizers.workspace = true
 
 [dev-dependencies]
 tokio-test.workspace = true

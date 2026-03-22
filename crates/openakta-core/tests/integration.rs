@@ -7,13 +7,13 @@
 //! cargo test -p openakta-core --test integration
 //! ```
 
-#![allow(unused, clippy::all)]
-
 use openakta_core::{CollectiveServer, CoreConfig};
 use openakta_proto::collective::v1::{
     collective_service_client::CollectiveServiceClient, ListAgentsRequest, SubmitTaskRequest,
 };
-use tokio::time::{sleep, Duration};
+use std::sync::Arc;
+use tokio::sync::Notify;
+use tokio::time::{sleep, timeout, Duration};
 
 /// Test the collective server
 #[tokio::test]
@@ -152,12 +152,42 @@ async fn test_config_from_toml() {
     println!("✅ Configuration loading test passed");
 }
 
+/// Graceful shutdown path used by the daemon (`serve_with_shutdown` + `Notify`).
+///
+/// Run manually: `cargo test -p openakta-core --test integration collective_graceful_shutdown_serve_with_shutdown -- --ignored`
+#[tokio::test]
+#[ignore = "binds an ephemeral port; run with --ignored"]
+async fn collective_graceful_shutdown_serve_with_shutdown() {
+    let shutdown = Arc::new(Notify::new());
+    let notify = shutdown.clone();
+    let config = CoreConfig {
+        port: 0,
+        ..Default::default()
+    };
+    let server = CollectiveServer::new(config);
+    let handle = tokio::spawn(async move {
+        server
+            .serve_with_shutdown(async move {
+                notify.notified().await;
+            })
+            .await
+    });
+
+    sleep(Duration::from_millis(50)).await;
+    shutdown.notify_waiters();
+
+    let joined = timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("timed out waiting for collective shutdown");
+    joined.expect("task join failed").expect("serve_with_shutdown failed");
+}
+
 /// Test frame executor
 #[tokio::test]
 async fn test_frame_executor() {
     println!("🎬 Testing frame executor...");
 
-    use openakta_core::{Frame, FrameContext, FrameExecutor};
+    use openakta_core::{FrameContext, FrameExecutor};
     use std::sync::Arc;
     use tokio::sync::RwLock;
 

@@ -45,4 +45,4 @@ tokenizers = "0.19"
 [dev-dependencies]
 tokio-test.workspace = true
 criterion.workspace = true
-tempfile = "3.10"
+tempfile = "3.27"

@@ -3,7 +3,7 @@
 use rusqlite::Connection;
 use tracing::{debug, info};
 
-use crate::Result;
+use crate::{Result, StorageError};
 
 /// Database configuration
 #[derive(Debug, Clone)]
@@ -47,16 +47,28 @@ impl Database {
 
     /// Connect to the database
     pub fn connect(&self) -> Result<Connection> {
-        let conn = Connection::open(&self.config.path)?;
+        let conn = Connection::open(&self.config.path).map_err(|e| StorageError::Database {
+            path: self.config.path.clone(),
+            source: e,
+        })?;
 
         if self.config.wal_mode {
-            conn.execute_batch("PRAGMA journal_mode = WAL;")?;
+            conn.execute_batch("PRAGMA journal_mode = WAL;").map_err(|e| {
+                StorageError::Database {
+                    path: self.config.path.clone(),
+                    source: e,
+                }
+            })?;
             debug!("WAL mode enabled");
         }
 
         conn.busy_timeout(std::time::Duration::from_millis(
             self.config.busy_timeout_ms,
-        ))?;
+        ))
+        .map_err(|e| StorageError::Database {
+            path: self.config.path.clone(),
+            source: e,
+        })?;
 
         Ok(conn)
     }
@@ -65,9 +77,21 @@ impl Database {
     pub fn migrate(&self, conn: &mut Connection) -> Result<()> {
         info!("Running database migrations");
 
-        conn.execute_batch(include_str!("../migrations/0001_init.sql"))?;
-        conn.execute_batch(include_str!("../migrations/0002_memory_domains.sql"))?;
-        conn.execute_batch(include_str!("../migrations/0003_runtime_seeds.sql"))?;
+        conn.execute_batch(include_str!("../migrations/0001_init.sql"))
+            .map_err(|e| StorageError::Database {
+                path: self.config.path.clone(),
+                source: e,
+            })?;
+        conn.execute_batch(include_str!("../migrations/0002_memory_domains.sql"))
+            .map_err(|e| StorageError::Database {
+                path: self.config.path.clone(),
+                source: e,
+            })?;
+        conn.execute_batch(include_str!("../migrations/0003_runtime_seeds.sql"))
+            .map_err(|e| StorageError::Database {
+                path: self.config.path.clone(),
+                source: e,
+            })?;
 
         Ok(())
     }
@@ -102,5 +126,37 @@ mod tests {
             .unwrap();
 
         assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_database_error_includes_path() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a temp file and write garbage to simulate corruption
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"this is not a valid sqlite database").unwrap();
+        temp_file.flush().unwrap();
+
+        let db = Database::new(DatabaseConfig {
+            path: temp_file.path().to_string_lossy().to_string(),
+            ..Default::default()
+        });
+
+        let result = db.connect();
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        let err_str = err.to_string();
+
+        // Verify the error includes the path
+        assert!(
+            err_str.contains(temp_file.path().to_string_lossy().as_ref()),
+            "Error should contain database path, got: {}",
+            err_str
+        );
+
+        // Verify it's a Database error variant
+        assert!(err_str.contains("database error at"));
     }
 }

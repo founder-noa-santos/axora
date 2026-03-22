@@ -40,8 +40,8 @@ pub mod worker_pool;
 
 pub use aci_formatter::{ACIConfig, ACIFormatter, TokenSavings};
 pub use agent::{
-    Agent, AgentState, ArchitectAgent, BaseAgent, CoderAgent, DebuggerAgent, ReviewerAgent,
-    TaskResult as AgentTaskResult, TesterAgent,
+    Agent, AgentState, ArchitectAgent, BaseAgent, CoderAgent, DebuggerAgent, RefactorerAgent,
+    ReviewerAgent, TaskResult as AgentTaskResult, TesterAgent,
 };
 pub use blackboard_runtime::{BlackboardEntry, RuntimeBlackboard};
 pub use capabilities::{AgentCapabilities, CapabilityRegistry, TaskRequirements};
@@ -117,8 +117,8 @@ pub use provider_transport::{
     RoutingReason, RoutingResolution, SecretRef, TomlModelRegistryEntry,
 };
 pub use react::{
-    Action, ActionExecution, ActionProposal, DualThreadReactAgent, InterruptSignal, Observation,
-    ReactCycle, ReactStats, Tool, ToolSet,
+    Action, ActionExecution, ActionProposal, DualThreadReactAgent, DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
+    InterruptSignal, Observation, ReactCycle, ReactStats, Tool, ToolSet,
 };
 pub use result_contract::{
     DiffValidationDecision, PublicationPayload, PublicationPayloadType, ResultPublicationGuard,

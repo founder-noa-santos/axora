@@ -32,6 +32,14 @@ pub mod mcp {
     }
 }
 
+pub mod livingdocs {
+    #[allow(missing_docs)]
+    pub mod v1 {
+        //! LivingDocs review queue + SSOT resolution (Plan 6)
+        include!(concat!(env!("OUT_DIR"), "/livingdocs.v1.rs"));
+    }
+}
+
 pub use collective::v1::*;
 pub use mcp::v1 as mcp_v1;
 

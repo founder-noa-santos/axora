@@ -3,6 +3,7 @@
 //! Drives `pending_answer` ↔ `running` transitions, enforces caps and duplicate
 //! detection, and optionally fans out `QuestionEnvelope` on the collective bus.
 
+use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
 use openakta_proto::collective::v1::{
     AnswerEnvelope, Message, MessageType, MissionLifecycleState, QuestionEnvelope, QuestionKind,
@@ -97,6 +98,10 @@ pub enum HitlError {
 
     #[error("UNKNOWN_QUESTION")]
     UnknownQuestion,
+
+    /// Second `register_answer_waiter` for the same `question_id` (V-011).
+    #[error("WAITER_ALREADY_REGISTERED")]
+    WaiterAlreadyRegistered,
 
     #[error("CHECKPOINT_IO: {0}")]
     CheckpointIo(String),
@@ -351,11 +356,10 @@ impl MissionHitlGate {
                     "mission not waiting for answer".to_string(),
                 ));
             }
-            let Some(p) = rec.pending.take() else {
+            let Some(p) = rec.pending.as_ref() else {
                 return Err(HitlError::InvalidState("no pending question".to_string()));
             };
             if p.envelope.question_id != answer.question_id {
-                rec.pending = Some(p);
                 return Err(HitlError::UnknownQuestion);
             }
             if let Some(ref secret) = self.config.answer_hmac_secret {
@@ -371,9 +375,15 @@ impl MissionHitlGate {
                 verify_hitl_token(secret, tok, &mission_id, &p.envelope.question_id, exp)?;
             }
             if let Err(e) = validate_answer(&p.envelope, &answer) {
-                rec.pending = Some(p);
                 return Err(e);
             }
+            // Persist running state before mutating in-memory mission state so disk never lags
+            // behind a successful transition (V-001).
+            let file = Self::checkpoint_after_answer_applied(&mission_id, rec);
+            self.write_checkpoint_v1(&file)?;
+            let p = rec.pending.take().ok_or_else(|| {
+                HitlError::InvalidState("no pending question after checkpoint write".to_string())
+            })?;
             rec.lifecycle = MissionLifecycleState::Running as i32;
             (p.envelope, p.raised_at)
         };
@@ -392,8 +402,6 @@ impl MissionHitlGate {
         self.metrics
             .pending_missions
             .fetch_sub(1, Ordering::Relaxed);
-
-        self.persist_checkpoint(&mission_id)?;
         if let Some(tx) = &self.stream {
             if !suppress_global_blackboard {
                 let msg = build_answer_message(&answer, &session_id);
@@ -413,13 +421,19 @@ impl MissionHitlGate {
     }
 
     /// Register a oneshot to be resumed when this `question_id` is answered (Pattern A / CLI).
+    /// Returns [`HitlError::WaiterAlreadyRegistered`] if a waiter is already registered for this id (V-011).
     pub fn register_answer_waiter(
         &self,
         question_id: &str,
-    ) -> tokio::sync::oneshot::Receiver<AnswerEnvelope> {
+    ) -> std::result::Result<tokio::sync::oneshot::Receiver<AnswerEnvelope>, HitlError> {
         let (tx, rx) = tokio::sync::oneshot::channel();
-        self.waiters.insert(question_id.to_string(), tx);
-        rx
+        match self.waiters.entry(question_id.to_string()) {
+            Entry::Occupied(_) => Err(HitlError::WaiterAlreadyRegistered),
+            Entry::Vacant(v) => {
+                v.insert(tx);
+                Ok(rx)
+            }
+        }
     }
 
     /// Cancels a mission from any state.
@@ -570,12 +584,58 @@ impl MissionHitlGate {
             .join(format!("{mission_id}.json"))
     }
 
-    fn persist_checkpoint(&self, mission_id: &str) -> Result<(), HitlError> {
-        let path = self.checkpoint_path(mission_id);
+    fn mission_record_to_checkpoint_v1(mission_id: &str, rec: &MissionRecord) -> CheckpointFileV1 {
+        let pending_bytes = rec.pending.as_ref().map(|p| p.envelope.encode_to_vec());
+        let (pending_expires_secs, pending_expires_nanos) = rec
+            .pending
+            .as_ref()
+            .and_then(|p| p.envelope.expires_at.as_ref())
+            .map(|ts| (Some(ts.seconds), Some(ts.nanos)))
+            .unwrap_or((None, None));
+
+        CheckpointFileV1 {
+            version: 1,
+            mission_id: mission_id.to_string(),
+            lifecycle: rec.lifecycle,
+            questions_raised: rec.questions_raised,
+            normalized_texts: rec.normalized_texts.iter().cloned().collect(),
+            option_fingerprints: rec.option_fingerprints.iter().cloned().collect(),
+            last_turn_index: rec.last_turn_index,
+            pending_envelope_proto: pending_bytes,
+            pending_expires_secs,
+            pending_expires_nanos,
+        }
+    }
+
+    /// Checkpoint snapshot after a validated answer: running with no pending question.
+    fn checkpoint_after_answer_applied(mission_id: &str, rec: &MissionRecord) -> CheckpointFileV1 {
+        CheckpointFileV1 {
+            version: 1,
+            mission_id: mission_id.to_string(),
+            lifecycle: MissionLifecycleState::Running as i32,
+            questions_raised: rec.questions_raised,
+            normalized_texts: rec.normalized_texts.iter().cloned().collect(),
+            option_fingerprints: rec.option_fingerprints.iter().cloned().collect(),
+            last_turn_index: rec.last_turn_index,
+            pending_envelope_proto: None,
+            pending_expires_secs: None,
+            pending_expires_nanos: None,
+        }
+    }
+
+    fn write_checkpoint_v1(&self, file: &CheckpointFileV1) -> Result<(), HitlError> {
+        let path = self.checkpoint_path(&file.mission_id);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| HitlError::CheckpointIo(e.to_string()))?;
         }
 
+        let json =
+            serde_json::to_vec_pretty(file).map_err(|e| HitlError::CheckpointIo(e.to_string()))?;
+        std::fs::write(&path, json).map_err(|e| HitlError::CheckpointIo(e.to_string()))?;
+        Ok(())
+    }
+
+    fn persist_checkpoint(&self, mission_id: &str) -> Result<(), HitlError> {
         let file = {
             let g = self
                 .inner
@@ -584,32 +644,9 @@ impl MissionHitlGate {
             let rec = g
                 .get(mission_id)
                 .ok_or_else(|| HitlError::CheckpointIo("missing mission".to_string()))?;
-            let pending_bytes = rec.pending.as_ref().map(|p| p.envelope.encode_to_vec());
-            let (pending_expires_secs, pending_expires_nanos) = rec
-                .pending
-                .as_ref()
-                .and_then(|p| p.envelope.expires_at.as_ref())
-                .map(|ts| (Some(ts.seconds), Some(ts.nanos)))
-                .unwrap_or((None, None));
-
-            CheckpointFileV1 {
-                version: 1,
-                mission_id: mission_id.to_string(),
-                lifecycle: rec.lifecycle,
-                questions_raised: rec.questions_raised,
-                normalized_texts: rec.normalized_texts.iter().cloned().collect(),
-                option_fingerprints: rec.option_fingerprints.iter().cloned().collect(),
-                last_turn_index: rec.last_turn_index,
-                pending_envelope_proto: pending_bytes,
-                pending_expires_secs,
-                pending_expires_nanos,
-            }
+            Self::mission_record_to_checkpoint_v1(mission_id, rec)
         };
-
-        let json =
-            serde_json::to_vec_pretty(&file).map_err(|e| HitlError::CheckpointIo(e.to_string()))?;
-        std::fs::write(&path, json).map_err(|e| HitlError::CheckpointIo(e.to_string()))?;
-        Ok(())
+        self.write_checkpoint_v1(&file)
     }
 
     fn publish_question(&self, envelope: &QuestionEnvelope) -> Result<(), HitlError> {
@@ -1093,6 +1130,54 @@ mod tests {
         assert!(gate.metrics.answered_total.load(Ordering::Relaxed) >= 1);
     }
 
+    /// If the Running checkpoint cannot be written, memory must stay PendingAnswer (V-001).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn submit_answer_checkpoint_fail_leaves_pending_answer() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = HitlConfig {
+            checkpoint_dir: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+        let gate = Arc::new(MissionHitlGate::new(cfg, None));
+        gate.register_mission_start("m1").unwrap();
+        let env = sample_envelope("m1");
+        let qid = gate.raise_question(env, "m1").await.unwrap();
+
+        let checkpoint_file = dir.path().join("m1.json");
+        let mut perms = std::fs::metadata(&checkpoint_file)
+            .unwrap()
+            .permissions();
+        perms.set_mode(0o444);
+        std::fs::set_permissions(&checkpoint_file, perms).unwrap();
+
+        let err = gate
+            .submit_answer(AnswerEnvelope {
+                question_id: qid,
+                mission_id: "m1".into(),
+                answered_by: AnswerAuthor::Human as i32,
+                mode: QuestionKind::Single as i32,
+                selected_option_ids: vec!["a".into()],
+                free_text: None,
+                answered_at: Some(prost_types::Timestamp::from(SystemTime::now())),
+            })
+            .await;
+        assert!(matches!(err, Err(HitlError::CheckpointIo(_))));
+
+        let mut perms = std::fs::metadata(&checkpoint_file)
+            .unwrap()
+            .permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&checkpoint_file, perms).unwrap();
+
+        assert_eq!(
+            gate.lifecycle_of("m1"),
+            Some(MissionLifecycleState::PendingAnswer as i32)
+        );
+    }
+
     #[tokio::test]
     async fn sixth_question_rejected() {
         let dir = tempfile::tempdir().unwrap();
@@ -1190,6 +1275,19 @@ mod tests {
         let tok = sign_hitl_token(secret, "m1", "q1", &exp).unwrap();
         verify_hitl_token(secret, &tok, "m1", "q1", &exp).unwrap();
         assert!(verify_hitl_token(secret, &tok, "m2", "q1", &exp).is_err());
+    }
+
+    #[tokio::test]
+    async fn duplicate_answer_waiter_rejected() {
+        let gate = Arc::new(MissionHitlGate::new(HitlConfig::default(), None));
+        gate.register_mission_start("m").unwrap();
+        let env = sample_envelope("m");
+        let qid = gate.raise_question(env, "m").await.unwrap();
+        assert!(gate.register_answer_waiter(&qid).is_ok());
+        assert!(matches!(
+            gate.register_answer_waiter(&qid),
+            Err(HitlError::WaiterAlreadyRegistered)
+        ));
     }
 
     #[test]
