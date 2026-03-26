@@ -4,6 +4,7 @@ use openakta_agents::{
     FallbackPolicy, ProviderInstancesConfig, ProviderRuntimeConfig, RemoteRegistryConfig,
     TomlModelRegistryEntry,
 };
+use openakta_api_client::MolFeatureFlags;
 use openakta_embeddings::{CodeEmbeddingConfig, FallbackEmbeddingConfig, SkillEmbeddingConfig};
 use openakta_indexing::{CollectionSpec, VectorBackendKind};
 use openakta_mcp_server::{
@@ -289,6 +290,9 @@ pub struct CoreConfig {
     /// Semantic vector backend selection (Phase 1-2).
     #[serde(default)]
     pub semantic_vector_backend: SemanticVectorBackend,
+    /// Mission Operating Layer feature flags (strict legacy fence, raw execution).
+    #[serde(default)]
+    pub mol: MolFeatureFlags,
 }
 
 fn default_semantic_scan_cap() -> usize {
@@ -342,6 +346,7 @@ impl Default for CoreConfig {
             research: None,
             semantic_scan_cap: default_semantic_scan_cap(),
             semantic_vector_backend: SemanticVectorBackend::SqliteVec,
+            mol: MolFeatureFlags::default(),
         }
     }
 }
@@ -506,6 +511,28 @@ mod tests {
         assert_eq!(config.mcp_command_timeout_secs, 30);
         assert!(config.research.is_none());
         assert!(config.research_runtime().unwrap().is_none());
+        assert!(!config.mol.strict_legacy_fence);
+        assert!(config.mol.raw_execution_allowed);
+        assert!(config.mol.verification_automation_enabled);
+    }
+
+    #[test]
+    fn mol_from_toml_section() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let config_path = tempdir.path().join("openakta.toml");
+        std::fs::write(
+            &config_path,
+            r#"
+[mol]
+strict_legacy_fence = true
+raw_execution_allowed = false
+"#,
+        )
+        .unwrap();
+
+        let config = CoreConfig::from_file(&config_path).unwrap();
+        assert!(config.mol.strict_legacy_fence);
+        assert!(!config.mol.raw_execution_allowed);
     }
 
     #[test]

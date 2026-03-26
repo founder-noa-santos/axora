@@ -41,6 +41,10 @@ pub enum AgentError {
     #[error("diff-only output required: {0}")]
     DiffRequired(String),
 
+    /// MOL strict publication requires claim/evidence (requirement ids or evidence refs).
+    #[error("claim/evidence required for publication: {0}")]
+    EvidenceRequired(String),
+
     /// Patch application failed
     #[error("patch application failed: {0}")]
     PatchApplication(String),

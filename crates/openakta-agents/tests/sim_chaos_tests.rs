@@ -1,3 +1,5 @@
+#![cfg(feature = "sim-tests")]
+
 //! Chaos Tests - Phase 6.3 Comprehensive Suite
 //!
 //! Tests for resilience under failure conditions:

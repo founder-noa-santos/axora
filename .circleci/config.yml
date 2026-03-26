@@ -1,0 +1,233 @@
+version: 2.1
+
+parameters:
+  action:
+    type: string
+    default: "none"
+
+executors:
+  rust_small:
+    docker:
+      - image: cimg/rust:1.94
+    resource_class: small
+    working_directory: ~/project/aktacode
+    environment:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+  rust_medium:
+    docker:
+      - image: cimg/rust:1.94
+    resource_class: medium
+    working_directory: ~/project/aktacode
+    environment:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      RUSTFLAGS: -Dwarnings
+  base_small:
+    docker:
+      - image: cimg/base:stable
+    resource_class: small
+    working_directory: ~/project/aktacode
+
+commands:
+  restore_workspace_cache:
+    steps:
+      - restore_cache:
+          keys:
+            - v1-aktacode-{{ checksum "Cargo.lock" }}
+            - v1-aktacode-
+
+  save_workspace_cache:
+    steps:
+      - save_cache:
+          key: v1-aktacode-{{ checksum "Cargo.lock" }}
+          paths:
+            - ~/.cargo/bin
+            - ~/.cargo/git
+            - ~/.cargo/registry
+            - target
+
+  install_buf:
+    steps:
+      - run:
+          name: install buf
+          command: |
+            BUF_VERSION=1.48.0
+            curl -fsSL "https://github.com/bufbuild/buf/releases/download/v${BUF_VERSION}/buf-Linux-x86_64.tar.gz" -o /tmp/buf.tgz
+            mkdir -p /tmp/buf-install ~/bin
+            tar -xzf /tmp/buf.tgz -C /tmp/buf-install
+            mv /tmp/buf-install/buf/bin/buf ~/bin/buf
+            echo 'export PATH="$HOME/bin:$PATH"' >> "$BASH_ENV"
+
+jobs:
+  quality:
+    executor: rust_medium
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: verify test taxonomy
+          command: bash scripts/qa/verify_test_taxonomy.sh
+      - run:
+          name: rustfmt
+          command: cargo fmt --all -- --check
+      - run:
+          name: clippy
+          command: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run:
+          name: tests
+          command: cargo test --workspace --locked
+      - save_workspace_cache
+
+  msrv:
+    executor: rust_medium
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: install rust 1.94.0
+          command: rustup toolchain install 1.94.0 --profile minimal
+      - run:
+          name: cargo check msrv
+          command: cargo +1.94.0 check --workspace --all-targets --all-features --locked
+      - save_workspace_cache
+
+  advisories:
+    executor: rust_small
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: install cargo-deny
+          command: cargo install cargo-deny --locked
+      - run:
+          name: cargo deny advisories
+          command: cargo deny check advisories
+      - save_workspace_cache
+
+  proto:
+    executor: base_small
+    steps:
+      - checkout
+      - install_buf
+      - run:
+          name: fetch main for breaking check
+          command: git fetch --depth 1 origin main
+      - run:
+          name: buf lint
+          command: ~/bin/buf lint
+      - run:
+          name: buf breaking
+          command: ~/bin/buf breaking --against '.git#branch=main,subdir=proto'
+
+  slow_tests:
+    executor: rust_medium
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: ignored tests only
+          command: cargo test --workspace --locked -- --ignored
+      - save_workspace_cache
+
+  packaged_linux:
+    executor: rust_medium
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: build release artifacts
+          command: cargo build --release -p openakta-cli -p openakta-daemon --locked
+      - run:
+          name: verify sqlite-vec linkage
+          command: |
+            ldd target/release/openakta | grep -i "sqlite_vec" && exit 1 || true
+            ldd target/release/openakta-daemon | grep -i "sqlite_vec" && exit 1 || true
+      - run:
+          name: sqlite-vec smoke
+          command: cargo test -p openakta-memory test_ensure_sqlite_vec_ready_two_tier_verification --release -- --nocapture
+      - save_workspace_cache
+
+  coverage:
+    executor: rust_medium
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: install cargo-llvm-cov
+          command: cargo install cargo-llvm-cov --locked
+      - run:
+          name: collect coverage
+          command: bash scripts/qa/run_coverage.sh
+      - store_artifacts:
+          path: target/coverage/lcov.info
+          destination: aktacode-lcov.info
+      - save_workspace_cache
+
+  mutants:
+    executor: rust_medium
+    steps:
+      - checkout
+      - restore_workspace_cache
+      - run:
+          name: install cargo-mutants
+          command: cargo install cargo-mutants --locked
+      - run:
+          name: run mutation watchlist
+          command: bash scripts/qa/run_mutation_watchlist.sh | tee target/mutants.log
+      - store_artifacts:
+          path: target/mutants.log
+          destination: aktacode-mutants.log
+      - save_workspace_cache
+
+workflows:
+  rust_quality:
+    when:
+      equal: ["quality", << pipeline.parameters.action >>]
+    jobs:
+      - quality
+
+  rust_msrv:
+    when:
+      equal: ["msrv", << pipeline.parameters.action >>]
+    jobs:
+      - msrv
+
+  rust_advisories:
+    when:
+      equal: ["advisories", << pipeline.parameters.action >>]
+    jobs:
+      - advisories
+
+  rust_proto:
+    when:
+      equal: ["proto", << pipeline.parameters.action >>]
+    jobs:
+      - proto
+
+  rust_slow:
+    when:
+      equal: ["slow", << pipeline.parameters.action >>]
+    jobs:
+      - quality
+      - slow_tests:
+          requires:
+            - quality
+
+  rust_packaged_linux:
+    when:
+      equal: ["packaged-linux", << pipeline.parameters.action >>]
+    jobs:
+      - packaged_linux
+
+  rust_coverage:
+    when:
+      equal: ["coverage", << pipeline.parameters.action >>]
+    jobs:
+      - coverage
+
+  rust_mutants:
+    when:
+      equal: ["mutants", << pipeline.parameters.action >>]
+    jobs:
+      - mutants

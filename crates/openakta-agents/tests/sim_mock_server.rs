@@ -1,3 +1,5 @@
+#![cfg(feature = "sim-tests")]
+
 //! Mock API Server for Integration Tests - Phase 6.3
 //!
 //! Provides a WireMock-style mock server for testing API client interactions

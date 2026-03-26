@@ -9,11 +9,11 @@ use openakta_agents::{
     CoordinatorConfig, InternalResultSubmission, LocalModelRef, ProviderRegistry,
     ProviderRuntimeBundle, RuntimeBlackboard,
 };
+use openakta_api_client::{ApiClientPool, ClientConfig};
 use openakta_core::config_resolve::{
     build_model_registry_snapshot, build_provider_bundle, resolve_secrets,
 };
 use openakta_core::CoreConfig;
-use openakta_api_client::{ApiClientPool, ClientConfig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 

@@ -1,3 +1,5 @@
+#![cfg(feature = "sim-tests")]
+
 //! Mocked API Client Integration Tests - Phase 6.3
 //!
 //! Integration tests using WireMock-style mock server for:
@@ -6,8 +8,8 @@
 //! - Controlled failure scenarios
 //! - Performance testing without network dependencies
 
-// Note: This test file requires the mock_server.rs module to be present
-// Run with: cargo test -p openakta-agents --test api_client_mocked_integration
+// Note: This test file requires the sim_mock_server.rs module to be present
+// Run with: cargo test -p openakta-agents --features sim-tests --test sim_api_client_mocked
 
 use openakta_api_client::{ApiClient, ApiError, ClientConfig};
 use openakta_proto::provider_v1::{Message as ProtoMessage, ProviderRequest, Usage};
@@ -15,7 +17,7 @@ use std::time::Duration;
 use tokio::time::timeout;
 
 // Include mock server implementation
-#[path = "mock_server.rs"]
+#[path = "sim_mock_server.rs"]
 mod mock_server;
 
 use mock_server::*;

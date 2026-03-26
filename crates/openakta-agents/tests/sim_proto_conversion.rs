@@ -1,3 +1,5 @@
+#![cfg(feature = "sim-tests")]
+
 //! Proto Conversion Tests - Phase 6.3 Comprehensive Suite
 //!
 //! Tests to ensure correct conversion between internal types and proto types:

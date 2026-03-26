@@ -133,7 +133,8 @@ pub use react::{
     ReactCycle, ReactStats, Tool, ToolSet, DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
 };
 pub use result_contract::{
-    DiffValidationDecision, PublicationPayload, PublicationPayloadType, ResultPublicationGuard,
+    claim_binding_has_evidence, ClaimEvidenceBinding, DiffValidationDecision, PublicationPayload,
+    PublicationPayloadType, ResultPublicationGuard,
 };
 pub use routing::{route as route_task, ExecutionDescriptor, RoutedTarget};
 pub use state_machine::{GlobalState, StateMachine, StateTransition, TransitionCondition};

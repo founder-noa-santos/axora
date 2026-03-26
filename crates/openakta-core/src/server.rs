@@ -10,12 +10,12 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use openakta_agents::blackboard_runtime::{BlackboardEntry, RuntimeBlackboard};
+use openakta_agents::hitl::MissionHitlGate;
 use openakta_agents::{
     read_session_events, ExecutionEventKind as RuntimeExecutionEventKind,
-    ExecutionTraceEvent as RuntimeExecutionTraceEvent, ExecutionTracePhase as RuntimeExecutionPhase,
-    ExecutionTraceRegistry,
+    ExecutionTraceEvent as RuntimeExecutionTraceEvent,
+    ExecutionTracePhase as RuntimeExecutionPhase, ExecutionTraceRegistry,
 };
-use openakta_agents::hitl::MissionHitlGate;
 use openakta_proto::collective::v1::{
     collective_service_server::{CollectiveService, CollectiveServiceServer},
     Agent, AgentStatus, AnswerEnvelope, GetTaskRequest, GetTaskResponse, ListAgentsRequest,
@@ -241,6 +241,8 @@ impl CollectiveServer {
                 .publish(
                     BlackboardEntry {
                         id: format!("hitl_answer:{}", answer.question_id),
+                        namespace: Some("personas/planner/inbox".to_string()),
+                        schema_hash: Some("hitl_answer.v1".to_string()),
                         content: summary,
                     },
                     vec!["planner".to_string()],
@@ -594,8 +596,8 @@ mod tests {
     use super::*;
     use openakta_agents::hitl::HitlConfig;
     use openakta_agents::{
-        ExecutionEventKind as RuntimeExecutionEventKind, ExecutionTraceEvent,
-        ExecutionTracePhase, ExecutionTraceRegistry,
+        ExecutionEventKind as RuntimeExecutionEventKind, ExecutionTraceEvent, ExecutionTracePhase,
+        ExecutionTraceRegistry,
     };
     use openakta_proto::collective::v1::{AnswerAuthor, QuestionKind, QuestionOption};
     use tokio_stream::StreamExt;

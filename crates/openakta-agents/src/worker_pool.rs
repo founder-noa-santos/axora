@@ -486,7 +486,7 @@ mod tests {
     }
 
     // Slow: spawner scaling; run: `cargo test -p openakta-agents -- --ignored rebalance_trims_idle_workers_down_to_minimum`
-    #[ignore]
+    #[ignore = "slow: scaling trim path runs in the explicit ignored-test lane"]
     #[test]
     fn rebalance_trims_idle_workers_down_to_minimum() {
         let pool = test_pool(WorkerPoolConfig {

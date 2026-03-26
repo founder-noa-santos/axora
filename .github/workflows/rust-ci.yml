@@ -5,29 +5,7 @@ concurrency:
   cancel-in-progress: true
 
 on:
-  pull_request:
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
-      - "proto/**"
-      - ".cargo/**"
-      - "rustfmt.toml"
-      - "clippy.toml"
-      - "deny.toml"
-      - ".github/workflows/rust-ci.yml"
-  push:
-    branches: [main]
-    paths:
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "crates/**"
-      - "proto/**"
-      - ".cargo/**"
-      - "rustfmt.toml"
-      - "clippy.toml"
-      - "deny.toml"
-      - ".github/workflows/rust-ci.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -77,6 +55,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
+
+      - name: verify test taxonomy
+        run: bash scripts/qa/verify_test_taxonomy.sh
 
       - name: rustfmt
         run: cargo fmt --all -- --check

@@ -67,7 +67,7 @@ use crate::transport::{
     InternalContextReference, InternalResultSubmission, InternalTaskAssignment, InternalTokenUsage,
 };
 use crate::worker_pool::{WorkerId, WorkerStatus};
-use openakta_api_client::ApiClientPool;
+use openakta_api_client::{ApiClientPool, MolFeatureFlags};
 use openakta_indexing::{InfluenceGraph, Language, ParserRegistry};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -218,6 +218,9 @@ pub struct CoordinatorConfig {
     pub execution_tracer: Option<Arc<ExecutionTraceService>>,
     /// Optional registry used for mission-to-session correlation.
     pub execution_trace_registry: Option<Arc<ExecutionTraceRegistry>>,
+    /// Mission Operating Layer flags from daemon/bootstrap. When `strict_legacy_fence` is set,
+    /// steward / worker hints in [`Task::assigned_to`] are kept for dispatch preference (AB12).
+    pub mol: MolFeatureFlags,
 }
 
 impl Default for CoordinatorConfig {
@@ -253,8 +256,20 @@ impl Default for CoordinatorConfig {
             max_mutating_tool_calls: 2,
             execution_tracer: None,
             execution_trace_registry: None,
+            mol: MolFeatureFlags::default(),
         }
     }
+}
+
+/// Builds the task snapshot passed to the v2 dispatcher: pending status, and optionally clears
+/// `assigned_to` when MOL strict legacy fence is off (legacy behavior).
+fn prepare_dispatch_task_snapshot(config: &CoordinatorConfig, task: &Task) -> Task {
+    let mut dispatch_task = task.clone();
+    dispatch_task.status = TaskStatus::Pending;
+    if !config.mol.strict_legacy_fence {
+        dispatch_task.assigned_to = None;
+    }
+    dispatch_task
 }
 
 impl CoordinatorConfig {
@@ -840,9 +855,7 @@ impl Coordinator {
     }
 
     async fn dispatch_task(&mut self, task: Task) -> Result<WorkerId> {
-        let mut dispatch_task = task.clone();
-        dispatch_task.status = TaskStatus::Pending;
-        dispatch_task.assigned_to = None;
+        let mut dispatch_task = prepare_dispatch_task_snapshot(&self.config, &task);
 
         let mut dispatch_workers = self.dispatch_workers_snapshot();
         let report = self
@@ -931,8 +944,7 @@ impl Coordinator {
                         ExecutionTracePhase::Completed,
                         format!("result {}", task.description),
                     );
-                    result_event.action_id =
-                        format!("result:{}:{}", task.id, completion.worker_id);
+                    result_event.action_id = format!("result:{}:{}", task.id, completion.worker_id);
                     result_event.parent_action_id = Some(task.id.clone());
                     result_event.result_preview = Some(completion.summary.clone());
                     self.emit_trace_event(result_event);
@@ -978,8 +990,7 @@ impl Coordinator {
                         ExecutionTracePhase::Failed,
                         format!("result {}", task.description),
                     );
-                    result_event.action_id =
-                        format!("result:{}:{}", task.id, completion.worker_id);
+                    result_event.action_id = format!("result:{}:{}", task.id, completion.worker_id);
                     result_event.parent_action_id = Some(task.id.clone());
                     result_event.error = completion.error.clone();
                     self.emit_trace_event(result_event);
@@ -1488,7 +1499,8 @@ impl Coordinator {
                             supported_models: Vec::new(),
                             cost_class: crate::tool_registry::CostClass::Low,
                             ui_renderer: crate::tool_registry::UiRenderer::ToolCall,
-                            result_normalizer: crate::tool_registry::ResultNormalizerKind::PlainText,
+                            result_normalizer:
+                                crate::tool_registry::ResultNormalizerKind::PlainText,
                             provider_safe: false,
                             requires_approval: false,
                         },
@@ -1970,7 +1982,10 @@ impl Coordinator {
         event.read_only = spec.read_only;
         event.mutating = spec.mutating;
         event.requires_approval = spec.requires_approval;
-        event.parent_action_id = assignment.context_pack.as_ref().map(|pack| pack.task_id.clone());
+        event.parent_action_id = assignment
+            .context_pack
+            .as_ref()
+            .map(|pack| pack.task_id.clone());
         event
     }
 
@@ -2829,6 +2844,8 @@ impl Coordinator {
             .publish(
                 BlackboardEntry {
                     id: format!("mission-result-{}", result_submission.task_id),
+                    namespace: Some("verification/result_submission".to_string()),
+                    schema_hash: Some("result_submission.v1".to_string()),
                     content,
                 },
                 vec!["coordinator".to_string()],
@@ -3053,7 +3070,10 @@ fn to_dispatch_status(status: &WorkerStatus) -> DispatchWorkerStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlackboardV2, Coordinator, CoordinatorConfig, CoordinatorV2Error};
+    use super::{
+        prepare_dispatch_task_snapshot, BlackboardV2, Coordinator, CoordinatorConfig,
+        CoordinatorV2Error,
+    };
     use crate::execution_trace::{
         read_session_events, ExecutionEventKind, ExecutionTracePhase, ExecutionTraceRegistry,
     };
@@ -3066,7 +3086,7 @@ mod tests {
         ProviderRuntimeBundle, ProviderRuntimeConfig, ProviderTransport, ProviderTransportError,
         ResolvedProviderInstance,
     };
-    use crate::task::{Task, TaskType};
+    use crate::task::{Task, TaskStatus, TaskType};
     use crate::transport::InternalTaskAssignment;
     use crate::TaskTargetHints;
     use serde_json::json;
@@ -3081,6 +3101,30 @@ mod tests {
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::registry::LookupSpan;
     use tracing_subscriber::{Layer, Registry};
+
+    #[test]
+    fn prepare_dispatch_snapshot_clears_assigned_when_mol_fence_off() {
+        let mut t = Task::new("x");
+        t.assigned_to = Some("worker-a".to_string());
+        t.status = TaskStatus::InProgress;
+        let mut cfg = CoordinatorConfig::default();
+        cfg.mol.strict_legacy_fence = false;
+        let d = prepare_dispatch_task_snapshot(&cfg, &t);
+        assert_eq!(d.status, TaskStatus::Pending);
+        assert!(d.assigned_to.is_none());
+    }
+
+    #[test]
+    fn prepare_dispatch_snapshot_preserves_assigned_when_mol_strict() {
+        let mut t = Task::new("x");
+        t.assigned_to = Some("worker-a".to_string());
+        t.status = TaskStatus::InProgress;
+        let mut cfg = CoordinatorConfig::default();
+        cfg.mol.strict_legacy_fence = true;
+        let d = prepare_dispatch_task_snapshot(&cfg, &t);
+        assert_eq!(d.status, TaskStatus::Pending);
+        assert_eq!(d.assigned_to.as_deref(), Some("worker-a"));
+    }
 
     fn cloud_instance_id() -> ProviderInstanceId {
         ProviderInstanceId("cloud".to_string())
@@ -3544,13 +3588,14 @@ mod tests {
             .unwrap();
 
         assert!(result.success);
-        assert!(
-            result.trace_events.iter().all(|event| !event.event_id.is_empty()
+        assert!(result
+            .trace_events
+            .iter()
+            .all(|event| !event.event_id.is_empty()
                 && !event.session_id.is_empty()
                 && !event.mission_id.is_empty()
                 && !event.action_id.is_empty()
-                && event.sequence > 0)
-        );
+                && event.sequence > 0));
         assert_eq!(
             result
                 .trace_events
@@ -3696,8 +3741,14 @@ mod tests {
         assert_eq!(retrieval_events.len(), 2);
         assert_eq!(retrieval_events[0].phase, ExecutionTracePhase::Started);
         assert_eq!(retrieval_events[1].phase, ExecutionTracePhase::Completed);
-        assert_eq!(retrieval_events[0].target_path.as_deref(), Some("src/lib.rs"));
-        assert_eq!(retrieval_events[1].target_path.as_deref(), Some("src/lib.rs"));
+        assert_eq!(
+            retrieval_events[0].target_path.as_deref(),
+            Some("src/lib.rs")
+        );
+        assert_eq!(
+            retrieval_events[1].target_path.as_deref(),
+            Some("src/lib.rs")
+        );
         assert!(retrieval_events[1]
             .result_preview
             .as_deref()

@@ -1,10 +1,12 @@
 pub mod engine;
+pub mod execution_card_json;
 pub mod governor;
 pub mod livingdocs_git;
 pub mod livingdocs_review_service;
 pub mod processor;
 pub mod queue;
 pub mod review_resolution;
+pub mod verification_run_worker;
 pub mod watcher;
 pub mod work_management_service;
 pub mod work_mirror;

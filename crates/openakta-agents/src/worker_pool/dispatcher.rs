@@ -247,7 +247,7 @@ mod tests {
     }
 
     // Slow under load; run: `cargo test -p openakta-agents -- --ignored retry_failed_requeues_task`
-    #[ignore]
+    #[ignore = "slow: retry requeue path runs in the explicit ignored-test lane"]
     #[test]
     fn retry_failed_requeues_task() {
         let workers = Arc::new(DashMap::new());

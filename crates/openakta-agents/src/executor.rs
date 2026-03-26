@@ -694,7 +694,7 @@ mod tests {
     }
 
     // Heavy: large mission decomposition + parallel groups. Run: `cargo test -p openakta-agents -- --ignored test_parallel_group_execution`
-    #[ignore]
+    #[ignore = "slow: large parallel-group execution runs in the explicit ignored-test lane"]
     #[tokio::test]
     async fn test_parallel_group_execution() {
         let mut executor = ConcurrentExecutor::new(StateMachine::new().unwrap());

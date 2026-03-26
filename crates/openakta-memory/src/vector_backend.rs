@@ -8,11 +8,18 @@
 //! Local tier uses Candle embeddings (JinaCode 768-dim, BGE-Skill 384-dim).
 
 use async_trait::async_trait;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde_json::Value;
 use std::sync::Arc;
 
 use crate::SemanticError;
+
+fn bundled_sqlite_version() -> &'static str {
+    std::ffi::CStr::from_bytes_with_nul(rusqlite::ffi::SQLITE_VERSION)
+        .ok()
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("unknown")
+}
 
 /// Canonical, idempotent sqlite-vec initialization for the entire process.
 ///
@@ -40,6 +47,21 @@ pub fn ensure_sqlite_vec_ready() -> Result<(), SqliteVecInitError> {
     static INIT: OnceLock<Result<(), SqliteVecInitError>> = OnceLock::new();
 
     INIT.get_or_init(|| {
+        // Step 0: verify the process is using the bundled SQLite we compiled against.
+        let runtime_version = rusqlite::version();
+        let runtime_version_number = rusqlite::version_number();
+        let bundled_version = bundled_sqlite_version();
+        let bundled_version_number = rusqlite::ffi::SQLITE_VERSION_NUMBER;
+
+        if runtime_version_number != bundled_version_number {
+            return Err(SqliteVecInitError::VersionMismatch {
+                runtime_version: runtime_version.to_string(),
+                runtime_version_number,
+                bundled_version: bundled_version.to_string(),
+                bundled_version_number,
+            });
+        }
+
         // Step 1: Register via sqlite3_auto_extension (matches sqlite-vec crate test)
         unsafe {
             rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
@@ -96,6 +118,16 @@ pub fn ensure_sqlite_vec_ready() -> Result<(), SqliteVecInitError> {
 /// Error types for sqlite-vec initialization
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum SqliteVecInitError {
+    #[error(
+        "runtime SQLite {runtime_version} ({runtime_version_number}) does not match bundled SQLite {bundled_version} ({bundled_version_number})"
+    )]
+    VersionMismatch {
+        runtime_version: String,
+        runtime_version_number: i32,
+        bundled_version: String,
+        bundled_version_number: i32,
+    },
+
     #[error("failed to open test connection: {0}")]
     ConnectionFailed(String),
 
@@ -294,12 +326,14 @@ impl SqliteVecStore {
     /// # Example
     ///
     /// ```rust,no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// // In main(), before any SQLite usage:
     /// openakta_memory::ensure_sqlite_vec_ready()
     ///     .expect("sqlite-vec initialization failed");
     ///
     /// // Now you can safely create SqliteVecStore:
     /// let store = openakta_memory::SqliteVecStore::new("memory.db", 384, 1000)?;
+    /// # Ok(()) }
     /// ```
     pub fn new(path: &str, dim: usize, scan_cap: usize) -> VectorResult<Self> {
         // Ensure sqlite-vec is initialized (idempotent via OnceLock)
@@ -338,15 +372,6 @@ impl SqliteVecStore {
                 id TEXT PRIMARY KEY,
                 embedding FLOAT[{dim}]
             );
-
-            CREATE TABLE IF NOT EXISTS semantic_vec_payload (
-                id TEXT PRIMARY KEY REFERENCES semantic_vec(id) ON DELETE CASCADE,
-                content TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_svp_updated ON semantic_vec_payload(updated_at);
             "#
         ))
         .map_err(|e| {
@@ -355,6 +380,76 @@ impl SqliteVecStore {
                 source: rusqlite::Error::SqliteFailure(
                     rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
                     Some(format!("migration failed: {}", e)),
+                ),
+            })
+        })?;
+
+        Self::ensure_payload_table_schema(conn)?;
+
+        Ok(())
+    }
+
+    fn ensure_payload_table_schema(conn: &Connection) -> VectorResult<()> {
+        let existing_sql: Option<String> = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='semantic_vec_payload'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: "semantic_vec_payload".to_string(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("payload schema introspection failed: {}", e)),
+                    ),
+                })
+            })?;
+
+        match existing_sql {
+            None => conn.execute_batch(
+                r#"
+                CREATE TABLE semantic_vec_payload (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_svp_updated ON semantic_vec_payload(updated_at);
+                "#,
+            ),
+            Some(sql) if sql.to_ascii_lowercase().contains("references semantic_vec") => {
+                conn.execute_batch(
+                    r#"
+                    DROP INDEX IF EXISTS idx_svp_updated;
+                    CREATE TABLE semantic_vec_payload_new (
+                        id TEXT PRIMARY KEY,
+                        content TEXT NOT NULL,
+                        payload TEXT NOT NULL,
+                        created_at INTEGER NOT NULL,
+                        updated_at INTEGER NOT NULL
+                    );
+                    INSERT INTO semantic_vec_payload_new(id, content, payload, created_at, updated_at)
+                    SELECT id, content, payload, created_at, updated_at
+                    FROM semantic_vec_payload;
+                    DROP TABLE semantic_vec_payload;
+                    ALTER TABLE semantic_vec_payload_new RENAME TO semantic_vec_payload;
+                    CREATE INDEX IF NOT EXISTS idx_svp_updated ON semantic_vec_payload(updated_at);
+                    "#,
+                )
+            }
+            Some(_) => conn.execute_batch(
+                "CREATE INDEX IF NOT EXISTS idx_svp_updated ON semantic_vec_payload(updated_at);",
+            ),
+        }
+        .map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
+                path: "semantic_vec_payload".to_string(),
+                source: rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                    Some(format!("payload schema migration failed: {}", e)),
                 ),
             })
         })?;
@@ -557,18 +652,38 @@ impl VectorStore for SqliteVecStore {
         // Convert f32 slice to bytes for sqlite-vec
         let embedding_bytes: &[u8] = bytemuck::cast_slice(vector);
 
-        // Insert into virtual table (sqlite-vec)
-        tx.execute(
-            "INSERT INTO semantic_vec(id, embedding) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET embedding = excluded.embedding",
-            rusqlite::params![id, embedding_bytes],
-        )
-        .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: self.path.clone(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("vec upsert failed: {}", e)),
-            ),
-        }))?;
+        // sqlite-vec virtual tables implement INSERT/UPDATE, but SQLite does not
+        // support `ON CONFLICT .. DO UPDATE` against this virtual table.
+        let updated = tx
+            .execute(
+                "UPDATE semantic_vec SET embedding = ?2 WHERE id = ?1",
+                rusqlite::params![id, embedding_bytes],
+            )
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("vec update failed: {}", e)),
+                    ),
+                })
+            })?;
+
+        if updated == 0 {
+            tx.execute(
+                "INSERT INTO semantic_vec(id, embedding) VALUES (?, ?)",
+                rusqlite::params![id, embedding_bytes],
+            )
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("vec insert failed: {}", e)),
+                    ),
+                })
+            })?;
+        }
 
         // Insert/update payload
         let now = chrono::Utc::now().timestamp_millis();
@@ -629,8 +744,8 @@ impl VectorStore for SqliteVecStore {
                 FROM semantic_vec sv
                 JOIN semantic_vec_payload svp ON sv.id = svp.id
                 WHERE sv.embedding MATCH ?1
+                  AND sv.k = ?2
                 ORDER BY sv.distance
-                LIMIT ?2
                 "#,
             )
             .map_err(|e| {
@@ -875,6 +990,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_sqlite_runtime_matches_bundled_build() {
+        assert_eq!(
+            rusqlite::version_number(),
+            rusqlite::ffi::SQLITE_VERSION_NUMBER
+        );
+        assert_eq!(rusqlite::version(), bundled_sqlite_version());
+    }
+
+    #[test]
     fn test_ensure_sqlite_vec_ready_two_tier_verification() {
         // This test verifies the canonical initialization works correctly
         // Tier A: vec_version() check
@@ -915,5 +1039,42 @@ mod tests {
             "SqliteVecStore::new failed: {:?}",
             store_result.err()
         );
+    }
+
+    #[test]
+    fn test_sqlite_vec_store_round_trip_search_and_delete() {
+        let temp_path = tempfile::NamedTempFile::new()
+            .expect("failed to create temp file")
+            .into_temp_path()
+            .to_string_lossy()
+            .to_string();
+
+        ensure_sqlite_vec_ready().expect("init failed");
+        let store = SqliteVecStore::new(&temp_path, 1, 1000).expect("store init failed");
+
+        tokio_test::block_on(async {
+            store
+                .upsert(
+                    "doc-1",
+                    &[1.0],
+                    serde_json::json!({
+                        "content": "alpha"
+                    }),
+                )
+                .await
+                .expect("upsert failed");
+
+            let hits = store.search(&[1.0], 1, None).await.expect("search failed");
+            assert_eq!(hits.len(), 1);
+            assert_eq!(hits[0].id, "doc-1");
+            assert!(hits[0].score > 0.99, "unexpected score: {}", hits[0].score);
+
+            let count = store.count().await.expect("count failed");
+            assert_eq!(count, 1);
+
+            store.delete("doc-1").await.expect("delete failed");
+            let count_after_delete = store.count().await.expect("count after delete failed");
+            assert_eq!(count_after_delete, 0);
+        });
     }
 }

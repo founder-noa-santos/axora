@@ -4,8 +4,8 @@
 
 use openakta_agents::{
     default_local_transport, local_provider_config_from_instance, BlackboardV2, CloudModelRef,
-    Coordinator, CoordinatorConfig, ExecutionTraceEvent, ExecutionTraceRegistry,
-    FallbackPolicy, HitlConfig, LocalModelRef, MessageExecutionMode, MessageSurface, MissionGate,
+    Coordinator, CoordinatorConfig, ExecutionTraceEvent, ExecutionTraceRegistry, FallbackPolicy,
+    HitlConfig, LocalModelRef, MessageExecutionMode, MessageSurface, MissionGate,
     MissionGateRequest, MissionHitlGate, MissionResult, ModelRegistrySnapshot,
     ProviderInstanceConfig, ProviderInstanceId, ProviderProfileId, ProviderRegistry,
     ProviderRuntimeBundle, ResponsePreference, RuntimeBlackboard, SecretRef, Task,
@@ -357,6 +357,7 @@ impl RuntimeBootstrap {
                 retrieval_share: runtime.config.provider_retrieval_share,
                 execution_tracer: Some(trace_service),
                 execution_trace_registry: Some(Arc::clone(&runtime.trace_registry)),
+                mol: runtime.config.mol,
                 ..Default::default()
             },
             Arc::clone(&runtime.blackboard),

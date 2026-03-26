@@ -1,0 +1,23 @@
+name: Proto CI
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: bufbuild/buf-setup-action@v1
+
+      - name: lint proto
+        run: buf lint
+
+      - name: check breaking changes
+        run: buf breaking --against '.git#branch=main,subdir=proto'

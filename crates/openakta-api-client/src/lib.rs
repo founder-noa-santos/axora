@@ -10,7 +10,10 @@ pub mod config;
 pub mod error;
 pub mod execution_strategy;
 pub mod feature_flags;
+pub mod mol_flags;
 pub mod work_management;
+
+mod work_proto_convert;
 
 pub use auth::{static_provider, AuthProvider, EnvAuthProvider, StaticTokenAuthProvider};
 pub use capability::{
@@ -21,12 +24,21 @@ pub use config::ClientConfig;
 pub use error::{ApiError, Result};
 pub use execution_strategy::ExecutionStrategy;
 pub use feature_flags::FeatureFlags;
+pub use mol_flags::MolFeatureFlags;
 pub use work_management::{
-    ClarificationItemView, CommandEnvelope, CommandResponse, CyclePhaseView, DecisionRecordView,
-    DependencyEdgeView, EvidenceLinkView, EventsResponse, PlanVersionView, PlanningCycleView,
-    ReadModelResponse, WorkEvent, WorkItemView, WorkspaceView,
+    AcceptanceCheckUpsertItem, AcceptanceCheckView, ClarificationItemView, ClosureClaimView,
+    ClosureGateView, ClosureReportView, CommandEnvelope, CommandResponse, CyclePhaseView,
+    DecisionRecordView, DeleteAcceptanceCheckPayload, DependencyEdgeView, EventsResponse,
+    EvidenceLinkView, ExecutionProfileDecisionView, HandoffContractView, KnowledgeArtifactView,
+    MemoryPromotionEventView, PersonaAssignmentView, PersonaAssignmentsListView, PersonaView,
+    PlanVersionView, PlanningCycleView, ReadModelResponse, RecordClarificationAnswerItem,
+    RecordClarificationAnswersPayload, RequirementCoverageView, RequirementEdgeView,
+    RequirementGraphView, RequirementView, StoryIntakeView, StoryPreparationView,
+    UpsertAcceptanceChecksPayload, VerificationFindingView, VerificationRunView, WorkEvent,
+    WorkItemView, WorkspaceView,
 };
 
 /// Re-export proto types for convenience
 pub use openakta_proto::provider_v1;
 pub use openakta_proto::research_v1;
+pub use openakta_proto::work_v1;

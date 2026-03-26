@@ -1,3 +1,5 @@
+#![cfg(feature = "sim-tests")]
+
 //! API Client Integration Tests
 //!
 //! Integration tests for the full coordinator flow with API client.

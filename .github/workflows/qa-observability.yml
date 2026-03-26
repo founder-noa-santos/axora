@@ -1,0 +1,58 @@
+name: QA Observability
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          prefix-key: qa-observability
+
+      - name: install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: collect coverage
+        run: bash scripts/qa/run_coverage.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aktacode-coverage
+          path: target/coverage/lcov.info
+
+  mutants:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          prefix-key: qa-mutants
+
+      - name: install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: run mutation watchlist
+        run: bash scripts/qa/run_mutation_watchlist.sh | tee target/mutants.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aktacode-mutants
+          path: target/mutants.log

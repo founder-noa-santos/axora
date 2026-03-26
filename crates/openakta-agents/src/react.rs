@@ -894,6 +894,8 @@ async fn planner_loop(
                 let Some(cycle_number) = maybe_request else {
                     break;
                 };
+                // `snapshot_summary` filters by ACL key; producers use ids like `planner` / `coordinator`,
+                // not `"all"`, so this summary is often empty — see REPORT §5.5 (MOL-A12).
                 let (version, summary) = {
                     let blackboard = blackboard.lock().await;
                     (blackboard.version(), blackboard.snapshot_summary("all"))
@@ -1150,6 +1152,8 @@ mod tests {
     fn shared_entry(id: &str, content: &str) -> BlackboardEntry {
         BlackboardEntry {
             id: id.to_string(),
+            namespace: None,
+            schema_hash: None,
             content: content.to_string(),
         }
     }

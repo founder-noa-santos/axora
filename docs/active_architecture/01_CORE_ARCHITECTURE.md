@@ -1,7 +1,7 @@
 # 01_CORE_ARCHITECTURE
 
-**Status:** ✅ Active & Enforced  
-**Last Updated:** 2026-03-18  
+**Status:** Active (this doc is maintained; not every subsection is “enforced” in code—see below)  
+**Last Updated:** 2026-03-26  
 **Owner:** Architect Agent  
 
 ---
@@ -12,6 +12,17 @@ OPENAKTA uses a **hybrid architecture**:
 - **Cloud APIs** for reasoning (OpenAI-family) — No local LLM inference
 - **Local infrastructure** for indexing, RAG, and memory — Zero cloud costs for embeddings
 - **Deterministic orchestration** — State machines, not conversational swarms
+
+**Mission Operating Layer (MOL) — today vs target**
+
+- **Today:** Data model and APIs for story intake, preparation, requirements, verification, and closure live primarily in **`openakta-api`** (Postgres migrations such as `openakta-api/migrations/0005_mission_operating_layer.sql`, handlers in `openakta-api/src/work_management.rs`). The **daemon** (`aktacode/crates/openakta-daemon`, e.g. `background/work_management_service.rs`, `background/work_plan_compiler.rs`) mirrors read models locally and drives execution. **Not every transition or invariant is enforced uniformly** across API, daemon, and agents yet; roadmap work adds authoritative gates.
+- **Target:** Preparation and closure behave as **state machines with hard gates** (no “rich JSON but false-done”). Depends on ongoing MOL implementation (validation in API, compiler, coordinator).
+- **Legacy:** Execution may still use **raw work items** or paths that predate strict MOL; see `docs/aios/mission-operating-layer.md`.
+
+Intended product shape for MOL:
+
+- **Preparation** — stories are clarified, profiled, and compiled into prepared packets; **target** is that Balanced+ profiles require readiness before execution.
+- **Closure** — **target** is that mission success moves work toward **`closure_pending`** and only authoritative closure (coverage, claims, verification, handoffs, gates) yields **`closed`**—not task completion alone.
 
 ---
 
@@ -44,8 +55,9 @@ OPENAKTA uses a **hybrid architecture**:
 
 1. **No Direct Agent Communication** — Agents publish/subscribe to Blackboard
 2. **State Machine Orchestration** — Deterministic execution (no loops)
-3. **Binary Protocol** — Protobuf for inter-agent messages (not JSON)
-4. **Snapshot-Based Consistency** — Prevents TOCTOU bugs
+3. **Typed Blackboard Artifacts** — Runtime publication carries namespaces and schema labels for mission, verification, and result channels
+4. **Binary Protocol** — Protobuf for inter-agent messages (not JSON)
+5. **Snapshot-Based Consistency** — Prevents TOCTOU bugs
 
 ### Implementation
 
@@ -296,7 +308,7 @@ impl StateMachine {
 
 ---
 
-**This is the Single Source of Truth for OPENAKTA core architecture.**
+**Scope:** This document is the **primary architecture narrative** for core runtime concepts (blackboard, indexing, protocols). It is **not** a guarantee that every box in every diagram is production-complete—compare with the implementation ledger and `docs/aios/*` for MOL specifics.
 
-**Last Reviewed:** 2026-03-18  
-**Next Review:** After MVP launch
+**Last Reviewed:** 2026-03-26  
+**Next Review:** After MVP launch or major MOL gate milestones

@@ -14,9 +14,9 @@ use std::sync::Arc;
 use tokio::sync::Notify;
 use tracing::{error, info, warn};
 
-use openakta_api_client::ApiClientPool;
 use openakta_agents::hitl::{HitlConfig, MissionHitlGate};
 use openakta_agents::{ExecutionTraceRegistry, RuntimeBlackboard};
+use openakta_api_client::ApiClientPool;
 use openakta_core::{
     init_tracing, CollectiveServer, CoreConfig, CoreError, ExecutionObservabilityGrpc,
     MemoryServices,
@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting OPENAKTA Daemon v{}", env!("CARGO_PKG_VERSION"));
 
     // Load or create configuration
-    let config = if let Some(config_path) = args.config {
+    let mut config = if let Some(config_path) = args.config {
         info!("Loading configuration from: {:?}", config_path);
         CoreConfig::from_file(&config_path)?
     } else {
@@ -93,6 +93,8 @@ async fn main() -> anyhow::Result<()> {
         config.database_path = args.database.clone();
         config
     };
+
+    config.mol.apply_env_overrides();
 
     info!("Configuration: {:?}", config);
     config.ensure_runtime_layout()?;
@@ -138,8 +140,7 @@ async fn main() -> anyhow::Result<()> {
         SqliteJobQueue::open(SqliteJobQueue::path_for_workspace(&config.workspace_root))?;
     let livingdocs_review =
         LivingDocsReviewGrpc::open(livingdocs_queue, config.workspace_root.clone());
-    let work_mirror =
-        WorkMirror::open(WorkMirror::path_for_workspace(&config.workspace_root))?;
+    let work_mirror = WorkMirror::open(WorkMirror::path_for_workspace(&config.workspace_root))?;
     let work_management_service = WorkManagementGrpc::open(
         work_mirror,
         ApiClientPool::global(),

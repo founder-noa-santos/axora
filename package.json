@@ -13,6 +13,8 @@
     "typecheck": "turbo run typecheck --filter=!@openakta/mvp",
     "clean": "turbo run clean --filter=!@openakta/mvp && rm -rf node_modules",
     "proto:gen": "cd proto && buf generate",
+    "proto:lint": "buf lint",
+    "proto:breaking": "buf breaking --against '.git#branch=main,subdir=proto'",
     "dev:daemon": "cargo run -p openakta-daemon",
     "dev:desktop": "pnpm --filter @openakta/desktop dev"
   },

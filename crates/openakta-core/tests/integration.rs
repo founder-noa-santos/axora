@@ -13,7 +13,30 @@ use openakta_proto::collective::v1::{
 };
 use std::sync::Arc;
 use tokio::sync::Notify;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{sleep, timeout, Duration, Instant};
+
+async fn wait_for_collective_client(
+    endpoint: &str,
+) -> CollectiveServiceClient<tonic::transport::Channel> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut last_error = None;
+
+    loop {
+        match CollectiveServiceClient::connect(endpoint.to_string()).await {
+            Ok(client) => return client,
+            Err(err) if Instant::now() < deadline => {
+                last_error = Some(err.to_string());
+                sleep(Duration::from_millis(25)).await;
+            }
+            Err(err) => {
+                panic!(
+                    "collective server at {endpoint} did not become ready: {}",
+                    last_error.unwrap_or_else(|| err.to_string())
+                );
+            }
+        }
+    }
+}
 
 /// Test the collective server
 #[tokio::test]
@@ -42,13 +65,7 @@ async fn test_submit_task_grpc() {
         server.serve().await.unwrap();
     });
 
-    // Give server time to start
-    sleep(Duration::from_millis(100)).await;
-
-    // Connect client
-    let mut client = CollectiveServiceClient::connect("http://127.0.0.1:50052")
-        .await
-        .expect("Failed to connect to server");
+    let mut client = wait_for_collective_client("http://127.0.0.1:50052").await;
 
     // Submit task
     let request = SubmitTaskRequest {
@@ -90,13 +107,7 @@ async fn test_list_agents_grpc() {
         server.serve().await.unwrap();
     });
 
-    // Give server time to start
-    sleep(Duration::from_millis(100)).await;
-
-    // Connect client
-    let mut client = CollectiveServiceClient::connect("http://127.0.0.1:50053")
-        .await
-        .expect("Failed to connect to server");
+    let mut client = wait_for_collective_client("http://127.0.0.1:50053").await;
 
     // List agents
     let request = ListAgentsRequest {
@@ -173,7 +184,7 @@ async fn collective_graceful_shutdown_serve_with_shutdown() {
             .await
     });
 
-    sleep(Duration::from_millis(50)).await;
+    tokio::task::yield_now().await;
     shutdown.notify_waiters();
 
     let joined = timeout(Duration::from_secs(5), handle)
@@ -191,29 +202,38 @@ async fn test_frame_executor() {
 
     use openakta_core::{FrameContext, FrameExecutor};
     use std::sync::Arc;
-    use tokio::sync::RwLock;
+    use tokio::sync::{Notify, RwLock};
+    use tokio::time::{timeout, Duration};
 
     let mut executor = FrameExecutor::new(60); // 60 FPS
 
     let frames_processed = Arc::new(RwLock::new(0));
     let frames_clone = frames_processed.clone();
+    let done = Arc::new(Notify::new());
+    let done_clone = done.clone();
 
-    // Run frame loop for a short time
-    let frame_handler = move |ctx: FrameContext| {
-        let frames = frames_clone.clone();
-        async move {
-            let mut count = frames.write().await;
-            *count += 1;
+    tokio::spawn(async move {
+        executor
+            .run(move |ctx: FrameContext| {
+                let frames = frames_clone.clone();
+                let done = done_clone.clone();
+                async move {
+                    let mut count = frames.write().await;
+                    *count += 1;
+                    if ctx.frame.number >= 10 {
+                        done.notify_waiters();
+                    }
+                }
+            })
+            .await;
+    });
 
-            // Stop after 10 frames
-            if ctx.frame.number >= 10 {
-                std::process::exit(0);
-            }
-        }
-    };
+    timeout(Duration::from_secs(2), done.notified())
+        .await
+        .expect("frame executor did not process 10 frames");
 
-    // Run executor (will exit after 10 frames)
-    executor.run(frame_handler).await;
+    let count = *frames_processed.read().await;
+    assert!(count >= 10);
 
     println!("✅ Frame executor test passed");
 }

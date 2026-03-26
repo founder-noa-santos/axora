@@ -8,6 +8,10 @@ repository.workspace = true
 rust-version.workspace = true
 description = "Agent framework for OPENAKTA"
 
+[features]
+default = []
+sim-tests = []
+
 [lints]
 workspace = true
 

@@ -66,10 +66,18 @@ pub enum GlobalState {
     #[default]
     /// Idle, waiting for tasks
     Idle,
+    /// Preparation is underway.
+    Preparing,
     /// Processing tasks
     Running,
+    /// Waiting for clarification input.
+    AwaitingClarification,
     /// Waiting for review
     WaitingForReview,
+    /// Waiting for verification execution.
+    AwaitingVerification,
+    /// Waiting for closure gates to pass.
+    ClosurePending,
     /// Completed all tasks
     Completed,
     /// Error state

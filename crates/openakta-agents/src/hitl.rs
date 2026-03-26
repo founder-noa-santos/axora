@@ -1061,7 +1061,9 @@ fn should_redact_sensitive_tokens(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{read_session_events, ExecutionEventKind, ExecutionTracePhase, ExecutionTraceRegistry};
+    use crate::{
+        read_session_events, ExecutionEventKind, ExecutionTracePhase, ExecutionTraceRegistry,
+    };
     use openakta_proto::collective::v1::{AnswerAuthor, QuestionOption};
     use std::sync::Arc;
 

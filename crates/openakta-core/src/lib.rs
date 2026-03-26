@@ -14,6 +14,7 @@ pub mod server;
 pub use bootstrap::{MessageRequest, MessageResult, RuntimeBootstrap, RuntimeBootstrapOptions};
 pub use config::{CoreConfig, SemanticVectorBackend};
 pub use frame::{Frame, FrameContext, FrameExecutor};
+pub use openakta_api_client::MolFeatureFlags;
 pub use runtime_services::{DocSyncService, MemoryServices};
 pub use server::{stream_messages_lagged_total, CollectiveServer, ExecutionObservabilityGrpc};
 

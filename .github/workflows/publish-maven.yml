@@ -1,10 +1,7 @@
 name: Publish Java SDKs
 
 on:
-  push:
-    tags:
-      - 'sdks/java@*'
-      - 'integrations/java/**@*'
+  workflow_dispatch:
 
 jobs:
   publish:

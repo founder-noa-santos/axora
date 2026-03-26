@@ -1,3 +1,37 @@
+//! Local SQLite mirror for work-management read models and daemon-only state.
+//!
+//! **Path:** `.openakta/work-management.db` under the workspace root ([`WorkMirror::path_for_workspace`]).
+//!
+//! # Mirror vs canonical (A14)
+//!
+//! **Canonical source of truth** for Mission Operating Layer aggregates is the hosted API (Postgres +
+//! events). This file persists a **local-first cache** plus tables that exist **only** on disk.
+//!
+//! | Storage | Role | Canonical? | Notes |
+//! |---------|------|------------|--------|
+//! | `wm_read_models` | Full JSON snapshot of [`ReadModelResponse`] + `etag` + `checkpoint_seq` | **Yes** when refreshed from `WorkManagementGrpc::synced_read_model` or after a successful `submit_command` | Can **diverge** temporarily: [`WorkMirror::resolve_clarifications`] and `update_item_states` patch the embedded JSON **without** a round-trip to the API. The next successful API fetch overwrites the snapshot. |
+//! | `wm_pending_commands` | Outbox: serialized [`CommandEnvelope`] per `client_command_id` | Command **application** is canonical on the server; this table tracks sync status (`pending` / `applied` / `failed`) | Written before the HTTP submit; marked after response. |
+//! | `wm_local_clarification_answers` | Answers keyed by `(session_id, clarification_item_id)` | **Local-only** | Used when [`WorkMirror::resolve_clarifications`] runs (offline fallback). The normal gRPC path submits `record_clarification_answers` to the hosted API first, then refreshes the mirror from the canonical read model (AB9). |
+//! | `wm_local_evidence` | [`EvidenceLinkView`] rows (traces, compiled plan, mission result, …) | **Local-only** | Not replicated to Postgres by this module; `storage_scope` is often `"local"`. |
+//! | `wm_local_verification_index` | Denormalized index of verification runs | **Derived** from the last canonical read model passed to [`WorkMirror::upsert_verification_index`] | Convenience for local queries; rebuild from API snapshot. |
+//! | `wm_persona_memory_index` | Denormalized persona / assignment / artifact index | **Derived** from the read model in [`WorkMirror::refresh_persona_memory_index`] | Rebuilt from canonical snapshot; not a separate source of truth. |
+//!
+//! # Implications for AB9 (clarifications)
+//!
+//! **Canonical path:** `WorkManagementGrpc::resolve_clarifications` submits command
+//! `record_clarification_answers`, which appends to `wm_clarification_answers` and updates
+//! `wm_clarification_items` in Postgres, then replaces the local read model from the API response.
+//!
+//! **Offline fallback:** if `submit_work_command` fails with transport-style [`openakta_api_client::ApiError`]
+//! (unavailable / timeout / connection refused / circuit open), the handler patches the mirror only
+//! (`wm_local_clarification_answers` + embedded JSON). Those answers are **not** in Postgres until a
+//! later successful sync—gates that require server-side state should treat offline resolution as
+//! non-canonical.
+//!
+//! **Compile readiness (AB11):** `work_plan_compiler::enforce_readiness` checks clarification rows in the
+//! embedded read model; local `resolve_clarifications` patches set `status` to `answered` on those rows
+//! before `compile_work_plan` runs, so unresolved items block compilation when they apply to the story.
+
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -87,6 +121,35 @@ impl WorkMirror {
 
             CREATE INDEX IF NOT EXISTS idx_wm_local_evidence_workspace
             ON wm_local_evidence(workspace_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS wm_local_verification_index (
+                verification_run_id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                story_id TEXT,
+                prepared_story_id TEXT,
+                status TEXT NOT NULL,
+                verification_stage TEXT NOT NULL,
+                summary_json TEXT,
+                updated_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wm_local_verification_index_workspace
+            ON wm_local_verification_index(workspace_id, updated_at_ms DESC);
+
+            CREATE TABLE IF NOT EXISTS wm_persona_memory_index (
+                workspace_id TEXT NOT NULL,
+                persona_id TEXT NOT NULL,
+                story_id TEXT,
+                prepared_story_id TEXT,
+                memory_ref TEXT NOT NULL,
+                memory_kind TEXT NOT NULL,
+                summary TEXT,
+                updated_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (workspace_id, persona_id, memory_ref)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wm_persona_memory_index_scope
+            ON wm_persona_memory_index(workspace_id, persona_id, updated_at_ms DESC);
             "#,
         )?;
         Ok(())
@@ -145,7 +208,11 @@ impl WorkMirror {
         Ok(())
     }
 
-    pub fn record_pending_command(&self, workspace_id: Uuid, command: &CommandEnvelope) -> Result<()> {
+    pub fn record_pending_command(
+        &self,
+        workspace_id: Uuid,
+        command: &CommandEnvelope,
+    ) -> Result<()> {
         let conn = self.connect()?;
         let json = serde_json::to_string(command).context("serialize pending command")?;
         let now = now_ms();
@@ -239,11 +306,21 @@ impl WorkMirror {
         workspace_id: Uuid,
         work_item_ids: &[Uuid],
     ) -> Result<()> {
-        self.update_item_states(workspace_id, work_item_ids, Some("in_progress"), "queued_for_llm")
+        self.update_item_states(
+            workspace_id,
+            work_item_ids,
+            Some("in_progress"),
+            "queued_for_llm",
+        )
     }
 
     pub fn mark_items_executing(&self, workspace_id: Uuid, work_item_ids: &[Uuid]) -> Result<()> {
-        self.update_item_states(workspace_id, work_item_ids, Some("in_progress"), "executing")
+        self.update_item_states(
+            workspace_id,
+            work_item_ids,
+            Some("in_progress"),
+            "executing",
+        )
     }
 
     pub fn mark_items_execution_succeeded(
@@ -308,6 +385,100 @@ impl WorkMirror {
                 entry.created_at.to_rfc3339(),
             ],
         )?;
+        Ok(())
+    }
+
+    pub fn upsert_verification_index(
+        &self,
+        workspace_id: Uuid,
+        read_model: &ReadModelResponse,
+    ) -> Result<()> {
+        let conn = self.connect()?;
+        let tx = conn.unchecked_transaction()?;
+        for run in &read_model.verification_runs {
+            tx.execute(
+                r#"
+                INSERT INTO wm_local_verification_index
+                    (verification_run_id, workspace_id, story_id, prepared_story_id, status,
+                     verification_stage, summary_json, updated_at_ms)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                ON CONFLICT(verification_run_id) DO UPDATE SET
+                    status = excluded.status,
+                    verification_stage = excluded.verification_stage,
+                    summary_json = excluded.summary_json,
+                    updated_at_ms = excluded.updated_at_ms,
+                    story_id = excluded.story_id,
+                    prepared_story_id = excluded.prepared_story_id
+                "#,
+                params![
+                    run.id.to_string(),
+                    workspace_id.to_string(),
+                    run.story_id.map(|value| value.to_string()),
+                    run.prepared_story_id.map(|value| value.to_string()),
+                    run.status,
+                    run.verification_stage,
+                    run.summary_json.as_ref().map(serde_json::Value::to_string),
+                    now_ms(),
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn refresh_persona_memory_index(
+        &self,
+        workspace_id: Uuid,
+        read_model: &ReadModelResponse,
+    ) -> Result<()> {
+        let conn = self.connect()?;
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM wm_persona_memory_index WHERE workspace_id = ?1",
+            params![workspace_id.to_string()],
+        )?;
+
+        for artifact in &read_model.knowledge_artifacts {
+            if let Some(persona_id) = &artifact.persona_id {
+                tx.execute(
+                    r#"
+                    INSERT INTO wm_persona_memory_index
+                        (workspace_id, persona_id, story_id, prepared_story_id, memory_ref, memory_kind, summary, updated_at_ms)
+                    VALUES (?1, ?2, NULL, NULL, ?3, ?4, ?5, ?6)
+                    "#,
+                    params![
+                        workspace_id.to_string(),
+                        persona_id,
+                        artifact.id.to_string(),
+                        artifact.artifact_kind,
+                        artifact.title,
+                        now_ms(),
+                    ],
+                )?;
+            }
+        }
+
+        for assignment in &read_model.persona_assignments {
+            tx.execute(
+                r#"
+                INSERT INTO wm_persona_memory_index
+                    (workspace_id, persona_id, story_id, prepared_story_id, memory_ref, memory_kind, summary, updated_at_ms)
+                VALUES (?1, ?2, NULL, NULL, ?3, 'assignment', ?4, ?5)
+                ON CONFLICT(workspace_id, persona_id, memory_ref) DO UPDATE SET
+                    summary = excluded.summary,
+                    updated_at_ms = excluded.updated_at_ms
+                "#,
+                params![
+                    workspace_id.to_string(),
+                    assignment.persona_id,
+                    assignment.id.to_string(),
+                    format!("{}:{}", assignment.subject_type, assignment.assignment_role),
+                    now_ms(),
+                ],
+            )?;
+        }
+
+        tx.commit()?;
         Ok(())
     }
 

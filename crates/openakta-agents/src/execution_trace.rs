@@ -2,13 +2,13 @@
 
 use chrono::Utc;
 use dashmap::DashMap;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use parking_lot::Mutex;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
@@ -267,13 +267,12 @@ impl ExecutionTraceRegistry {
     }
 
     pub fn service(&self, session_id: &str) -> Option<Arc<ExecutionTraceService>> {
-        self.sessions.get(session_id).map(|entry| Arc::clone(entry.value()))
+        self.sessions
+            .get(session_id)
+            .map(|entry| Arc::clone(entry.value()))
     }
 
-    pub fn emit(
-        &self,
-        event: ExecutionTraceEvent,
-    ) -> std::io::Result<Option<ExecutionTraceEvent>> {
+    pub fn emit(&self, event: ExecutionTraceEvent) -> std::io::Result<Option<ExecutionTraceEvent>> {
         match self.service(&event.session_id) {
             Some(service) => service.emit(event).map(Some),
             None => Ok(None),
@@ -299,10 +298,7 @@ impl ExecutionSummaryRenderer {
 
         let mut headline = format!(
             "[{prefix}] seq={} phase={:?} action={} label={}",
-            event.sequence,
-            event.phase,
-            event.action_id,
-            event.display_name
+            event.sequence, event.phase, event.action_id, event.display_name
         );
         if !event.mission_id.is_empty() {
             headline.push_str(&format!(" mission={}", event.mission_id));
@@ -380,8 +376,8 @@ pub fn read_events_from_path(
         if line.trim().is_empty() {
             continue;
         }
-        let event: ExecutionTraceEvent = serde_json::from_str(&line)
-            .map_err(|err| std::io::Error::other(err.to_string()))?;
+        let event: ExecutionTraceEvent =
+            serde_json::from_str(&line).map_err(|err| std::io::Error::other(err.to_string()))?;
         if event.sequence >= from_sequence {
             events.push(event);
         }

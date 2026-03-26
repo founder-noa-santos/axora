@@ -19,6 +19,16 @@ OPENAKTA bootstraps its local runtime automatically for the mission path:
 - starts the native MCP tool boundary
 - boots the default Base Squad inside `CoordinatorV2`
 
+## Mission Operating Layer (MOL)
+
+**Today:** The hosted work-management stack persists Mission Operating Layer data in Postgres ([`../openakta-api/migrations/0005_mission_operating_layer.sql`](../openakta-api/migrations/0005_mission_operating_layer.sql)) and exposes it through gRPC work-management RPCs ([`../openakta-api/src/work_management.rs`](../openakta-api/src/work_management.rs), [`proto/work/v1/work.proto`](./proto/work/v1/work.proto)). The local daemon mirrors read models and pending commands in SQLite at `.openakta/work-management.db` ([`crates/openakta-daemon/src/background/work_mirror.rs`](./crates/openakta-daemon/src/background/work_mirror.rs)) and runs compilation / coordination against that mirror plus API calls.
+
+**Target:** End-to-end **hard gates** so story preparation, closure, and verification invariants cannot be satisfied only by rich data—they must hold on every read/write path (see product roadmap: “MOL hard gates”). Until those gates are complete, some flows remain **best-effort** or **legacy-compatible**.
+
+**Legacy paths (still in play):** Work can still be created or advanced via **raw work items** and daemon execution without a fully prepared story; the compiler and coordinator may synthesize or ignore MOL fields depending on context. Treat docs under `docs/aios/` as the **intended** model; enforcement depth is documented per topic there.
+
+For a fuller picture: [mission-operating-layer.md](./docs/aios/mission-operating-layer.md), [01_CORE_ARCHITECTURE.md](./docs/active_architecture/01_CORE_ARCHITECTURE.md).
+
 ## Current desktop architecture
 
 The desktop app in [apps/desktop](./apps/desktop) uses:

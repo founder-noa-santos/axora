@@ -17,7 +17,14 @@ use crate::auth::{static_provider, AuthProvider, EnvAuthProvider};
 use crate::config::ClientConfig;
 use crate::error::{ApiError, Result};
 use crate::execution_strategy::ExecutionStrategy;
-use crate::work_management::{CommandEnvelope, CommandResponse, EventsResponse, ReadModelResponse};
+use crate::work_management::{
+    ClosureReportView, CommandEnvelope, CommandResponse, EventsResponse,
+    PersonaAssignmentsListView, ReadModelResponse, RequirementGraphView,
+};
+use crate::work_proto_convert::{
+    closure_report_from_response, persona_assignments_from_response,
+    requirement_graph_from_response,
+};
 
 use openakta_proto::provider_v1::{
     provider_service_client::ProviderServiceClient, ProviderRequest, ProviderResponse,
@@ -32,6 +39,11 @@ use openakta_proto::provider_v1::{
 
 use openakta_proto::research_v1::{
     research_service_client::ResearchServiceClient, SearchRequest, SearchResponse,
+};
+
+use openakta_proto::work_v1::work_management_service_client::WorkManagementServiceClient;
+use openakta_proto::work_v1::{
+    GetClosureReportRequest, GetRequirementGraphRequest, ListPersonaAssignmentsRequest,
 };
 
 /// API client for provider service
@@ -257,6 +269,98 @@ impl ApiClient {
         .await
     }
 
+    /// Requirement graph and related rows for a story or prepared story (`work.v1.GetRequirementGraph`).
+    ///
+    /// Callers typically point the client at the local daemon endpoint that serves `WorkManagementService`.
+    pub async fn get_requirement_graph(
+        &self,
+        workspace_id: Uuid,
+        story_id: Option<Uuid>,
+        prepared_story_id: Option<Uuid>,
+    ) -> Result<RequirementGraphView> {
+        self.circuit_allow_request().await?;
+
+        let mut client = WorkManagementServiceClient::new(self.channel.clone());
+        let payload = GetRequirementGraphRequest {
+            workspace_id: workspace_id.to_string(),
+            story_id: story_id.map(|id| id.to_string()).unwrap_or_default(),
+            prepared_story_id: prepared_story_id
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
+        };
+        let first = self.prepare_request(payload.clone()).await?;
+        let mut result = client.get_requirement_graph(first).await;
+
+        if let Err(status) = &result {
+            if self.maybe_refresh_auth(status).await? {
+                let retry = self.prepare_request(payload).await?;
+                result = client.get_requirement_graph(retry).await;
+            }
+        }
+
+        self.record_circuit_result(&result).await;
+        let inner = result.map(|r| r.into_inner()).map_err(ApiError::from)?;
+        requirement_graph_from_response(inner)
+    }
+
+    /// Closure report: requirements, claims, gates, and verification findings (`work.v1.GetClosureReport`).
+    pub async fn get_closure_report(
+        &self,
+        workspace_id: Uuid,
+        story_id: Option<Uuid>,
+        prepared_story_id: Option<Uuid>,
+    ) -> Result<ClosureReportView> {
+        self.circuit_allow_request().await?;
+
+        let mut client = WorkManagementServiceClient::new(self.channel.clone());
+        let payload = GetClosureReportRequest {
+            workspace_id: workspace_id.to_string(),
+            story_id: story_id.map(|id| id.to_string()).unwrap_or_default(),
+            prepared_story_id: prepared_story_id
+                .map(|id| id.to_string())
+                .unwrap_or_default(),
+        };
+        let first = self.prepare_request(payload.clone()).await?;
+        let mut result = client.get_closure_report(first).await;
+
+        if let Err(status) = &result {
+            if self.maybe_refresh_auth(status).await? {
+                let retry = self.prepare_request(payload).await?;
+                result = client.get_closure_report(retry).await;
+            }
+        }
+
+        self.record_circuit_result(&result).await;
+        let inner = result.map(|r| r.into_inner()).map_err(ApiError::from)?;
+        closure_report_from_response(inner)
+    }
+
+    /// Personas and assignments for the workspace (`work.v1.ListPersonaAssignments`).
+    pub async fn list_persona_assignments(
+        &self,
+        workspace_id: Uuid,
+    ) -> Result<PersonaAssignmentsListView> {
+        self.circuit_allow_request().await?;
+
+        let mut client = WorkManagementServiceClient::new(self.channel.clone());
+        let payload = ListPersonaAssignmentsRequest {
+            workspace_id: workspace_id.to_string(),
+        };
+        let first = self.prepare_request(payload.clone()).await?;
+        let mut result = client.list_persona_assignments(first).await;
+
+        if let Err(status) = &result {
+            if self.maybe_refresh_auth(status).await? {
+                let retry = self.prepare_request(payload).await?;
+                result = client.list_persona_assignments(retry).await;
+            }
+        }
+
+        self.record_circuit_result(&result).await;
+        let inner = result.map(|r| r.into_inner()).map_err(ApiError::from)?;
+        persona_assignments_from_response(inner)
+    }
+
     pub async fn approve_work_plan_version(
         &self,
         workspace_id: Uuid,
@@ -264,9 +368,7 @@ impl ApiClient {
     ) -> Result<CommandResponse> {
         self.send_http_json::<(), _>(
             Method::POST,
-            format!(
-                "/api/v1/workspaces/{workspace_id}/plan-versions/{plan_version_id}/approve"
-            ),
+            format!("/api/v1/workspaces/{workspace_id}/plan-versions/{plan_version_id}/approve"),
             None,
         )
         .await

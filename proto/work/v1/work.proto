@@ -2,10 +2,24 @@ syntax = "proto3";
 
 package work.v1;
 
+// Mission Operating Layer (MOL) card payloads: `mol_schema_version` on PreparedStory and
+// `schema_version` on nested cards identify the contract revision for structured fields.
+// Legacy clients continue to use `mission_card_json` / `execution_card_json` strings; newer
+// clients should prefer typed `execution_card` / `verification_card` when `mol_schema_version >= 1`.
+
 service WorkManagementService {
   rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
   rpc GetBoard(GetBoardRequest) returns (GetBoardResponse);
   rpc GetPlanVersion(GetPlanVersionRequest) returns (GetPlanVersionResponse);
+  rpc GetStoryIntake(GetStoryIntakeRequest) returns (GetStoryIntakeResponse);
+  rpc ListPreparedStories(ListPreparedStoriesRequest) returns (ListPreparedStoriesResponse);
+  rpc GetPreparedStory(GetPreparedStoryRequest) returns (GetPreparedStoryResponse);
+  rpc GetRequirementGraph(GetRequirementGraphRequest) returns (GetRequirementGraphResponse);
+  rpc ListVerificationRuns(ListVerificationRunsRequest) returns (ListVerificationRunsResponse);
+  rpc ListVerificationFindings(ListVerificationFindingsRequest) returns (ListVerificationFindingsResponse);
+  rpc GetClosureReport(GetClosureReportRequest) returns (GetClosureReportResponse);
+  rpc ListPersonaAssignments(ListPersonaAssignmentsRequest) returns (ListPersonaAssignmentsResponse);
+  rpc GetExecutionProfileDecision(GetExecutionProfileDecisionRequest) returns (GetExecutionProfileDecisionResponse);
   rpc SubmitCommand(SubmitCommandRequest) returns (SubmitCommandResponse);
   rpc GetClarificationQueue(GetClarificationQueueRequest) returns (GetClarificationQueueResponse);
   rpc ResolveClarifications(ResolveClarificationsRequest) returns (ResolveClarificationsResponse);
@@ -64,6 +78,12 @@ message WorkItem {
   string wave_label = 15;
   string updated_at = 16;
   string created_at = 17;
+  string story_id = 18;
+  string prepared_story_id = 19;
+  string owner_persona_id = 20;
+  string requirement_slice_json = 21;
+  string handoff_contract_state = 22;
+  string claim_state = 23;
 }
 
 message DependencyEdge {
@@ -92,6 +112,8 @@ message ClarificationItem {
   string raised_by_agent_id = 13;
   string created_at = 14;
   string answered_at = 15;
+  string story_id = 16;
+  string requirement_id = 17;
 }
 
 message PlanVersion {
@@ -106,6 +128,7 @@ message PlanVersion {
   string approved_by = 9;
   string created_at = 10;
   string approved_at = 11;
+  string story_id = 12;
 }
 
 message EvidenceLink {
@@ -119,6 +142,272 @@ message EvidenceLink {
   string storage_scope = 8;
   string preview_redacted = 9;
   string created_at = 10;
+}
+
+message StoryIntake {
+  string id = 1;
+  string workspace_id = 2;
+  string external_ref = 3;
+  string title = 4;
+  string raw_request_md = 5;
+  string source_kind = 6;
+  string status = 7;
+  string urgency = 8;
+  string priority_band = 9;
+  string affected_surfaces_json = 10;
+  string created_by = 11;
+  string created_at = 12;
+  string updated_at = 13;
+}
+
+// Planned work item line in an execution card (subset of WorkItem fields; mirrors JSON task list in AB7).
+message ExecutionTaskOutline {
+  string work_item_id = 1;
+  string title = 2;
+  string execution_profile = 3;
+  int32 wave_rank = 4;
+  string wave_label = 5;
+  string parent_work_item_id = 6;
+}
+
+// Structured execution plan for a prepared story. Complements `execution_card_json` on PreparedStory;
+// when both are present, `schema_version` and `extension_json` disambiguate merges.
+message ExecutionCard {
+  uint32 schema_version = 1;
+  string story_summary = 2;
+  string primary_execution_profile = 3;
+  repeated ExecutionTaskOutline tasks = 4;
+  // Policy / decision payload (e.g. execution profile decision mirror); JSON object as string.
+  string policy_json = 5;
+  // Forward-compatible bag for fields not yet modeled in proto.
+  string extension_json = 6;
+}
+
+// Expected closure gate or verification expectation for planning / UI (not the same as runtime VerificationRun rows).
+message VerificationExpectation {
+  string gate_type = 1;
+  string expected_status = 2;
+}
+
+// Verification plan for a prepared story: stages, gates, steward — complements `wm_verification_*` runs at runtime.
+message VerificationCard {
+  uint32 schema_version = 1;
+  bool verification_required = 2;
+  // Ordered stages (e.g. post_implementation, documentation) as opaque keys matching API validation where applicable.
+  repeated string verification_stages = 3;
+  repeated VerificationExpectation closure_expectations = 4;
+  string steward_persona_id = 5;
+  string notes_md = 6;
+  string extension_json = 7;
+}
+
+message PreparedStory {
+  string id = 1;
+  string workspace_id = 2;
+  string story_id = 3;
+  string status = 4;
+  string mission_card_json = 5;
+  string execution_card_json = 6;
+  string dependency_summary_json = 7;
+  string readiness_blockers_json = 8;
+  string primary_execution_profile = 9;
+  string created_by = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  string ready_at = 13;
+  // 0 = unspecified / legacy JSON-only; 1 = first structured card contract (typed execution_card / verification_card).
+  uint32 mol_schema_version = 14;
+  ExecutionCard execution_card = 15;
+  VerificationCard verification_card = 16;
+}
+
+message Requirement {
+  string id = 1;
+  string workspace_id = 2;
+  string story_id = 3;
+  string prepared_story_id = 4;
+  string plan_version_id = 5;
+  string parent_requirement_id = 6;
+  string title = 7;
+  string statement = 8;
+  string kind = 9;
+  string criticality = 10;
+  string source = 11;
+  string ambiguity_state = 12;
+  string owner_persona_id = 13;
+  string status = 14;
+  string created_at = 15;
+  string updated_at = 16;
+}
+
+message RequirementEdge {
+  string id = 1;
+  string workspace_id = 2;
+  string requirement_id = 3;
+  string related_requirement_id = 4;
+  string edge_type = 5;
+  string created_at = 6;
+}
+
+message AcceptanceCheck {
+  string id = 1;
+  string workspace_id = 2;
+  string requirement_id = 3;
+  string check_kind = 4;
+  string title = 5;
+  string status = 6;
+  bool evidence_required = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+// SubmitCommand `payload_json` for command_type `upsert_acceptance_checks` (fields mirror `AcceptanceCheck` for create/update).
+message UpsertAcceptanceChecksPayload {
+  repeated AcceptanceCheckUpsert checks = 1;
+}
+
+// One row to insert or upsert by `id`. Omit `id` or leave it empty to allocate a new UUID.
+message AcceptanceCheckUpsert {
+  string id = 1;
+  string requirement_id = 2;
+  string check_kind = 3;
+  string title = 4;
+  string status = 5;
+  bool evidence_required = 6;
+}
+
+// SubmitCommand `payload_json` for command_type `delete_acceptance_check`.
+message DeleteAcceptanceCheckPayload {
+  string acceptance_check_id = 1;
+}
+
+message RequirementCoverage {
+  string id = 1;
+  string workspace_id = 2;
+  string requirement_id = 3;
+  string work_item_id = 4;
+  string coverage_kind = 5;
+  string status = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+message HandoffContract {
+  string id = 1;
+  string workspace_id = 2;
+  string prepared_story_id = 3;
+  string from_work_item_id = 4;
+  string to_work_item_id = 5;
+  string contract_kind = 6;
+  string expected_artifact_json = 7;
+  string acceptance_signal_json = 8;
+  string status = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message ExecutionProfileDecision {
+  string id = 1;
+  string workspace_id = 2;
+  string story_id = 3;
+  string prepared_story_id = 4;
+  string profile_name = 5;
+  string policy_json = 6;
+  string inferred_from_json = 7;
+  string override_reason_md = 8;
+  string escalation_level = 9;
+  string decided_by = 10;
+  string created_at = 11;
+  string updated_at = 12;
+}
+
+message VerificationRun {
+  string id = 1;
+  string workspace_id = 2;
+  string story_id = 3;
+  string prepared_story_id = 4;
+  string status = 5;
+  string verification_stage = 6;
+  string run_kind = 7;
+  string initiated_by_persona_id = 8;
+  string summary_json = 9;
+  string created_at = 10;
+  string completed_at = 11;
+}
+
+message VerificationFinding {
+  string id = 1;
+  string workspace_id = 2;
+  string verification_run_id = 3;
+  string requirement_id = 4;
+  string severity = 5;
+  string finding_type = 6;
+  string title = 7;
+  string detail_md = 8;
+  string status = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+
+message ClosureClaim {
+  string id = 1;
+  string workspace_id = 2;
+  string work_item_id = 3;
+  string requirement_id = 4;
+  string claim_type = 5;
+  string status = 6;
+  string claimed_by_persona_id = 7;
+  string claim_json = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message ClosureGate {
+  string id = 1;
+  string workspace_id = 2;
+  string story_id = 3;
+  string prepared_story_id = 4;
+  string gate_type = 5;
+  string status = 6;
+  string decided_by_persona_id = 7;
+  string rationale_md = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message Persona {
+  string id = 1;
+  string workspace_id = 2;
+  string display_name = 3;
+  string accountability_md = 4;
+  string tool_scope_json = 5;
+  string memory_scope_json = 6;
+  string autonomy_policy_json = 7;
+  bool active = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+message PersonaAssignment {
+  string id = 1;
+  string workspace_id = 2;
+  string persona_id = 3;
+  string subject_type = 4;
+  string subject_id = 5;
+  string assignment_role = 6;
+  string status = 7;
+  string created_at = 8;
+  string updated_at = 9;
+}
+
+message ClosureReport {
+  string workspace_id = 1;
+  string story_id = 2;
+  string prepared_story_id = 3;
+  repeated Requirement requirements = 4;
+  repeated ClosureClaim closure_claims = 5;
+  repeated ClosureGate closure_gates = 6;
+  repeated VerificationFinding verification_findings = 7;
 }
 
 message ListWorkItemsRequest {
@@ -151,6 +440,95 @@ message GetPlanVersionRequest {
 
 message GetPlanVersionResponse {
   PlanVersion plan_version = 1;
+}
+
+message GetStoryIntakeRequest {
+  string workspace_id = 1;
+  string story_id = 2;
+}
+
+message GetStoryIntakeResponse {
+  StoryIntake story_intake = 1;
+}
+
+message ListPreparedStoriesRequest {
+  string workspace_id = 1;
+}
+
+message ListPreparedStoriesResponse {
+  repeated PreparedStory items = 1;
+  int64 checkpoint_seq = 2;
+}
+
+message GetPreparedStoryRequest {
+  string workspace_id = 1;
+  string prepared_story_id = 2;
+}
+
+message GetPreparedStoryResponse {
+  PreparedStory prepared_story = 1;
+}
+
+message GetRequirementGraphRequest {
+  string workspace_id = 1;
+  string story_id = 2;
+  string prepared_story_id = 3;
+}
+
+message GetRequirementGraphResponse {
+  repeated Requirement requirements = 1;
+  repeated RequirementEdge edges = 2;
+  repeated AcceptanceCheck acceptance_checks = 3;
+  repeated RequirementCoverage coverage = 4;
+  repeated HandoffContract handoff_contracts = 5;
+}
+
+message ListVerificationRunsRequest {
+  string workspace_id = 1;
+  string story_id = 2;
+  string prepared_story_id = 3;
+}
+
+message ListVerificationRunsResponse {
+  repeated VerificationRun items = 1;
+}
+
+message ListVerificationFindingsRequest {
+  string workspace_id = 1;
+  string verification_run_id = 2;
+}
+
+message ListVerificationFindingsResponse {
+  repeated VerificationFinding items = 1;
+}
+
+message GetClosureReportRequest {
+  string workspace_id = 1;
+  string story_id = 2;
+  string prepared_story_id = 3;
+}
+
+message GetClosureReportResponse {
+  ClosureReport report = 1;
+}
+
+message ListPersonaAssignmentsRequest {
+  string workspace_id = 1;
+}
+
+message ListPersonaAssignmentsResponse {
+  repeated Persona items = 1;
+  repeated PersonaAssignment assignments = 2;
+}
+
+message GetExecutionProfileDecisionRequest {
+  string workspace_id = 1;
+  string story_id = 2;
+  string prepared_story_id = 3;
+}
+
+message GetExecutionProfileDecisionResponse {
+  ExecutionProfileDecision decision = 1;
 }
 
 message SubmitCommandRequest {
@@ -199,6 +577,7 @@ message StartExecutionRequest {
   repeated string work_item_ids = 2;
   string cycle_id = 3;
   bool dry_run = 4;
+  string prepared_story_id = 5;
 }
 
 message StartExecutionResponse {

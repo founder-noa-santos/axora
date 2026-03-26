@@ -1,26 +1,6 @@
 name: SDK Matrix
 
 on:
-  pull_request:
-    paths:
-      - 'package.json'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-      - 'docs/**'
-      - 'sdks/**'
-      - 'integrations/**'
-      - '.github/workflows/sdk-matrix.yml'
-  push:
-    branches:
-      - main
-    paths:
-      - 'package.json'
-      - 'pnpm-workspace.yaml'
-      - 'turbo.json'
-      - 'docs/**'
-      - 'sdks/**'
-      - 'integrations/**'
-      - '.github/workflows/sdk-matrix.yml'
   workflow_dispatch:
 
 permissions:
