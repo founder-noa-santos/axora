@@ -127,7 +127,7 @@ tantivy = "0.22"
 rocksdb = "0.22"
 
 # Phase 1: File watching
-notify = "6.1"
+notify = "8.2"
 
 # Phase 1: Hashing
 blake3 = "1.8"
