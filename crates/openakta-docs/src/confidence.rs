@@ -13,9 +13,7 @@ use std::path::Path;
 use openakta_evaluator::ACCEPT_CONFIDENCE_THRESHOLD;
 use serde::{Deserialize, Serialize};
 
-use crate::drift::{
-    DriftDomain, DriftKind, DriftReport, DriftSeverity, InconsistencyFlag,
-};
+use crate::drift::{DriftDomain, DriftKind, DriftReport, DriftSeverity, InconsistencyFlag};
 
 /// Risk tier derived from documentation path conventions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,10 +37,7 @@ pub enum ConfidenceReconcileDecision {
         target_docs: Vec<std::path::PathBuf>,
     },
     /// Insufficient confidence or policy forbids auto apply.
-    ReviewRequired {
-        score: f64,
-        report_summary: String,
-    },
+    ReviewRequired { score: f64, report_summary: String },
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -131,7 +126,11 @@ impl ConfidenceScorer {
         pen
     }
 
-    fn score_flags(&self, report: &DriftReport, risk: DocumentRiskProfile) -> (f64, ConfidenceBreakdown) {
+    fn score_flags(
+        &self,
+        report: &DriftReport,
+        risk: DocumentRiskProfile,
+    ) -> (f64, ConfidenceBreakdown) {
         let mut b = ConfidenceBreakdown::default();
         let mut penalties = Vec::new();
 
@@ -323,8 +322,14 @@ mod tests {
                 "fp1",
             )],
         };
-        let (d, _) = s.decide(&report, s.primary_doc_path(&report, Path::new("akta-docs/fallback.md")));
-        assert!(matches!(d, ConfidenceReconcileDecision::ReviewRequired { .. }));
+        let (d, _) = s.decide(
+            &report,
+            s.primary_doc_path(&report, Path::new("akta-docs/fallback.md")),
+        );
+        assert!(matches!(
+            d,
+            ConfidenceReconcileDecision::ReviewRequired { .. }
+        ));
     }
 
     #[test]
@@ -348,8 +353,14 @@ mod tests {
                 "fp1",
             )],
         };
-        let (d, _) = s.decide(&report, s.primary_doc_path(&report, Path::new("akta-docs/fallback.md")));
-        assert!(matches!(d, ConfidenceReconcileDecision::UpdateRequired { .. }));
+        let (d, _) = s.decide(
+            &report,
+            s.primary_doc_path(&report, Path::new("akta-docs/fallback.md")),
+        );
+        assert!(matches!(
+            d,
+            ConfidenceReconcileDecision::UpdateRequired { .. }
+        ));
     }
 
     #[test]
@@ -386,8 +397,13 @@ mod tests {
             ],
         };
         let (_, b) = s.decide(&report, Path::new("akta-docs/06-technical/x.md"));
-        assert!(b.penalties.contains(&"multi_fingerprint_per_doc".to_string()));
+        assert!(b
+            .penalties
+            .contains(&"multi_fingerprint_per_doc".to_string()));
         let (d, _) = s.decide(&report, Path::new("akta-docs/06-technical/x.md"));
-        assert!(matches!(d, ConfidenceReconcileDecision::ReviewRequired { .. }));
+        assert!(matches!(
+            d,
+            ConfidenceReconcileDecision::ReviewRequired { .. }
+        ));
     }
 }

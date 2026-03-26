@@ -80,7 +80,10 @@ impl BundledTemplateRegistry {
     }
 
     pub fn new(cache_dir: PathBuf, cache_ttl: Duration) -> Result<Self> {
-        Ok(Self { cache_dir, cache_ttl })
+        Ok(Self {
+            cache_dir,
+            cache_ttl,
+        })
     }
 
     /// Materialize every required template from embedded sources; optionally refresh local cache files.
@@ -393,9 +396,9 @@ mod tests {
         let resolution = fetcher.resolve_templates().await.expect("assets");
 
         assert_eq!(resolution.assets.len(), bundled_manifest().templates.len());
-        assert!(resolution
-            .assets
-            .iter()
-            .all(|asset| matches!(asset.source, TemplateSource::Bundled | TemplateSource::Cache)));
+        assert!(resolution.assets.iter().all(|asset| matches!(
+            asset.source,
+            TemplateSource::Bundled | TemplateSource::Cache
+        )));
     }
 }

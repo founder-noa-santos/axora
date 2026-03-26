@@ -137,9 +137,15 @@ struct ExaResponse {
 
 #[derive(Debug, Deserialize)]
 struct ExaResult {
-    #[serde(default, deserialize_with = "crate::serde_util::lenient_string_or_default")]
+    #[serde(
+        default,
+        deserialize_with = "crate::serde_util::lenient_string_or_default"
+    )]
     title: String,
-    #[serde(default, deserialize_with = "crate::serde_util::lenient_string_or_default")]
+    #[serde(
+        default,
+        deserialize_with = "crate::serde_util::lenient_string_or_default"
+    )]
     url: String,
     #[serde(default)]
     text: serde_json::Value,
@@ -244,13 +250,10 @@ impl SearchProvider for ExaClient {
             .map_err(|e| crate::http_util::map_reqwest(PROVIDER, e))?;
 
         let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| SearchError::Transport {
-                provider: PROVIDER,
-                message: e.to_string(),
-            })?;
+        let text = resp.text().await.map_err(|e| SearchError::Transport {
+            provider: PROVIDER,
+            message: e.to_string(),
+        })?;
 
         if !status.is_success() {
             return Err(SearchError::Http {
@@ -274,7 +277,13 @@ mod tests {
     #[test]
     fn parse_malformed_json_returns_parse_error() {
         let err = parse_exa_response_body("%%%").unwrap_err();
-        assert!(matches!(err, SearchError::Parse { provider: "exa", .. }));
+        assert!(matches!(
+            err,
+            SearchError::Parse {
+                provider: "exa",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -292,7 +301,13 @@ mod tests {
     #[test]
     fn parse_results_not_array_errors() {
         let err = parse_exa_response_body(r#"{"results":"nope"}"#).unwrap_err();
-        assert!(matches!(err, SearchError::Parse { provider: "exa", .. }));
+        assert!(matches!(
+            err,
+            SearchError::Parse {
+                provider: "exa",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -383,7 +398,10 @@ mod tests {
         let v = serde_json::to_value(&body).expect("serialize");
         assert_eq!(v["type"], "neural");
         assert_eq!(v["category"], "github");
-        assert_eq!(v["includeDomains"], serde_json::json!(["docs.rs", "github.com"]));
+        assert_eq!(
+            v["includeDomains"],
+            serde_json::json!(["docs.rs", "github.com"])
+        );
     }
 
     #[test]

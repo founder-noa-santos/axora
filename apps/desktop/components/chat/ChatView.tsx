@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useAppState } from "@/lib/app-state";
-import { threadMessageToContract } from "@/lib/chat-message-mapper";
+import { threadMessagesToContracts } from "@/lib/chat-message-mapper";
 import { cn } from "@/lib/utils";
 import { ChevronDown, GitBranch, Sparkles, Terminal } from "lucide-react";
 import { ChatConversation } from "./ChatConversation";
@@ -20,9 +20,21 @@ export function ChatView({ className }: { className?: string }) {
   const currentProject = projects.find((p) => p.id === currentProjectId);
 
   const uiMessages = useMemo(
-    () => currentThread?.messages.map(threadMessageToContract) ?? [],
-    [currentThread?.messages],
+    () => (currentThread ? threadMessagesToContracts(currentThread) : []),
+    [currentThread],
   );
+
+  const handleCopy = useCallback((content: string) => {
+    console.log("Copied to clipboard:", content);
+  }, []);
+
+  const handleRetry = useCallback(() => {
+    console.log("Retry last message");
+  }, []);
+
+  const handleFeedback = useCallback((feedback: "like" | "dislike") => {
+    console.log("Feedback:", feedback);
+  }, []);
 
   const emptyState =
     uiMessages.length === 0 ? (
@@ -111,7 +123,13 @@ export function ChatView({ className }: { className?: string }) {
     >
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
-          <ChatConversation messages={uiMessages} emptyState={emptyState} />
+          <ChatConversation
+            messages={uiMessages}
+            emptyState={emptyState}
+            onCopy={handleCopy}
+            onRetry={handleRetry}
+            onFeedback={handleFeedback}
+          />
           <ChatPromptBar
             disabled={!currentThreadId}
             onSubmit={(text) => sendMessage(text)}

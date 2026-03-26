@@ -1,0 +1,52 @@
+[package]
+name = "openakta-api-client"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "API client SDK for OPENAKTA unified backend"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-stream.workspace = true
+async-trait.workspace = true
+
+# gRPC
+tonic.workspace = true
+prost.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+reqwest.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+humantime.workspace = true
+humantime-serde.workspace = true
+once_cell.workspace = true
+
+# Auth
+secrecy.workspace = true
+
+# Internal
+openakta-proto.workspace = true
+
+# Feature flags (Phase 1)
+# Will be implemented as part of this crate

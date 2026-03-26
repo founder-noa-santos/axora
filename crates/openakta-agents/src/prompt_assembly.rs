@@ -1,8 +1,11 @@
 //! Prompt assembly for model-bound task execution.
 
 use crate::patch_protocol::MetaGlyphCommand;
-use crate::provider::{CacheRetention, ChatMessage, ModelBoundaryPayload, ModelRequest};
+use crate::provider::{
+    CacheRetention, ChatMessage, ModelBoundaryPayload, ModelRequest, ModelToolSchema,
+};
 use crate::task::{Task, TaskType};
+use crate::tool_registry::ToolRegistry;
 use crate::transport::{InternalTaskAssignment, ProtoTransport};
 use openakta_proto as proto;
 use serde_json::{json, Value};
@@ -21,7 +24,7 @@ pub struct PromptAssembly {
     /// Immutable system instructions.
     pub system_instructions: Vec<String>,
     /// Tool schemas exposed to the model.
-    pub tool_schemas: Vec<Value>,
+    pub tool_schemas: Vec<ModelToolSchema>,
     /// Invariant mission context.
     pub invariant_mission_context: Vec<Value>,
     /// Dynamic task messages.
@@ -43,6 +46,16 @@ impl PromptAssembly {
         task: &Task,
         assignment: &InternalTaskAssignment,
         worker_id: Option<&str>,
+    ) -> Self {
+        Self::for_worker_task_with_model(task, assignment, worker_id, "gpt-4")
+    }
+
+    /// Build a prompt assembly for a specific worker and routed model.
+    pub fn for_worker_task_with_model(
+        task: &Task,
+        assignment: &InternalTaskAssignment,
+        worker_id: Option<&str>,
+        model: &str,
     ) -> Self {
         let proto_assignment = ProtoTransport::typed_task_assignment(assignment);
         let meta_glyphs = default_meta_glyphs(task, assignment);
@@ -78,88 +91,9 @@ impl PromptAssembly {
             ));
         }
 
-        let mut tool_schemas = vec![
-            json!({
-                "name": "graph_retrieve_skills",
-                "description": "Pull statistically relevant SKILL.md guidance on demand.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string"},
-                        "task_id": {"type": "string"},
-                        "focal_files": {"type": "array", "items": {"type": "string"}},
-                        "focal_symbols": {"type": "array", "items": {"type": "string"}},
-                        "skill_token_budget": {"type": "integer"},
-                        "dense_limit": {"type": "integer"},
-                        "bm25_limit": {"type": "integer"},
-                        "include_diagnostics": {"type": "boolean"}
-                    },
-                    "required": ["query"]
-                }
-            }),
-            json!({
-                "name": "graph_retrieve_code",
-                "description": "Pull structurally reachable code anchored to at least one focal file or focal symbol.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string"},
-                        "task_id": {"type": "string"},
-                        "focal_files": {"type": "array", "items": {"type": "string"}},
-                        "focal_symbols": {"type": "array", "items": {"type": "string"}},
-                        "token_budget": {"type": "integer"},
-                        "dense_limit": {"type": "integer"},
-                        "include_diagnostics": {"type": "boolean"}
-                    },
-                    "required": ["query"],
-                    "anyOf": [
-                        {"required": ["focal_files"]},
-                        {"required": ["focal_symbols"]}
-                    ]
-                }
-            }),
-        ];
-
-        if task.task_type == TaskType::CodeModification {
-            tool_schemas.push(json!({
-                "name": "patch_contract",
-                "description": "emit patch-only output",
-                "input_schema": {"type": "object"}
-            }));
-        }
-        if worker_id == Some("refactorer") {
-            tool_schemas.push(json!({
-                "name": "request_user_input",
-                "description": "Ask the human to choose Safe Mode or Mass Script Mode before running a staged scripted refactor.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "mission_id": {"type": "string"},
-                        "turn_index": {"type": "integer"},
-                        "kind": {"type": "string"},
-                        "text": {"type": "string"},
-                        "options_json": {"type": "string"},
-                        "constraints_json": {"type": "string"},
-                        "sensitive": {"type": "string"}
-                    },
-                    "required": ["mission_id", "turn_index", "kind", "text", "options_json"]
-                }
-            }));
-            tool_schemas.push(json!({
-                "name": "mass_refactor",
-                "description": "Run a container-only Python refactor against staged target paths after explicit human approval.",
-                "input_schema": {
-                    "type": "object",
-                    "properties": {
-                        "script": {"type": "string"},
-                        "target_paths": {"type": "array", "items": {"type": "string"}},
-                        "consent_mode": {"type": "string"},
-                        "timeout_secs": {"type": "integer"}
-                    },
-                    "required": ["script", "target_paths", "consent_mode"]
-                }
-            }));
-        }
+        let worker_role = infer_worker_role(task, worker_id);
+        let tool_schemas =
+            ToolRegistry::builtin().model_schemas_for(&worker_role, &task.task_type, model);
 
         let invariant_mission_context = vec![json!({
             "task_id": assignment.task_id.clone(),
@@ -179,6 +113,9 @@ impl PromptAssembly {
             recent_messages: vec![ChatMessage {
                 role: "user".to_string(),
                 content: task.description.clone(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: Vec::new(),
             }],
             payload: ModelBoundaryPayload::from_task_assignment(
                 &proto_assignment,
@@ -211,6 +148,19 @@ impl PromptAssembly {
             stream,
             cache_retention,
         }
+    }
+}
+
+fn infer_worker_role(task: &Task, worker_id: Option<&str>) -> String {
+    if let Some(worker_id) = worker_id {
+        return worker_id.to_string();
+    }
+
+    match task.task_type {
+        TaskType::CodeModification => "coder".to_string(),
+        TaskType::Review => "reviewer".to_string(),
+        TaskType::Retrieval => "architect".to_string(),
+        TaskType::General => "executor".to_string(),
     }
 }
 
@@ -266,7 +216,7 @@ mod tests {
         assert!(assembly
             .tool_schemas
             .iter()
-            .any(|tool| tool.get("name") == Some(&json!("graph_retrieve_skills"))));
+            .any(|tool| tool.name == "graph_retrieve_skills"));
     }
 
     #[test]
@@ -313,10 +263,39 @@ mod tests {
         assert!(assembly
             .tool_schemas
             .iter()
-            .any(|tool| tool.get("name") == Some(&json!("mass_refactor"))));
+            .any(|tool| tool.name == "mass_refactor"));
         assert!(assembly
             .tool_schemas
             .iter()
-            .any(|tool| tool.get("name") == Some(&json!("request_user_input"))));
+            .any(|tool| tool.name == "request_user_input"));
+    }
+
+    #[test]
+    fn retrieval_prompt_uses_routed_model_and_read_only_tools() {
+        let task = Task::new("Inspect workspace manifests").with_task_type(TaskType::Retrieval);
+        let assignment = InternalTaskAssignment {
+            task_id: "task-4".to_string(),
+            title: "Inspect workspace manifests".to_string(),
+            description: "Inspect workspace manifests".to_string(),
+            task_type: TaskType::Retrieval,
+            target_files: vec!["package.json".to_string()],
+            target_symbols: vec![],
+            token_budget: 1200,
+            context_pack: None,
+        };
+
+        let assembly =
+            PromptAssembly::for_worker_task_with_model(&task, &assignment, None, "openai/gpt-5.4");
+        let tool_names = assembly
+            .tool_schemas
+            .iter()
+            .map(|tool| tool.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(tool_names.contains(&"read_file"));
+        assert!(tool_names.contains(&"list_dir"));
+        assert!(tool_names.contains(&"glob_paths"));
+        assert!(!tool_names.contains(&"apply_patch"));
+        assert!(!tool_names.contains(&"run_command"));
     }
 }

@@ -9,10 +9,7 @@ use thiserror::Error;
 /// on clearly malformed queries when a provider returns them.
 #[inline]
 pub fn is_retryable_http_status(status: u16) -> bool {
-    status == 401
-        || status == 403
-        || status == 429
-        || (500..=599).contains(&status)
+    status == 401 || status == 403 || status == 429 || (500..=599).contains(&status)
 }
 
 /// Errors from providers or the router.

@@ -19,11 +19,11 @@ use std::path::PathBuf;
 pub enum SemanticVectorBackend {
     /// sqlite-vec HNSW ANN (default, production local backend).
     /// Uses sqlite-vec extension for efficient approximate nearest neighbor search.
+    ///
+    /// **No installation required:** sqlite-vec is statically linked at build time.
+    /// The extension is auto-registered at process startup before any SQLite usage.
     #[default]
     SqliteVec,
-    /// SQLite JSON linear scan (fallback/migration path only).
-    /// Legacy compatibility layer; prefer SqliteVec for production use.
-    SqliteLinear,
     /// External Qdrant or compatible endpoint (cloud tier / enterprise self-hosted).
     /// Cloud tier: Qdrant Cloud (Azure Marketplace) with Cohere embed-v3-multilingual.
     /// Self-hosted: bring-your-own Qdrant or compatible vector backend.
@@ -58,7 +58,7 @@ impl Default for RetrievalConfig {
     fn default() -> Self {
         let runtime_root = PathBuf::from(".openakta");
         Self {
-            backend: VectorBackendKind::Qdrant,
+            backend: VectorBackendKind::SqliteJson,
             qdrant_url: "http://127.0.0.1:6334".to_string(),
             sqlite_path: runtime_root.join("vectors.db"),
             code: RetrievalDomainConfig::default(),
@@ -428,6 +428,11 @@ impl CoreConfig {
         format!("{}:{}", self.mcp_bind_address, self.mcp_port)
     }
 
+    /// Directory for append-only execution JSONL logs.
+    pub fn execution_log_dir(&self) -> PathBuf {
+        self.workspace_root.join(".openakta/logs/execution")
+    }
+
     /// Ensure runtime directories exist before bootstrapping services.
     pub fn ensure_runtime_layout(&self) -> anyhow::Result<()> {
         if let Some(parent) = self.database_path.parent() {
@@ -441,6 +446,7 @@ impl CoreConfig {
         }
         std::fs::create_dir_all(self.workspace_root.join(".openakta/secrets"))?;
         std::fs::create_dir_all(self.workspace_root.join(".openakta/cache"))?;
+        std::fs::create_dir_all(self.execution_log_dir())?;
         std::fs::create_dir_all(&self.skill_corpus_root)?;
         std::fs::create_dir_all(&self.skill_index_root)?;
         std::fs::create_dir_all(&self.skill_bm25_dir)?;
@@ -456,16 +462,13 @@ impl CoreConfig {
     }
 
     /// Build [`openakta_research::ResearchRuntime`] when `[research]` is present in config.
-    pub fn research_runtime(
-        &self,
-    ) -> anyhow::Result<Option<openakta_research::ResearchRuntime>> {
+    pub fn research_runtime(&self) -> anyhow::Result<Option<openakta_research::ResearchRuntime>> {
         match &self.research {
             None => Ok(None),
-            Some(rc) => openakta_research::ResearchRuntime::from_workspace(
-                &self.workspace_root,
-                rc,
-            )
-            .map(Some),
+            Some(rc) => {
+                openakta_research::ResearchRuntime::from_workspace(&self.workspace_root, rc)
+                    .map(Some)
+            }
         }
     }
 }

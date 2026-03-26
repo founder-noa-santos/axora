@@ -57,13 +57,8 @@ impl DeterministicLLMBackend {
             .map(str::to_string)
             .collect::<Vec<_>>();
 
-        if parts.len() < 4 {
-            parts = vec![
-                format!("Analyze mission requirements for {mission}"),
-                format!("Implement core work for {mission}"),
-                format!("Test {mission}"),
-                format!("Document and validate {mission}"),
-            ];
+        if parts.is_empty() {
+            parts = vec![mission.trim().to_string()];
         }
 
         if parts.len() > max_tasks {
@@ -357,7 +352,7 @@ mod tests {
         let decomposer = LLMDecomposer::new("test-model".to_string(), 10);
         let tasks = decomposer.decompose("build auth API", None).await.unwrap();
 
-        assert!(tasks.len() >= 4);
+        assert!(!tasks.is_empty());
         assert_eq!(tasks[0].id, "task-0");
     }
 

@@ -733,12 +733,8 @@ mod tests {
         bus.subscribe("events", move |_msg: &AgentMessage| {
             c.fetch_add(1, Ordering::SeqCst);
         });
-        let message = bus.create_message(
-            "agent1",
-            Some("agent2"),
-            MessageType::TaskAssign,
-            "hello",
-        );
+        let message =
+            bus.create_message("agent1", Some("agent2"), MessageType::TaskAssign, "hello");
         bus.send(message).unwrap();
         assert_eq!(counter.load(Ordering::SeqCst), 1);
     }

@@ -6,6 +6,7 @@
 
 mod background;
 
+use anyhow::Context;
 use clap::Parser;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -13,18 +14,25 @@ use std::sync::Arc;
 use tokio::sync::Notify;
 use tracing::{error, info, warn};
 
+use openakta_api_client::ApiClientPool;
 use openakta_agents::hitl::{HitlConfig, MissionHitlGate};
-use openakta_agents::RuntimeBlackboard;
-use openakta_core::{init_tracing, CollectiveServer, CoreConfig, CoreError, MemoryServices};
+use openakta_agents::{ExecutionTraceRegistry, RuntimeBlackboard};
+use openakta_core::{
+    init_tracing, CollectiveServer, CoreConfig, CoreError, ExecutionObservabilityGrpc,
+    MemoryServices,
+};
 use openakta_mcp_server::{McpService, McpServiceConfig};
 use openakta_proto::livingdocs::v1::living_docs_review_service_server::LivingDocsReviewServiceServer;
 use openakta_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalServiceServer;
 use openakta_proto::mcp::v1::tool_service_server::ToolServiceServer;
+use openakta_proto::work::v1::work_management_service_server::WorkManagementServiceServer;
 use openakta_storage::{Database, DatabaseConfig};
 
 use crate::background::engine::LivingDocsEngine;
 use crate::background::livingdocs_review_service::LivingDocsReviewGrpc;
 use crate::background::queue::SqliteJobQueue;
+use crate::background::work_management_service::WorkManagementGrpc;
+use crate::background::work_mirror::WorkMirror;
 
 /// Command-line arguments
 #[derive(Parser, Debug)]
@@ -57,6 +65,12 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     // Parse command-line arguments
     let args = Args::parse();
+
+    // Initialize sqlite-vec BEFORE any SQLite connections
+    // This is the canonical, idempotent initialization with two-tier verification
+    // End users do NOT need to install sqlite-vec manually - it's statically linked
+    openakta_memory::ensure_sqlite_vec_ready()
+        .context("sqlite-vec initialization failed - this is a product bug, not user error")?;
 
     // Initialize tracing
     if std::env::var("RUST_LOG").is_err() {
@@ -104,10 +118,12 @@ async fn main() -> anyhow::Result<()> {
         LivingDocsEngine::start(config.clone(), Arc::clone(&livingdocs_shutdown));
 
     let (message_bus, hitl_bus_rx) = tokio::sync::broadcast::channel(1024);
+    let trace_registry = Arc::new(ExecutionTraceRegistry::new(config.execution_log_dir()));
     let blackboard = Arc::new(tokio::sync::Mutex::new(RuntimeBlackboard::new()));
     let hitl_gate = Arc::new(MissionHitlGate::new(
         HitlConfig {
             checkpoint_dir: config.workspace_root.join(".openakta/checkpoints"),
+            execution_trace_registry: Some(Arc::clone(&trace_registry)),
             ..Default::default()
         },
         Some((message_bus.clone(), hitl_bus_rx)),
@@ -118,11 +134,18 @@ async fn main() -> anyhow::Result<()> {
         .mcp_server_address()
         .parse()
         .map_err(|e| anyhow::anyhow!("invalid MCP address: {}", e))?;
-    let livingdocs_queue = SqliteJobQueue::open(SqliteJobQueue::path_for_workspace(
-        &config.workspace_root,
-    ))?;
-    let livingdocs_review = LivingDocsReviewGrpc::open(
-        livingdocs_queue,
+    let livingdocs_queue =
+        SqliteJobQueue::open(SqliteJobQueue::path_for_workspace(&config.workspace_root))?;
+    let livingdocs_review =
+        LivingDocsReviewGrpc::open(livingdocs_queue, config.workspace_root.clone());
+    let work_mirror =
+        WorkMirror::open(WorkMirror::path_for_workspace(&config.workspace_root))?;
+    let work_management_service = WorkManagementGrpc::open(
+        work_mirror,
+        ApiClientPool::global(),
+        config.clone(),
+        Arc::clone(&trace_registry),
+        Arc::clone(&hitl_gate),
         config.workspace_root.clone(),
     );
 
@@ -173,11 +196,14 @@ async fn main() -> anyhow::Result<()> {
 
     let mut mcp_task = tokio::spawn({
         let notify = shutdown_notify.clone();
+        let observability = ExecutionObservabilityGrpc::new(Arc::clone(&trace_registry));
         async move {
             tonic::transport::Server::builder()
                 .add_service(GraphRetrievalServiceServer::new(mcp_service.clone()))
                 .add_service(ToolServiceServer::new(mcp_service))
                 .add_service(LivingDocsReviewServiceServer::new(livingdocs_review))
+                .add_service(WorkManagementServiceServer::new(work_management_service))
+                .add_service(observability.into_service())
                 .serve_with_shutdown(mcp_addr, async move {
                     notify.notified().await;
                 })

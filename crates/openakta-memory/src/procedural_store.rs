@@ -11,7 +11,7 @@ use openakta_proto::mcp::v1::{
     RetrievedSkill,
 };
 use openakta_rag::{
-    CandleCrossEncoder, CrossEncoderScorer, MemgasResult as SharedMemgasResult, RankedHit,
+    CrossEncoderScorer, MemgasResult as SharedMemgasResult, OpenaktaReranker, RankedHit,
     ReciprocalRankFusion, RetrievalDocument, SelectionResult as SharedSelectionResult,
     UnifiedFinalStage,
 };
@@ -384,7 +384,8 @@ impl SkillCatalog {
     }
 
     fn ensure_schema(&self) -> Result<()> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS skill_documents (
@@ -416,7 +417,8 @@ impl SkillCatalog {
 
     /// Upsert a canonical document.
     pub fn upsert_document(&self, document: &SkillDocument) -> Result<()> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             r#"
             INSERT INTO skill_documents (
@@ -455,7 +457,8 @@ impl SkillCatalog {
 
     /// Fetch a document by id.
     pub fn get_document(&self, skill_id: &str) -> Result<Option<SkillDocument>> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.query_row(
             r#"
             SELECT skill_id, title, summary, body_markdown, source_path, domain,
@@ -472,7 +475,8 @@ impl SkillCatalog {
 
     /// List all documents.
     pub fn list_documents(&self) -> Result<Vec<SkillDocument>> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         let mut stmt = conn
             .prepare(
                 r#"
@@ -495,7 +499,8 @@ impl SkillCatalog {
 
     /// Delete a document.
     pub fn delete_document(&self, skill_id: &str) -> Result<()> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             "DELETE FROM skill_documents WHERE skill_id = ?1",
             [skill_id],
@@ -511,7 +516,8 @@ impl SkillCatalog {
 
     /// Mark a document as indexed.
     pub fn mark_indexed(&self, skill_id: &str) -> Result<()> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             "UPDATE skill_documents SET indexed_at = ?2 WHERE skill_id = ?1",
             params![skill_id, current_unix_ts() as i64],
@@ -521,7 +527,8 @@ impl SkillCatalog {
     }
 
     fn upsert_source_state(&self, state: &SkillSourceState) -> Result<()> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         conn.execute(
             r#"
             INSERT INTO skill_source_state (
@@ -546,7 +553,8 @@ impl SkillCatalog {
     }
 
     fn list_source_states(&self) -> Result<Vec<SkillSourceState>> {
-        let conn = Connection::open(&self.db_path).map_err(|e| db_error(self.db_path.display().to_string(), e))?;
+        let conn = Connection::open(&self.db_path)
+            .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
         let mut stmt = conn
             .prepare(
                 r#"
@@ -556,9 +564,8 @@ impl SkillCatalog {
             "#,
             )
             .map_err(|e| db_error(self.db_path.display().to_string(), e))?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok(SkillSourceState {
+        let rows = stmt.query_map([], |row| {
+            Ok(SkillSourceState {
                 skill_id: row.get(0)?,
                 source_path: row.get(1)?,
                 checksum: row.get(2)?,
@@ -734,7 +741,7 @@ impl Default for SkillRetrievalConfig {
         Self {
             corpus_root: runtime_root.join("skills"),
             catalog_db_path: runtime_root.join("skill-catalog.db"),
-            dense_backend: VectorBackendKind::Qdrant,
+            dense_backend: VectorBackendKind::SqliteJson,
             dense_store_path: runtime_root.join("skill-vectors.db"),
             qdrant_url: "http://127.0.0.1:6334".to_string(),
             dense_collection: CollectionSpec::skill_default(),
@@ -1274,8 +1281,26 @@ impl BudgetedSkillSelector for KnapsackBudgetedSkillSelector {
     }
 }
 
+fn workspace_root_from_skill_config(config: &SkillRetrievalConfig) -> PathBuf {
+    use std::ffi::OsStr;
+    if let Some(openakta) = config
+        .catalog_db_path
+        .ancestors()
+        .find(|p| p.file_name() == Some(OsStr::new(".openakta")))
+    {
+        if let Some(ws) = openakta.parent() {
+            return ws.to_path_buf();
+        }
+    }
+    config
+        .corpus_root
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
 /// End-to-end retrieval pipeline.
-pub struct SkillRetrievalPipeline<I = HybridSkillIndex, R = CandleCrossEncoder> {
+pub struct SkillRetrievalPipeline<I = HybridSkillIndex, R = OpenaktaReranker> {
     config: SkillRetrievalConfig,
     catalog: SkillCatalog,
     synchronizer: SkillCorpusSynchronizer<I>,
@@ -1283,14 +1308,13 @@ pub struct SkillRetrievalPipeline<I = HybridSkillIndex, R = CandleCrossEncoder> 
     final_stage: UnifiedFinalStage<R>,
 }
 
-impl SkillRetrievalPipeline<HybridSkillIndex, CandleCrossEncoder> {
+impl SkillRetrievalPipeline<HybridSkillIndex, OpenaktaReranker> {
     /// Create a new retrieval pipeline.
     pub async fn new(config: SkillRetrievalConfig) -> Result<Self> {
         let catalog = SkillCatalog::new(&config.catalog_db_path)?;
         let ingestor = SkillCorpusIngestor::new(&config.corpus_root);
         let index = Arc::new(HybridSkillIndex::new(&config).await?);
-        let reranker =
-            CandleCrossEncoder::new().map_err(|err| ProceduralError::Retrieval(err.to_string()))?;
+        let reranker = OpenaktaReranker::for_workspace(&workspace_root_from_skill_config(&config));
         Self::with_components(config, catalog, ingestor, index, reranker)
     }
 }

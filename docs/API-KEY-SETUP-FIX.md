@@ -95,7 +95,7 @@ Edit `openakta.toml` to use a provider you already have configured:
 
 ```toml
 [providers]
-default_cloud_instance = "openai"  # or "anthropic", etc.
+default_cloud_instance = "openai"  # or "deepseek", etc.
 
 [providers.instances.openai.secret]
 api_key_file = ".openakta/secrets/openai.key"

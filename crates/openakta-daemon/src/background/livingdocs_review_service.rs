@@ -18,8 +18,8 @@ use tracing::warn;
 use crate::background::queue::{
     review_status_code_update_failed, review_status_doc_update_failed,
     review_status_resolved_with_code_update, review_status_resolved_with_doc_update,
-    ReconcileReviewRow, SqliteJobQueue, StoredDriftFlag, StoredDriftReport,
-    StoredResolutionResult, SubmitResolutionOutcome,
+    ReconcileReviewRow, SqliteJobQueue, StoredDriftFlag, StoredDriftReport, StoredResolutionResult,
+    SubmitResolutionOutcome,
 };
 
 /// Binds to the same SQLite queue as [`crate::background::engine::LivingDocsEngine`].
@@ -95,10 +95,7 @@ impl LivingDocsReviewGrpc {
                     .first()
                     .map(|f| f.doc_path.display().to_string())
                     .unwrap_or_default();
-                let high = rep
-                    .highest_severity
-                    .as_ref()
-                    .map(severity_to_label);
+                let high = rep.highest_severity.as_ref().map(severity_to_label);
                 let summary = rep.flags.first().map(|f| f.message.clone());
                 (primary, high, summary)
             }
@@ -224,7 +221,9 @@ impl LivingDocsReviewService for LivingDocsReviewGrpc {
             return Err(Status::not_found("unknown review_id"));
         };
         if !paths_equal(&row.workspace_root, &self.workspace_root) {
-            return Err(Status::permission_denied("review belongs to another workspace"));
+            return Err(Status::permission_denied(
+                "review belongs to another workspace",
+            ));
         }
         let report = self
             .queue
@@ -290,18 +289,15 @@ impl LivingDocsReviewService for LivingDocsReviewGrpc {
             }));
         };
         if !paths_equal(&row.workspace_root, &self.workspace_root) {
-            return Err(Status::permission_denied("review belongs to another workspace"));
+            return Err(Status::permission_denied(
+                "review belongs to another workspace",
+            ));
         }
 
         let note = req.user_note.as_deref();
         let (server_resolution_id, duplicate) = match self
             .queue
-            .submit_resolution(
-                &req.review_id,
-                ssot_label,
-                &req.client_resolution_id,
-                note,
-            )
+            .submit_resolution(&req.review_id, ssot_label, &req.client_resolution_id, note)
             .map_err(|e| Status::internal(e.to_string()))?
         {
             SubmitResolutionOutcome::Ok {
@@ -447,7 +443,13 @@ fn excerpt_needles(flag: &StoredDriftFlag, expected: bool) -> Vec<String> {
     }
     needles.extend(flag.rule_ids.iter().cloned());
     if expected {
-        needles.push(flag.doc_path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_string());
+        needles.push(
+            flag.doc_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_string(),
+        );
     } else if let Some(code_path) = &flag.code_path {
         needles.push(
             code_path
@@ -467,7 +469,9 @@ fn read_excerpt_from_file(path: &Path, needles: Vec<String>) -> Option<String> {
     let match_index = if needles.is_empty() {
         0
     } else {
-        lines.iter().position(|line| needles.iter().any(|needle| line.contains(needle)))?
+        lines
+            .iter()
+            .position(|line| needles.iter().any(|needle| line.contains(needle)))?
     };
     let start = match_index.saturating_sub(2);
     let end = usize::min(match_index + 3, lines.len());
@@ -510,9 +514,9 @@ mod tests {
         GetPendingReviewCountRequest, GetReviewDetailRequest, ListPendingReviewsRequest,
         ResolutionOutcome, SsotChoice, SubmitResolutionRequest,
     };
-    use tonic::{Code, Request};
     use tokio::net::TcpListener;
     use tokio_stream::wrappers::TcpListenerStream;
+    use tonic::{Code, Request};
 
     fn seed_queue_with_pending_review(
         dir: &tempfile::TempDir,
@@ -701,10 +705,8 @@ mod tests {
         let review_for_complete = review_id.clone();
         tokio::spawn(async move {
             for _ in 0..20 {
-                if let Ok(Some(work)) =
-                    queue_for_complete.claim_next_resolution_work(std::time::Duration::from_secs(
-                        30 * 60,
-                    ))
+                if let Ok(Some(work)) = queue_for_complete
+                    .claim_next_resolution_work(std::time::Duration::from_secs(30 * 60))
                 {
                     queue_for_complete
                         .complete_resolution(

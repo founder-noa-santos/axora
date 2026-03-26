@@ -3,7 +3,9 @@
 use crate::diagnostics::WideEvent;
 use crate::react::Observation;
 use openakta_proto::mcp::v1::tool_service_client::ToolServiceClient;
-use openakta_proto::mcp::v1::{AuditEvent, CapabilityPolicy, ListToolsRequest, ToolCallRequest};
+use openakta_proto::mcp::v1::{
+    AuditEvent, CapabilityPolicy, ListToolsRequest, ToolCallRequest, ToolDefinition,
+};
 use prost_types::{value::Kind, Struct, Value};
 use serde_json::{Map, Value as JsonValue};
 use tonic::transport::{Channel, Endpoint};
@@ -33,7 +35,7 @@ impl McpClient {
         &self,
         agent_id: &str,
         role: &str,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<Vec<ToolDefinition>, Box<dyn std::error::Error + Send + Sync>> {
         let mut client = self.connect().await?;
         let response = client
             .list_tools(ListToolsRequest {
@@ -42,7 +44,7 @@ impl McpClient {
             })
             .await?
             .into_inner();
-        Ok(response.tools.into_iter().map(|tool| tool.name).collect())
+        Ok(response.tools)
     }
 
     /// Execute an MCP tool call and convert it into a ReAct observation.
@@ -77,6 +79,10 @@ impl McpClient {
                 policy,
                 workspace_root: workspace_root.to_string(),
                 mission_id: mission_id.unwrap_or("").to_string(),
+                task_id: String::new(),
+                turn_id: String::new(),
+                tool_call_id: request_id.to_string(),
+                parent_call_id: String::new(),
             })
             .await?
             .into_inner();
@@ -207,5 +213,17 @@ fn audit_event_to_json(event: &AuditEvent) -> JsonValue {
         "allowed": event.allowed,
         "detail": event.detail,
         "created_at": event.created_at.as_ref().map(|ts| ts.seconds),
+        "mission_id": event.mission_id,
+        "task_id": event.task_id,
+        "turn_id": event.turn_id,
+        "tool_call_id": event.tool_call_id,
+        "phase": event.phase,
+        "status": event.status,
+        "read_only": event.read_only,
+        "mutating": event.mutating,
+        "requires_approval": event.requires_approval,
+        "args_preview": event.args_preview,
+        "result_preview": event.result_preview,
+        "error": event.error,
     })
 }

@@ -39,13 +39,13 @@ pub fn run_doc_lint(options: DocLintOptions) -> Result<LintResult> {
         combined.diagnostics.extend(result.diagnostics);
     }
 
-        combined.diagnostics.sort_by(|a, b| {
-            a.file
-                .cmp(&b.file)
-                .then(a.line.cmp(&b.line))
-                .then(a.column.cmp(&b.column))
-                .then(a.rule_id.cmp(&b.rule_id))
-        });
+    combined.diagnostics.sort_by(|a, b| {
+        a.file
+            .cmp(&b.file)
+            .then(a.line.cmp(&b.line))
+            .then(a.column.cmp(&b.column))
+            .then(a.rule_id.cmp(&b.rule_id))
+    });
 
     Ok(combined)
 }

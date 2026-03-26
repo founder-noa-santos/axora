@@ -11,7 +11,7 @@ pnpm --filter @openakta/desktop dev
 
 This starts:
 
-- Next.js on `http://127.0.0.1:3000`
+- Next.js on `http://127.0.0.1:4000`
 - a watched Electron main/preload bundle in `dist-electron/`
 - Electron with `contextIsolation` enabled and `nodeIntegration` disabled
 

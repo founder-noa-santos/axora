@@ -603,3 +603,9 @@ pub fn logout(token: &Token) -> Result<(), AuthError> {
     println!("  Documents: {}", living_docs.index().len());
     println!("  Token savings: {:.1}%", savings);
 }
+
+// ============================================================================
+// Integration Test 4: REMOVED IN PHASE 7
+// This test used SyntheticTransport which has been removed.
+// Cloud execution now uses API client pool exclusively.
+// ============================================================================

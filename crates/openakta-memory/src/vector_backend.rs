@@ -2,7 +2,6 @@
 //!
 //! This trait abstracts over different vector storage backends:
 //! - `SqliteVecStore` — sqlite-vec extension, HNSW ANN (default, production local)
-//! - `SqliteLinearVectorStore` — JSON text, linear scan (fallback/migration path)
 //! - `ExternalVectorStore` — Qdrant Cloud or self-hosted endpoint (enterprise/cloud tier)
 //!
 //! Cloud tier uses Cohere embed-v3-multilingual embeddings via api.openakta.dev.
@@ -14,6 +13,170 @@ use serde_json::Value;
 use std::sync::Arc;
 
 use crate::SemanticError;
+
+/// Canonical, idempotent sqlite-vec initialization for the entire process.
+///
+/// This is the single source of truth for sqlite-vec registration across all
+/// OPENAKTA binaries (CLI, daemon, tests). It uses `OnceLock` to ensure
+/// thread-safe, one-time initialization with two-tier verification.
+///
+/// **MUST** be called before any SQLite connections are opened in your process.
+///
+/// # Verification
+///
+/// Tier A: `SELECT vec_version()` — proves extension is registered
+/// Tier B: Minimal `vec0` virtual table creation — proves module is operational
+///
+/// # Example
+///
+/// ```rust,no_run
+/// // In your main() function, before any SQLite usage:
+/// openakta_memory::ensure_sqlite_vec_ready()
+///     .expect("sqlite-vec initialization failed");
+/// ```
+pub fn ensure_sqlite_vec_ready() -> Result<(), SqliteVecInitError> {
+    use std::sync::OnceLock;
+
+    static INIT: OnceLock<Result<(), SqliteVecInitError>> = OnceLock::new();
+
+    INIT.get_or_init(|| {
+        // Step 1: Register via sqlite3_auto_extension (matches sqlite-vec crate test)
+        unsafe {
+            rusqlite::ffi::sqlite3_auto_extension(Some(std::mem::transmute(
+                sqlite_vec::sqlite3_vec_init as *const (),
+            )));
+        }
+
+        // Step 2: Tier A verification - vec_version()
+        let conn = Connection::open_in_memory()
+            .map_err(|e| SqliteVecInitError::ConnectionFailed(e.to_string()))?;
+
+        let version_result: Result<String, _> =
+            conn.query_row("SELECT vec_version()", [], |row| row.get(0));
+
+        match version_result {
+            Ok(version) => {
+                tracing::debug!("sqlite-vec Tier A check passed: {}", version);
+            }
+            Err(e) => {
+                return Err(SqliteVecInitError::TierACheckFailed(format!(
+                    "vec_version() query failed: {}",
+                    e
+                )));
+            }
+        }
+
+        // Step 3: Tier B verification - vec0 smoke test
+        let smoke_result: Result<(), rusqlite::Error> = (|| {
+            conn.execute_batch(
+                "CREATE VIRTUAL TABLE _vec_smoke_test USING vec0 (embedding float[1]);",
+            )?;
+            conn.execute_batch("DROP TABLE _vec_smoke_test;")?;
+            Ok(())
+        })();
+
+        match smoke_result {
+            Ok(_) => {
+                tracing::debug!("sqlite-vec Tier B check passed: vec0 module operational");
+            }
+            Err(e) => {
+                return Err(SqliteVecInitError::TierBCheckFailed(format!(
+                    "vec0 smoke test failed: {}",
+                    e
+                )));
+            }
+        }
+
+        tracing::info!("sqlite-vec initialized (statically linked, two-tier verification passed)");
+        Ok(())
+    })
+    .clone()
+}
+
+/// Error types for sqlite-vec initialization
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum SqliteVecInitError {
+    #[error("failed to open test connection: {0}")]
+    ConnectionFailed(String),
+
+    #[error("Tier A verification failed: {0}")]
+    TierACheckFailed(String),
+
+    #[error("Tier B verification failed: {0}")]
+    TierBCheckFailed(String),
+}
+
+/// Legacy alias for backwards compatibility.
+///
+/// **Deprecated:** Use [`ensure_sqlite_vec_ready()`] instead.
+/// This function will be removed in a future release.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use ensure_sqlite_vec_ready() instead - it provides idempotent, two-tier verified initialization"
+)]
+pub fn init_sqlite_vec_static() -> Result<(), VectorStoreError> {
+    ensure_sqlite_vec_ready().map_err(|e| VectorStoreError::Internal(e.to_string()))
+}
+
+/// Initialize sqlite-vec extension via dynamic loading (DEV-ONLY fallback).
+///
+/// **WARNING:** This function is for development/debugging ONLY.
+/// It is NOT part of the product path and requires manual sqlite-vec installation.
+///
+/// This function is compiled out by default. To enable for debugging:
+/// ```toml
+/// # In your Cargo.toml
+/// openakta-memory = { path = "...", features = ["sqlite-vec-dynamic-dev"] }
+/// ```
+///
+/// # Safety
+///
+/// This loads external shared libraries at runtime. End users do NOT need this.
+#[cfg(feature = "sqlite-vec-dynamic-dev")]
+#[allow(dead_code)]
+fn _init_sqlite_vec_dynamic_debug(conn: &mut Connection) -> Result<(), VectorStoreError> {
+    use std::path::Path;
+
+    tracing::warn!("Using DEV-ONLY sqlite-vec dynamic loading - NOT for production!");
+
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let lib_name = if cfg!(target_os = "macos") {
+        "sqlite_vec.dylib"
+    } else {
+        "sqlite_vec.so"
+    };
+
+    let search_paths = [
+        format!("{}/.local/lib/{}", home, lib_name),
+        format!("{}/.local/lib/sqlite_vec", home),
+        "/usr/local/lib/sqlite_vec.dylib".to_string(),
+        "/usr/local/lib/sqlite_vec.so".to_string(),
+        "/opt/homebrew/lib/sqlite_vec.dylib".to_string(),
+        "/opt/homebrew/lib/sqlite_vec.so".to_string(),
+    ];
+
+    for path in &search_paths {
+        if Path::new(path).exists() {
+            unsafe {
+                match conn.load_extension(path, Some("sqlite3_vec_init")) {
+                    Ok(_) => {
+                        tracing::warn!("sqlite-vec loaded from {} (DEV MODE ONLY)", path);
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to load sqlite-vec from {}: {}", path, e);
+                    }
+                }
+            }
+        }
+    }
+
+    Err(VectorStoreError::Internal(format!(
+        "sqlite-vec dynamic load failed (DEV MODE). Searched: {:?}. \
+             This is a dev-only feature - production uses static linking.",
+        search_paths
+    )))
+}
 
 /// Result type for vector store operations.
 pub type VectorResult<T> = Result<T, VectorStoreError>;
@@ -100,487 +263,9 @@ pub trait VectorStore: Send + Sync + 'static {
 }
 
 /// Linear-scan SQLite vector store (fallback/migration path).
-///
-/// Wraps `PersistentSemanticStore` to implement `VectorStore`.
-/// Uses JSON text storage and full scan in Rust — no ANN.
-/// This is a legacy compatibility layer; prefer `SqliteVecStore` for production use.
-
-pub struct SqliteLinearVectorStore {
-    db: Arc<tokio::sync::Mutex<Connection>>,
-    embedding_dim: usize,
-    path: String,
-    scan_cap: usize,
-}
-
-impl SqliteLinearVectorStore {
-    /// Create a new linear vector store from an existing `PersistentSemanticStore` path.
-    pub fn new(path: &str, embedding_dim: usize, scan_cap: usize) -> VectorResult<Self> {
-        let conn = Connection::open(path).map_err(|e| VectorStoreError::Storage(
-            SemanticError::Storage {
-                path: path.to_string(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("failed to open SQLite: {}", e)),
-                ),
-            }
-        ))?;
-
-        Ok(Self {
-            db: Arc::new(tokio::sync::Mutex::new(conn)),
-            embedding_dim,
-            path: path.to_string(),
-            scan_cap,
-        })
-    }
-
-    /// Guard: warn if table size exceeds scan_cap.
-    async fn check_scan_cap(&self) {
-        let db = self.db.lock().await;
-        let count: i64 = db
-            .query_row(
-                "SELECT COUNT(*) FROM semantic_memories",
-                [],
-                |row: &rusqlite::Row| -> rusqlite::Result<i64> { row.get::<_, i64>(0) },
-            )
-            .unwrap_or(0);
-        drop(db);
-        if count as usize > self.scan_cap {
-            tracing::warn!(
-                count = count,
-                cap = self.scan_cap,
-                "semantic_memories table exceeds scan_cap; consider pruning or migrating to sqlite-vec backend"
-            );
-        }
-    }
-}
-
-#[async_trait]
-impl VectorStore for SqliteLinearVectorStore {
-    async fn upsert(&self, id: &str, vector: &[f32], payload: Value) -> VectorResult<()> {
-        if vector.len() != self.embedding_dim {
-            return Err(VectorStoreError::DimensionMismatch {
-                expected: self.embedding_dim,
-                actual: vector.len(),
-            });
-        }
-
-        // Extract content from payload for semantic memory compatibility
-        let content = payload.get("content")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-
-        let embedding = serde_json::to_string(vector)
-            .map_err(|e| VectorStoreError::Internal(format!("serialization failed: {}", e)))?;
-        let metadata = serde_json::to_string(&payload)
-            .map_err(|e| VectorStoreError::Internal(format!("serialization failed: {}", e)))?;
-
-        let db = self.db.lock().await;
-        db.execute(
-            r#"
-            INSERT INTO semantic_memories (id, content, embedding, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                content = excluded.content,
-                embedding = excluded.embedding,
-                metadata = excluded.metadata,
-                updated_at = excluded.updated_at
-            "#,
-            rusqlite::params![
-                id,
-                content,
-                embedding,
-                metadata,
-                chrono::Utc::now().timestamp_millis(),
-                chrono::Utc::now().timestamp_millis(),
-            ],
-        )
-        .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: self.path.clone(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("upsert failed: {}", e)),
-            ),
-        }))?;
-
-        Ok(())
-    }
-
-    async fn search(
-        &self,
-        query: &[f32],
-        limit: usize,
-        _filter: Option<Value>,
-    ) -> VectorResult<Vec<VectorHit>> {
-        if query.len() != self.embedding_dim {
-            return Err(VectorStoreError::DimensionMismatch {
-                expected: self.embedding_dim,
-                actual: query.len(),
-            });
-        }
-
-        self.check_scan_cap().await;
-
-        let db = self.db.lock().await;
-        let mut stmt = db
-            .prepare("SELECT id, content, embedding, metadata FROM semantic_memories")
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("search prepare failed: {}", e)),
-                ),
-            }))?;
-
-        let rows: Vec<rusqlite::Result<(String, String, Vec<f32>, Value)>> = stmt
-            .query_map(
-                [],
-                |row: &rusqlite::Row| -> rusqlite::Result<(String, String, Vec<f32>, Value)> {
-                    let embedding: String = row.get(2)?;
-                    let metadata: String = row.get(3)?;
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        serde_json::from_str::<Vec<f32>>(&embedding).unwrap_or_default(),
-                        serde_json::from_str::<Value>(&metadata).unwrap_or(Value::Null),
-                    ))
-                },
-            )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("search query failed: {}", e)),
-                ),
-            }))?
-            .collect();
-
-        let mut results = Vec::new();
-        for row_result in rows {
-            let row: rusqlite::Result<(String, String, Vec<f32>, Value)> = row_result;
-            let (id, content, embedding, metadata): (String, String, Vec<f32>, Value) =
-                row.map_err(|e: rusqlite::Error| -> VectorStoreError {
-                    VectorStoreError::Storage(SemanticError::Storage {
-                        path: self.path.clone(),
-                        source: rusqlite::Error::SqliteFailure(
-                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                            Some(format!("row fetch failed: {}", e)),
-                        ),
-                    })
-                })?;
-
-            if embedding.len() != self.embedding_dim {
-                continue;
-            }
-
-            results.push(VectorHit {
-                id,
-                score: cosine_similarity(query, &embedding),
-                payload: {
-                    let mut map = serde_json::Map::new();
-                    map.insert("content".to_string(), Value::String(content));
-                    if let Value::Object(mut m) = metadata {
-                        map.extend(m);
-                    }
-                    Value::Object(map)
-                },
-            });
-        }
-
-        results.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        results.truncate(limit);
-        Ok(results)
-    }
-
-    async fn delete(&self, id: &str) -> VectorResult<()> {
-        let db = self.db.lock().await;
-        db.execute(
-            "DELETE FROM semantic_memories WHERE id = ?",
-            rusqlite::params![id],
-        )
-        .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: self.path.clone(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("delete failed: {}", e)),
-            ),
-        }))?;
-        Ok(())
-    }
-
-    async fn count(&self) -> VectorResult<u64> {
-        let db = self.db.lock().await;
-        let count: i64 = db
-            .query_row(
-                "SELECT COUNT(*) FROM semantic_memories",
-                [],
-                |row: &rusqlite::Row| row.get::<_, i64>(0),
-            )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("count failed: {}", e)),
-                ),
-            }))?;
-        Ok(count as u64)
-    }
-
-    async fn scan_for_pruning(&self, limit: usize) -> VectorResult<Vec<PruneCandidate>> {
-        let db = self.db.lock().await;
-        let mut stmt = db
-            .prepare(
-                "SELECT id, metadata, created_at FROM semantic_memories ORDER BY created_at ASC LIMIT ?",
-            )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("scan prepare failed: {}", e)),
-                ),
-            }))?;
-
-        let rows: Vec<rusqlite::Result<(String, i64, Value)>> = stmt
-            .query_map(
-                rusqlite::params![limit as i64],
-                |row: &rusqlite::Row| -> rusqlite::Result<(String, i64, Value)> {
-                    let metadata: String = row.get(1)?;
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, i64>(2)?,
-                        serde_json::from_str::<Value>(&metadata).unwrap_or(Value::Null),
-                    ))
-                },
-            )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("scan query failed: {}", e)),
-                ),
-            }))?
-            .collect();
-
-        let mut candidates = Vec::new();
-        for row_result in rows {
-            let row: rusqlite::Result<(String, i64, Value)> = row_result;
-            let (id, created_at, metadata): (String, i64, Value) =
-                row.map_err(|e: rusqlite::Error| -> VectorStoreError {
-                    VectorStoreError::Storage(SemanticError::Storage {
-                        path: self.path.clone(),
-                        source: rusqlite::Error::SqliteFailure(
-                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                            Some(format!("scan row fetch failed: {}", e)),
-                        ),
-                    })
-                })?;
-
-            // Extract retrieval_count and importance from metadata
-            let retrieval_count = metadata
-                .get("retrieval_count")
-                .and_then(Value::as_u64)
-                .unwrap_or(0) as u32;
-            let importance = metadata
-                .get("importance")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.5) as f32;
-
-            candidates.push(PruneCandidate {
-                id,
-                created_at,
-                retrieval_count,
-                importance,
-            });
-        }
-
-        Ok(candidates)
-    }
-
-    fn backend_id(&self) -> &'static str {
-        "sqlite-json-linear"
-    }
-}
-
-/// Cosine similarity helper.
-fn cosine_similarity(left: &[f32], right: &[f32]) -> f32 {
-    let dot = left.iter().zip(right.iter()).map(|(a, b)| a * b).sum::<f32>();
-    let left_norm = left.iter().map(|v| v * v).sum::<f32>().sqrt();
-    let right_norm = right.iter().map(|v| v * v).sum::<f32>().sqrt();
-    if left_norm == 0.0 || right_norm == 0.0 {
-        0.0
-    } else {
-        dot / (left_norm * right_norm)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[tokio::test]
-    async fn sqlite_linear_upsert_and_search() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        let path_str = path.display().to_string();
-
-        // Create the table first (mimic PersistentSemanticStore migrations)
-        let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS semantic_memories (
-                id TEXT PRIMARY KEY,
-                content TEXT NOT NULL,
-                embedding TEXT NOT NULL,
-                metadata TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            );
-            "#,
-        )
-        .unwrap();
-
-        let store = SqliteLinearVectorStore::new(&path_str, 384, 50_000).unwrap();
-
-        // Upsert
-        store
-            .upsert(
-                "test-1",
-                &vec![0.1; 384],
-                serde_json::json!({
-                    "content": "test content",
-                    "retrieval_count": 0,
-                    "importance": 0.5
-                }),
-            )
-            .await
-            .unwrap();
-
-        // Search
-        let hits = store.search(&vec![0.1; 384], 10, None).await.unwrap();
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].id, "test-1");
-        assert!((hits[0].score - 1.0).abs() < 0.001); // cosine of identical = 1.0
-    }
-
-    #[tokio::test]
-    async fn sqlite_linear_count() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        let path_str = path.display().to_string();
-
-        let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS semantic_memories (
-                id TEXT PRIMARY KEY,
-                content TEXT NOT NULL,
-                embedding TEXT NOT NULL,
-                metadata TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            );
-            "#,
-        )
-        .unwrap();
-
-        let store = SqliteLinearVectorStore::new(&path_str, 384, 50_000).unwrap();
-
-        assert_eq!(store.count().await.unwrap(), 0);
-
-        store
-            .upsert(
-                "test-1",
-                &vec![0.1; 384],
-                serde_json::json!({"content": "test"}),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(store.count().await.unwrap(), 1);
-    }
-
-    #[tokio::test]
-    async fn sqlite_linear_scan_for_pruning() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        let path_str = path.display().to_string();
-
-        let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS semantic_memories (
-                id TEXT PRIMARY KEY,
-                content TEXT NOT NULL,
-                embedding TEXT NOT NULL,
-                metadata TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            );
-            "#,
-        )
-        .unwrap();
-
-        let store = SqliteLinearVectorStore::new(&path_str, 384, 50_000).unwrap();
-
-        store
-            .upsert(
-                "test-1",
-                &vec![0.1; 384],
-                serde_json::json!({
-                    "content": "test",
-                    "retrieval_count": 0,
-                    "importance": 0.3
-                }),
-            )
-            .await
-            .unwrap();
-
-        let candidates = store.scan_for_pruning(10).await.unwrap();
-        assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].id, "test-1");
-        assert_eq!(candidates[0].retrieval_count, 0);
-        assert!((candidates[0].importance - 0.3).abs() < 0.001);
-    }
-
-    #[tokio::test]
-    async fn sqlite_linear_rejects_dimension_mismatch() {
-        let dir = tempdir().unwrap();
-        let path = dir.path().join("test.db");
-        let path_str = path.display().to_string();
-
-        let conn = Connection::open(&path).unwrap();
-        conn.execute_batch(
-            r#"
-            CREATE TABLE IF NOT EXISTS semantic_memories (
-                id TEXT PRIMARY KEY,
-                content TEXT NOT NULL,
-                embedding TEXT NOT NULL,
-                metadata TEXT NOT NULL,
-                created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
-            );
-            "#,
-        )
-        .unwrap();
-
-        let store = SqliteLinearVectorStore::new(&path_str, 384, 50_000).unwrap();
-
-        let err = store
-            .upsert("test-1", &vec![0.1; 768], serde_json::json!({}))
-            .await
-            .unwrap_err();
-
-        assert!(matches!(err, VectorStoreError::DimensionMismatch { .. }));
-    }
-}
 
 // ============================================================================
-// Phase 2: sqlite-vec ANN Backend
+// sqlite-vec ANN Backend
 // ============================================================================
 
 /// sqlite-vec ANN vector store (default production backend).
@@ -601,35 +286,39 @@ impl SqliteVecStore {
     /// Create a new sqlite-vec store.
     ///
     /// `dim` must match the embedding dimension (384 for semantic, 768 for code).
+    ///
+    /// **Important:** sqlite-vec must be initialized before calling this function.
+    /// Call [`ensure_sqlite_vec_ready()`][crate::ensure_sqlite_vec_ready] at process startup,
+    /// before any SQLite connections are opened. This is typically done in your `main()` function.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// // In main(), before any SQLite usage:
+    /// openakta_memory::ensure_sqlite_vec_ready()
+    ///     .expect("sqlite-vec initialization failed");
+    ///
+    /// // Now you can safely create SqliteVecStore:
+    /// let store = openakta_memory::SqliteVecStore::new("memory.db", 384, 1000)?;
+    /// ```
     pub fn new(path: &str, dim: usize, scan_cap: usize) -> VectorResult<Self> {
-        let mut conn = Connection::open(path).map_err(|e| VectorStoreError::Storage(
-            SemanticError::Storage {
+        // Ensure sqlite-vec is initialized (idempotent via OnceLock)
+        // This delegates to the canonical initializer - no duplicate registration
+        ensure_sqlite_vec_ready().map_err(|e| {
+            VectorStoreError::Internal(format!("sqlite-vec not initialized: {}", e))
+        })?;
+
+        let mut conn = Connection::open(path).map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
                 path: path.to_string(),
                 source: rusqlite::Error::SqliteFailure(
                     rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
                     Some(format!("failed to open SQLite: {}", e)),
                 ),
-            }
-        ))?;
+            })
+        })?;
 
-        // Load sqlite-vec extension
-        unsafe {
-            conn.load_extension_enable()
-                .map_err(|e| VectorStoreError::Internal(format!("failed to enable extension loading: {}", e)))?;
-        }
-
-        conn.execute(
-            "SELECT load_extension('sqlite_vec')",
-            [],
-        )
-        .map_err(|e| VectorStoreError::Internal(format!("failed to load sqlite-vec: {}", e)))?;
-
-        unsafe {
-            conn.load_extension_disable()
-                .map_err(|e| VectorStoreError::Internal(format!("failed to disable extension loading: {}", e)))?;
-        }
-
-        // Run migrations
+        // Run migrations (creates vec0 virtual table)
         Self::run_migrations(&mut conn, dim)?;
 
         Ok(Self {
@@ -642,12 +331,13 @@ impl SqliteVecStore {
 
     fn run_migrations(conn: &mut Connection, dim: usize) -> VectorResult<()> {
         // Create virtual table for ANN using sqlite-vec
+        // Note: vec0 syntax requires column definitions AFTER "USING vec0"
         conn.execute_batch(&format!(
             r#"
-            CREATE VIRTUAL TABLE IF NOT EXISTS semantic_vec (
+            CREATE VIRTUAL TABLE IF NOT EXISTS semantic_vec USING vec0 (
                 id TEXT PRIMARY KEY,
                 embedding FLOAT[{dim}]
-            ) USING vec0;
+            );
 
             CREATE TABLE IF NOT EXISTS semantic_vec_payload (
                 id TEXT PRIMARY KEY REFERENCES semantic_vec(id) ON DELETE CASCADE,
@@ -659,13 +349,15 @@ impl SqliteVecStore {
             CREATE INDEX IF NOT EXISTS idx_svp_updated ON semantic_vec_payload(updated_at);
             "#
         ))
-        .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: "semantic_vec".to_string(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("migration failed: {}", e)),
-            ),
-        }))?;
+        .map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
+                path: "semantic_vec".to_string(),
+                source: rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                    Some(format!("migration failed: {}", e)),
+                ),
+            })
+        })?;
 
         Ok(())
     }
@@ -687,7 +379,9 @@ impl SqliteVecStore {
 
         // Count rows to migrate
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM semantic_memories", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM semantic_memories", [], |row| {
+                row.get(0)
+            })
             .unwrap_or(0);
 
         if count == 0 {
@@ -716,48 +410,56 @@ impl SqliteVecStore {
                     row.get::<_, i64>(5)?,
                 ))
             })
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: "semantic_memories".to_string(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("migration query failed: {}", e)),
-                ),
-            }))?
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: "semantic_memories".to_string(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("migration query failed: {}", e)),
+                    ),
+                })
+            })?
             .filter_map(|r| r.ok())
             .collect();
 
         drop(stmt);
 
         let mut migrated = 0u64;
-        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: "semantic_vec".to_string(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("migration transaction failed: {}", e)),
-                ),
-            }))?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: "semantic_vec".to_string(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("migration transaction failed: {}", e)),
+                    ),
+                })
+            })?;
 
         for (id, content, embedding_json, metadata, created_at, updated_at) in rows_data {
             // Parse JSON embedding to Vec<f32>
-            let embedding: Vec<f32> = serde_json::from_str(&embedding_json)
-                .map_err(|e| VectorStoreError::Internal(format!("failed to parse embedding JSON: {}", e)))?;
+            let embedding: Vec<f32> = serde_json::from_str(&embedding_json).map_err(|e| {
+                VectorStoreError::Internal(format!("failed to parse embedding JSON: {}", e))
+            })?;
 
             // Convert to bytes for sqlite-vec
             let embedding_blob: &[u8] = bytemuck::cast_slice(&embedding);
-            
+
             // Insert into semantic_vec (virtual table)
             tx.execute(
                 "INSERT INTO semantic_vec(id, embedding) VALUES (?, ?)",
                 rusqlite::params![id, embedding_blob],
             )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: "semantic_vec".to_string(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("migration insert to vec failed: {}", e)),
-                ),
-            }))?;
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: "semantic_vec".to_string(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("migration insert to vec failed: {}", e)),
+                    ),
+                })
+            })?;
 
             // Insert payload
             tx.execute(
@@ -775,34 +477,40 @@ impl SqliteVecStore {
             migrated += 1;
         }
 
-        tx.commit().map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: "semantic_vec".to_string(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("migration commit failed: {}", e)),
-            ),
-        }))?;
+        tx.commit().map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
+                path: "semantic_vec".to_string(),
+                source: rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                    Some(format!("migration commit failed: {}", e)),
+                ),
+            })
+        })?;
 
         // Drop legacy table after successful migration
         conn.execute("DROP TABLE IF EXISTS semantic_memories", [])
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: "semantic_memories".to_string(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("drop legacy table failed: {}", e)),
-                ),
-            }))?;
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: "semantic_memories".to_string(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("drop legacy table failed: {}", e)),
+                    ),
+                })
+            })?;
 
         Ok(migrated)
     }
 
     /// Guard: warn if table size exceeds scan_cap.
     async fn check_scan_cap(&self) {
-        let mut db = self.db.lock().await;
+        let db = self.db.lock().await;
         let count: i64 = db
-            .query_row("SELECT COUNT(*) FROM semantic_vec", [], |row: &rusqlite::Row| -> rusqlite::Result<i64> {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT COUNT(*) FROM semantic_vec",
+                [],
+                |row: &rusqlite::Row| -> rusqlite::Result<i64> { row.get(0) },
+            )
             .unwrap_or(0);
         drop(db);
         if count as usize > self.scan_cap {
@@ -825,7 +533,8 @@ impl VectorStore for SqliteVecStore {
             });
         }
 
-        let content = payload.get("content")
+        let content = payload
+            .get("content")
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
@@ -833,18 +542,21 @@ impl VectorStore for SqliteVecStore {
             .map_err(|e| VectorStoreError::Internal(format!("serialization failed: {}", e)))?;
 
         let mut db = self.db.lock().await;
-        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("upsert transaction failed: {}", e)),
-                ),
-            }))?;
+        let tx = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("upsert transaction failed: {}", e)),
+                    ),
+                })
+            })?;
 
         // Convert f32 slice to bytes for sqlite-vec
         let embedding_bytes: &[u8] = bytemuck::cast_slice(vector);
-        
+
         // Insert into virtual table (sqlite-vec)
         tx.execute(
             "INSERT INTO semantic_vec(id, embedding) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET embedding = excluded.embedding",
@@ -871,21 +583,25 @@ impl VectorStore for SqliteVecStore {
             "#,
             rusqlite::params![id, content, metadata, now, now],
         )
-        .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: self.path.clone(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("payload upsert failed: {}", e)),
-            ),
-        }))?;
+        .map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
+                path: self.path.clone(),
+                source: rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                    Some(format!("payload upsert failed: {}", e)),
+                ),
+            })
+        })?;
 
-        tx.commit().map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: self.path.clone(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("upsert commit failed: {}", e)),
-            ),
-        }))?;
+        tx.commit().map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
+                path: self.path.clone(),
+                source: rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                    Some(format!("upsert commit failed: {}", e)),
+                ),
+            })
+        })?;
 
         Ok(())
     }
@@ -905,7 +621,7 @@ impl VectorStore for SqliteVecStore {
 
         self.check_scan_cap().await;
 
-        let mut db = self.db.lock().await;
+        let db = self.db.lock().await;
         let mut stmt = db
             .prepare(
                 r#"
@@ -917,13 +633,15 @@ impl VectorStore for SqliteVecStore {
                 LIMIT ?2
                 "#,
             )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("search prepare failed: {}", e)),
-                ),
-            }))?;
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("search prepare failed: {}", e)),
+                    ),
+                })
+            })?;
 
         // Convert query f32 slice to bytes for sqlite-vec MATCH
         let query_bytes: &[u8] = bytemuck::cast_slice(query);
@@ -940,35 +658,38 @@ impl VectorStore for SqliteVecStore {
                     ))
                 },
             )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("search query failed: {}", e)),
-                ),
-            }))?
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("search query failed: {}", e)),
+                    ),
+                })
+            })?
             .collect();
 
         let mut results = Vec::new();
         for row_result in rows {
             let (id, distance, content, payload_json): (String, f32, String, String) =
-                row_result.map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                    path: self.path.clone(),
-                    source: rusqlite::Error::SqliteFailure(
-                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                        Some(format!("search row fetch failed: {}", e)),
-                    ),
-                }))?;
+                row_result.map_err(|e| {
+                    VectorStoreError::Storage(SemanticError::Storage {
+                        path: self.path.clone(),
+                        source: rusqlite::Error::SqliteFailure(
+                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                            Some(format!("search row fetch failed: {}", e)),
+                        ),
+                    })
+                })?;
 
             // sqlite-vec returns distance (0 = identical), convert to similarity score
             let score = 1.0 - distance;
 
-            let payload: Value = serde_json::from_str(&payload_json)
-                .unwrap_or_else(|_| {
-                    let mut map = serde_json::Map::new();
-                    map.insert("content".to_string(), Value::String(content.clone()));
-                    Value::Object(map)
-                });
+            let payload: Value = serde_json::from_str(&payload_json).unwrap_or_else(|_| {
+                let mut map = serde_json::Map::new();
+                map.insert("content".to_string(), Value::String(content.clone()));
+                Value::Object(map)
+            });
 
             results.push(VectorHit { id, score, payload });
         }
@@ -978,64 +699,83 @@ impl VectorStore for SqliteVecStore {
 
     async fn delete(&self, id: &str) -> VectorResult<()> {
         let mut db = self.db.lock().await;
-        let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("delete transaction failed: {}", e)),
-                ),
-            }))?;
+        let tx = db
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("delete transaction failed: {}", e)),
+                    ),
+                })
+            })?;
 
         // Delete from payload first (FK cascade will handle vec, but explicit is clearer)
-        tx.execute("DELETE FROM semantic_vec_payload WHERE id = ?", rusqlite::params![id])
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
+        tx.execute(
+            "DELETE FROM semantic_vec_payload WHERE id = ?",
+            rusqlite::params![id],
+        )
+        .map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
                 path: self.path.clone(),
                 source: rusqlite::Error::SqliteFailure(
                     rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
                     Some(format!("payload delete failed: {}", e)),
                 ),
-            }))?;
+            })
+        })?;
 
         // Delete from virtual table
-        tx.execute("DELETE FROM semantic_vec WHERE id = ?", rusqlite::params![id])
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
+        tx.execute(
+            "DELETE FROM semantic_vec WHERE id = ?",
+            rusqlite::params![id],
+        )
+        .map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
                 path: self.path.clone(),
                 source: rusqlite::Error::SqliteFailure(
                     rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
                     Some(format!("vec delete failed: {}", e)),
                 ),
-            }))?;
+            })
+        })?;
 
-        tx.commit().map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-            path: self.path.clone(),
-            source: rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                Some(format!("delete commit failed: {}", e)),
-            ),
-        }))?;
+        tx.commit().map_err(|e| {
+            VectorStoreError::Storage(SemanticError::Storage {
+                path: self.path.clone(),
+                source: rusqlite::Error::SqliteFailure(
+                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                    Some(format!("delete commit failed: {}", e)),
+                ),
+            })
+        })?;
 
         Ok(())
     }
 
     async fn count(&self) -> VectorResult<u64> {
-        let mut db = self.db.lock().await;
+        let db = self.db.lock().await;
         let count: i64 = db
-            .query_row("SELECT COUNT(*) FROM semantic_vec", [], |row: &rusqlite::Row| -> rusqlite::Result<i64> {
-                row.get(0)
-            })
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("count failed: {}", e)),
-                ),
-            }))?;
+            .query_row(
+                "SELECT COUNT(*) FROM semantic_vec",
+                [],
+                |row: &rusqlite::Row| -> rusqlite::Result<i64> { row.get(0) },
+            )
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("count failed: {}", e)),
+                    ),
+                })
+            })?;
         Ok(count as u64)
     }
 
     async fn scan_for_pruning(&self, limit: usize) -> VectorResult<Vec<PruneCandidate>> {
-        let mut db = self.db.lock().await;
+        let db = self.db.lock().await;
         let mut stmt = db
             .prepare(
                 "SELECT sv.id, svp.payload, svp.created_at FROM semantic_vec sv JOIN semantic_vec_payload svp ON sv.id = svp.id ORDER BY svp.created_at ASC LIMIT ?",
@@ -1059,25 +799,29 @@ impl VectorStore for SqliteVecStore {
                     ))
                 },
             )
-            .map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                path: self.path.clone(),
-                source: rusqlite::Error::SqliteFailure(
-                    rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                    Some(format!("scan query failed: {}", e)),
-                ),
-            }))?
+            .map_err(|e| {
+                VectorStoreError::Storage(SemanticError::Storage {
+                    path: self.path.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("scan query failed: {}", e)),
+                    ),
+                })
+            })?
             .collect();
 
         let mut candidates = Vec::new();
         for row_result in rows {
             let (id, payload_json, created_at): (String, String, i64) =
-                row_result.map_err(|e| VectorStoreError::Storage(SemanticError::Storage {
-                    path: self.path.clone(),
-                    source: rusqlite::Error::SqliteFailure(
-                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                        Some(format!("scan row fetch failed: {}", e)),
-                    ),
-                }))?;
+                row_result.map_err(|e| {
+                    VectorStoreError::Storage(SemanticError::Storage {
+                        path: self.path.clone(),
+                        source: rusqlite::Error::SqliteFailure(
+                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                            Some(format!("scan row fetch failed: {}", e)),
+                        ),
+                    })
+                })?;
 
             let payload: Value = serde_json::from_str(&payload_json).unwrap_or(Value::Null);
             let retrieval_count = payload
@@ -1108,19 +852,68 @@ impl VectorStore for SqliteVecStore {
 // ============================================================================
 // External Backend Stub (Cloud Tier / Self-Hosted)
 // ============================================================================
-
-/// External vector store stub for cloud tier or self-hosted Qdrant.
-///
-/// This stub is reserved for future implementation connecting to:
-/// - Qdrant Cloud (Azure Marketplace) for paid tier
-/// - Self-hosted Qdrant or compatible endpoints for enterprise
-///
-/// Cloud tier uses Cohere embed-v3-multilingual embeddings.
-/// Communication is via HTTPS proxy to api.openakta.dev with token auth.
-///
-/// Future migration path: Turbopuffer via VectorStore trait compatibility.
+//
+// External vector store stub for cloud tier or self-hosted Qdrant.
+//
+// This stub is reserved for future implementation connecting to:
+// - Qdrant Cloud (Azure Marketplace) for paid tier
+// - Self-hosted Qdrant or compatible endpoints for enterprise
+//
+// Cloud tier uses Cohere embed-v3-multilingual embeddings.
+// Communication is via HTTPS proxy to api.openakta.dev with token auth.
+//
+// Future migration path: Turbopuffer via `VectorStore` trait compatibility.
+//
 // pub struct ExternalVectorStore {
 //     endpoint: String,
 //     api_key: Option<String>,
 //     client: reqwest::Client,
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ensure_sqlite_vec_ready_two_tier_verification() {
+        // This test verifies the canonical initialization works correctly
+        // Tier A: vec_version() check
+        // Tier B: vec0 smoke test
+
+        let result = ensure_sqlite_vec_ready();
+        assert!(
+            result.is_ok(),
+            "sqlite-vec initialization failed: {:?}",
+            result.err()
+        );
+
+        // Verify it's idempotent - calling again should succeed
+        let result2 = ensure_sqlite_vec_ready();
+        assert!(
+            result2.is_ok(),
+            "sqlite-vec re-initialization failed: {:?}",
+            result2.err()
+        );
+    }
+
+    #[test]
+    fn test_sqlite_vec_store_requires_init() {
+        // SqliteVecStore::new should succeed when canonical init was called
+        let temp_path = tempfile::NamedTempFile::new()
+            .expect("failed to create temp file")
+            .into_temp_path()
+            .to_string_lossy()
+            .to_string();
+
+        // First initialize (this happens in main() normally)
+        ensure_sqlite_vec_ready().expect("init failed");
+
+        // Now create the store
+        let store_result = SqliteVecStore::new(&temp_path, 384, 1000);
+        assert!(
+            store_result.is_ok(),
+            "SqliteVecStore::new failed: {:?}",
+            store_result.err()
+        );
+    }
+}

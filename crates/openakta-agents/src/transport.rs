@@ -356,7 +356,7 @@ mod tests {
                 affected_files: vec!["src/auth.rs".to_string()],
             }),
             token_usage: InternalTokenUsage {
-                provider: "anthropic".to_string(),
+                provider: "openai".to_string(),
                 input_tokens: 100,
                 output_tokens: 20,
                 cache_write_tokens: 60,

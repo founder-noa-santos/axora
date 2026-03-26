@@ -47,48 +47,6 @@
       "pricing_tier": "paid"
     },
     {
-      "id": "anthropic",
-      "vendor_slug": "anthropic",
-      "label": "Anthropic",
-      "description": "Official Anthropic API for Claude models",
-      "status": "active",
-      "provider_type": "direct",
-      "documentation_url": "https://docs.anthropic.com",
-      "homepage_url": "https://anthropic.com",
-      "api": {
-        "base_url": "https://api.anthropic.com",
-        "compatibility": {
-          "family": "anthropic",
-          "surface": "messages",
-          "strictness": "native"
-        },
-        "default_endpoint_path": "/v1/messages"
-      },
-      "authentication": {
-        "scheme": "api_key_header",
-        "header_name": "x-api-key",
-        "env_var_hint": "ANTHROPIC_API_KEY",
-        "client_exposure": "user_supplied"
-      },
-      "capabilities": {
-        "chat": true,
-        "streaming": true,
-        "embeddings": false,
-        "tool_calls": true
-      },
-      "supported_model_ids": [
-        "claude-3-5-sonnet-latest",
-        "claude-3-opus-latest",
-        "claude-3-haiku-latest"
-      ],
-      "default_model_id": "claude-3-5-sonnet-latest",
-      "rate_limits": {
-        "requests_per_minute": 400,
-        "tokens_per_minute": 80000
-      },
-      "pricing_tier": "paid"
-    },
-    {
       "id": "deepseek",
       "vendor_slug": "deepseek",
       "label": "DeepSeek",

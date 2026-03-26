@@ -3,6 +3,9 @@
 //! Drives `pending_answer` ↔ `running` transitions, enforces caps and duplicate
 //! detection, and optionally fans out `QuestionEnvelope` on the collective bus.
 
+use crate::execution_trace::{
+    ExecutionEventKind, ExecutionTraceEvent, ExecutionTracePhase, ExecutionTraceRegistry,
+};
 use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
 use openakta_proto::collective::v1::{
@@ -32,6 +35,8 @@ pub struct HitlConfig {
     pub checkpoint_dir: PathBuf,
     /// When set, `expiry_token` is HMAC-signed on raise and verified on submit (`OPENAKTA_HITL_HMAC_SECRET`, hex).
     pub answer_hmac_secret: Option<Vec<u8>>,
+    /// Optional canonical execution-trace registry for approval events.
+    pub execution_trace_registry: Option<std::sync::Arc<ExecutionTraceRegistry>>,
 }
 
 impl Default for HitlConfig {
@@ -40,6 +45,7 @@ impl Default for HitlConfig {
             max_questions_per_mission: 5,
             checkpoint_dir: PathBuf::from(".openakta/checkpoints"),
             answer_hmac_secret: None,
+            execution_trace_registry: None,
         }
     }
 }
@@ -332,6 +338,22 @@ impl MissionHitlGate {
             .pending_missions
             .fetch_add(1, Ordering::Relaxed);
 
+        if let Some(registry) = &self.config.execution_trace_registry {
+            let mut event = ExecutionTraceEvent::new(
+                envelope.session_id.clone(),
+                mission_id.to_string(),
+                String::new(),
+                format!("turn-{}", envelope.turn_index),
+                "hitl".to_string(),
+                ExecutionEventKind::Approval,
+                ExecutionTracePhase::Requested,
+                envelope.text.clone(),
+            );
+            event.action_id = qid.clone();
+            event.query = Some(envelope.text.clone());
+            let _ = registry.emit(event);
+        }
+
         Ok(qid)
     }
 
@@ -409,6 +431,27 @@ impl MissionHitlGate {
                     HitlError::InvalidState("answer event bus publish failed (closed)".into())
                 })?;
             }
+        }
+
+        if let Some(registry) = &self.config.execution_trace_registry {
+            let mut event = ExecutionTraceEvent::new(
+                pending_envelope.session_id.clone(),
+                mission_id,
+                String::new(),
+                format!("turn-{}", pending_envelope.turn_index),
+                "hitl".to_string(),
+                ExecutionEventKind::Approval,
+                approval_phase_for_answer(&answer),
+                pending_envelope.text.clone(),
+            );
+            event.action_id = pending_envelope.question_id.clone();
+            event.query = Some(pending_envelope.text.clone());
+            event.result_preview = if answer.selected_option_ids.is_empty() {
+                answer.free_text.clone()
+            } else {
+                Some(answer.selected_option_ids.join(","))
+            };
+            let _ = registry.emit(event);
         }
 
         if let Some((_, w)) = self.waiters.remove(&pending_envelope.question_id) {
@@ -837,6 +880,20 @@ fn validate_answer(q: &QuestionEnvelope, a: &AnswerEnvelope) -> Result<(), HitlE
     Ok(())
 }
 
+fn approval_phase_for_answer(answer: &AnswerEnvelope) -> ExecutionTracePhase {
+    let denies = answer.selected_option_ids.iter().any(|value| {
+        matches!(
+            value.to_ascii_lowercase().as_str(),
+            "deny" | "denied" | "reject" | "rejected" | "no" | "cancel" | "cancelled"
+        )
+    });
+    if denies {
+        ExecutionTracePhase::Denied
+    } else {
+        ExecutionTracePhase::Approved
+    }
+}
+
 type HmacSha256 = Hmac<Sha256>;
 
 fn hitl_hmac_payload(mission_id: &str, question_id: &str, exp: &prost_types::Timestamp) -> Vec<u8> {
@@ -1004,6 +1061,7 @@ fn should_redact_sensitive_tokens(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{read_session_events, ExecutionEventKind, ExecutionTracePhase, ExecutionTraceRegistry};
     use openakta_proto::collective::v1::{AnswerAuthor, QuestionOption};
     use std::sync::Arc;
 
@@ -1094,6 +1152,63 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn approval_events_are_emitted_for_question_and_denied_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let trace_dir = dir.path().join("execution");
+        let registry = Arc::new(ExecutionTraceRegistry::new(trace_dir.clone()));
+        registry.create_session("sess", false).unwrap();
+
+        let gate = Arc::new(MissionHitlGate::new(
+            HitlConfig {
+                checkpoint_dir: dir.path().join("cp"),
+                execution_trace_registry: Some(Arc::clone(&registry)),
+                ..Default::default()
+            },
+            None,
+        ));
+        gate.register_mission_start("m").unwrap();
+
+        let mut env = sample_envelope("m");
+        env.session_id = "sess".into();
+        env.options = vec![
+            QuestionOption {
+                id: "approve".into(),
+                label: "Approve".into(),
+                description: "".into(),
+                is_default: true,
+            },
+            QuestionOption {
+                id: "deny".into(),
+                label: "Deny".into(),
+                description: "".into(),
+                is_default: false,
+            },
+        ];
+
+        let qid = gate.raise_question(env, "m").await.unwrap();
+        gate.submit_answer(AnswerEnvelope {
+            question_id: qid.clone(),
+            mission_id: "m".into(),
+            answered_by: AnswerAuthor::Human as i32,
+            mode: QuestionKind::Single as i32,
+            selected_option_ids: vec!["deny".into()],
+            free_text: None,
+            answered_at: None,
+        })
+        .await
+        .unwrap();
+
+        let events = read_session_events(&trace_dir, "sess", 0).unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].event_kind, ExecutionEventKind::Approval);
+        assert_eq!(events[0].phase, ExecutionTracePhase::Requested);
+        assert_eq!(events[0].action_id, qid);
+        assert_eq!(events[1].event_kind, ExecutionEventKind::Approval);
+        assert_eq!(events[1].phase, ExecutionTracePhase::Denied);
+        assert_eq!(events[1].result_preview.as_deref(), Some("deny"));
+    }
+
+    #[tokio::test]
     async fn state_machine_raise_answer_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         let gate = Arc::new(MissionHitlGate::new(
@@ -1147,9 +1262,7 @@ mod tests {
         let qid = gate.raise_question(env, "m1").await.unwrap();
 
         let checkpoint_file = dir.path().join("m1.json");
-        let mut perms = std::fs::metadata(&checkpoint_file)
-            .unwrap()
-            .permissions();
+        let mut perms = std::fs::metadata(&checkpoint_file).unwrap().permissions();
         perms.set_mode(0o444);
         std::fs::set_permissions(&checkpoint_file, perms).unwrap();
 
@@ -1166,9 +1279,7 @@ mod tests {
             .await;
         assert!(matches!(err, Err(HitlError::CheckpointIo(_))));
 
-        let mut perms = std::fs::metadata(&checkpoint_file)
-            .unwrap()
-            .permissions();
+        let mut perms = std::fs::metadata(&checkpoint_file).unwrap().permissions();
         perms.set_mode(0o644);
         std::fs::set_permissions(&checkpoint_file, perms).unwrap();
 

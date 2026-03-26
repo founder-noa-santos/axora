@@ -1,0 +1,156 @@
+syntax = "proto3";
+
+package research.v1;
+
+option go_package = "github.com/openakta/aktacode/proto/research/v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// ResearchService handles web search across multiple providers
+service ResearchService {
+  // Search with provider selection
+  rpc Search(SearchRequest) returns (SearchResponse);
+  
+  // Provider health
+  rpc GetProviderStatus(ProviderStatusRequest) returns (ProviderStatus);
+  
+  // List available providers
+  rpc ListProviders(ListProvidersRequest) returns (ListProvidersResponse);
+}
+
+// Search providers
+enum SearchProvider {
+  SEARCH_PROVIDER_UNSPECIFIED = 0;
+  SEARCH_PROVIDER_BRAVE = 1;
+  SEARCH_PROVIDER_TAVILY = 2;
+  SEARCH_PROVIDER_EXA = 3;
+  SEARCH_PROVIDER_SERPER = 4;
+}
+
+// Search request
+message SearchRequest {
+  string request_id = 1;
+  string tenant_id = 2;
+  
+  string query = 3;
+  optional SearchProvider provider = 4;  // If unspecified, auto-select
+  
+  uint32 num_results = 5;  // Default: 10
+  optional uint32 max_tokens = 6;  // Max tokens for content
+  
+  SearchOptions options = 7;
+}
+
+message SearchOptions {
+  // Search type
+  bool search_news = 1;
+  bool search_academic = 2;
+  
+  // Content extraction
+  bool extract_content = 3;  // Extract full page content
+  
+  // Time range
+  optional string time_range = 4;  // "past_day", "past_week", "past_month", "past_year"
+  
+  // Safe search
+  bool safe_search = 5;
+}
+
+// Search result
+message SearchResponse {
+  string request_id = 1;
+  SearchProvider provider = 2;
+  
+  repeated SearchResult results = 3;
+  
+  SearchMetadata metadata = 4;
+  google.protobuf.Duration latency = 5;
+}
+
+message SearchResult {
+  string id = 1;
+  string title = 2;
+  string url = 3;
+  string snippet = 4;
+  
+  // Extracted content (if enabled)
+  optional string content = 5;
+  
+  // Metadata
+  optional string published_date = 6;
+  optional string source = 7;
+  
+  // Scoring
+  float relevance_score = 8;
+}
+
+message SearchMetadata {
+  uint32 total_results = 1;
+  uint32 results_returned = 2;
+  
+  // Provider-specific info
+  map<string, string> provider_metadata = 3;
+}
+
+// Provider status
+message ProviderStatusRequest {
+  SearchProvider provider = 1;
+}
+
+message ProviderStatus {
+  SearchProvider provider = 1;
+  HealthStatus status = 2;
+  
+  optional string last_error = 3;
+  google.protobuf.Duration latency_p99 = 4;
+  
+  google.protobuf.Timestamp last_checked_at = 5;
+}
+
+enum HealthStatus {
+  HEALTH_STATUS_UNSPECIFIED = 0;
+  HEALTH_STATUS_HEALTHY = 1;
+  HEALTH_STATUS_DEGRADED = 2;
+  HEALTH_STATUS_UNHEALTHY = 3;
+}
+
+// List providers
+message ListProvidersRequest {
+  bool include_unhealthy = 1;  // Include unhealthy providers
+}
+
+message ListProvidersResponse {
+  repeated ProviderInfo providers = 1;
+}
+
+message ProviderInfo {
+  SearchProvider provider = 1;
+  string name = 2;
+  string description = 3;
+  
+  HealthStatus status = 4;
+  
+  // Capabilities
+  bool supports_news = 5;
+  bool supports_academic = 6;
+  bool supports_content_extraction = 7;
+}
+
+// Error codes
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_INVALID_REQUEST = 1;
+  ERROR_CODE_QUOTA_EXCEEDED = 2;
+  ERROR_CODE_PROVIDER_UNAVAILABLE = 3;
+  ERROR_CODE_AUTH_FAILED = 4;
+  ERROR_CODE_RATE_LIMITED = 5;
+  ERROR_CODE_NO_RESULTS = 6;
+  ERROR_CODE_INTERNAL = 7;
+}
+
+message Error {
+  ErrorCode code = 1;
+  string message = 2;
+  map<string, string> details = 3;
+}

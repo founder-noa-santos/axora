@@ -8,10 +8,10 @@ use anyhow::{anyhow, Result};
 use tracing::{debug, info, warn};
 
 use openakta_docs::{
-    append_changelog_entry, sanitize_segment, CodeRealityIndex,
+    append_changelog_entry, sanitize_segment, write_external_migration_file, CodeRealityIndex,
     ConfidenceReconcileDecision, ConfidenceScorer, DocExpectationIndex, DocReconciler,
     DocReconcilerConfig, DriftDetector, DriftDomain, DriftReport, IncrementalAstParser,
-    MigrationChangeKind, ReconcileDecision, ToonChangelogPayload, write_external_migration_file,
+    MigrationChangeKind, ReconcileDecision, ToonChangelogPayload,
 };
 use openakta_indexing::MerkleTree;
 use openakta_memory::{DocType, PersistentSemanticStore, SemanticMemory, SemanticMetadata};
@@ -404,11 +404,7 @@ impl LivingDocsProcessor {
         Ok(())
     }
 
-    fn emit_drift_report(
-        &mut self,
-        trigger: &str,
-        governor: &mut ResourceGovernor,
-    ) -> Result<()> {
+    fn emit_drift_report(&mut self, trigger: &str, governor: &mut ResourceGovernor) -> Result<()> {
         if self.doc_expectations.symbol_expectations.is_empty()
             && self.doc_expectations.code_references.is_empty()
         {
@@ -416,8 +412,11 @@ impl LivingDocsProcessor {
         }
 
         governor.wait_for_budget();
-        let report =
-            DriftDetector::detect(&self.doc_expectations, &self.code_reality, &self.workspace_root);
+        let report = DriftDetector::detect(
+            &self.doc_expectations,
+            &self.code_reality,
+            &self.workspace_root,
+        );
         self.persist_drift_report(trigger, &report)?;
         if report.total_flags > 0 {
             warn!(
@@ -430,7 +429,10 @@ impl LivingDocsProcessor {
                 "livingdocs drift detection flagged inconsistencies"
             );
         } else {
-            debug!(trigger, "livingdocs drift detection found no inconsistencies");
+            debug!(
+                trigger,
+                "livingdocs drift detection found no inconsistencies"
+            );
         }
         self.enforce_parser_pressure(governor);
         Ok(())
@@ -554,8 +556,7 @@ impl LivingDocsProcessor {
             match write_external_migration_file(&self.docs_root, &payload) {
                 Ok(abs) => {
                     if let Ok(stripped) = abs.strip_prefix(&self.workspace_root) {
-                        external_relpath =
-                            Some(stripped.to_string_lossy().replace('\\', "/"));
+                        external_relpath = Some(stripped.to_string_lossy().replace('\\', "/"));
                     }
                 }
                 Err(e) => {
@@ -621,7 +622,8 @@ impl LivingDocsProcessor {
             .into_iter()
             .collect::<Vec<_>>();
         let runtime_report = stored_report_to_runtime_report(report);
-        let outcome = self.try_autocommit_changelog(&work.report_id, &runtime_report, &target_docs)?;
+        let outcome =
+            self.try_autocommit_changelog(&work.report_id, &runtime_report, &target_docs)?;
         self.job_queue.record_confidence_action(
             &work.report_id,
             &work.workspace_root,
@@ -719,9 +721,9 @@ impl LivingDocsProcessor {
     }
 
     fn persist_drift_report(&self, trigger: &str, report: &DriftReport) -> Result<()> {
-        let (report_id, inserted) = self
-            .job_queue
-            .persist_drift_report(&self.workspace_root, trigger, report)?;
+        let (report_id, inserted) =
+            self.job_queue
+                .persist_drift_report(&self.workspace_root, trigger, report)?;
         if inserted {
             self.apply_confidence_routing(&report_id, report)?;
         }
@@ -755,12 +757,7 @@ impl LivingDocsProcessor {
             } else {
                 "api_surface_drift"
             });
-        let memory = SemanticMemory::new(
-            &memory_id,
-            &content,
-            embed_text(&content, 384),
-            metadata,
-        );
+        let memory = SemanticMemory::new(&memory_id, &content, embed_text(&content, 384), metadata);
         self.semantic_store
             .insert(memory)
             .map_err(anyhow::Error::msg)
@@ -1071,10 +1068,8 @@ export function resolvePlan(force: boolean): Promise<number> {
         .expect("write code");
 
         let semantic_store_path = workspace_root.join(".openakta/semantic.db");
-        let queue = SqliteJobQueue::open(
-            workspace_root.join(".openakta/livingdocs-queue.db"),
-        )
-        .expect("queue");
+        let queue = SqliteJobQueue::open(workspace_root.join(".openakta/livingdocs-queue.db"))
+            .expect("queue");
         let mut processor = LivingDocsProcessor::new(
             workspace_root.clone(),
             semantic_store_path.clone(),
@@ -1111,7 +1106,9 @@ export function resolvePlan(force: boolean): Promise<number> {
             .expect("present");
 
         assert!(memory.content.contains("flags_total:"));
-        assert!(memory.content.contains("storage: sqlite_primary_semantic_summary"));
+        assert!(memory
+            .content
+            .contains("storage: sqlite_primary_semantic_summary"));
         assert!(memory.content.contains("business_rule_flags:"));
         assert!(memory.content.contains("resolvePlan"));
         assert_eq!(stored_report.total_flags, 2);
@@ -1221,7 +1218,7 @@ rule_ids:
                     payload: SyncJobPayload {
                         workspace_root: workspace_root.display().to_string(),
                         scope: SyncScope::Paths(vec![
-                            "akta-docs/03-business-logic/rules.md".to_string(),
+                            "akta-docs/03-business-logic/rules.md".to_string()
                         ]),
                         reason: "doc_update".to_string(),
                         event_count: 1,
@@ -1237,7 +1234,10 @@ rule_ids:
             .expect("present");
         assert_eq!(report.total_flags, 1);
         assert_eq!(report.flags[0].kind, DriftKind::MissingSymbol);
-        assert_eq!(report.flags[0].symbol_name.as_deref(), Some("resolveMissing"));
+        assert_eq!(
+            report.flags[0].symbol_name.as_deref(),
+            Some("resolveMissing")
+        );
     }
 
     #[test]

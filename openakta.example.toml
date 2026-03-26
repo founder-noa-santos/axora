@@ -33,21 +33,21 @@ health_check_interval_seconds = 30
 
 [providers]
 # Default cloud instance (optional - omit for local-only operation)
-default_cloud_instance = "anthropic-cloud"
+default_cloud_instance = "openai-cloud"
 # Default local instance (optional - omit for cloud-only operation)
 default_local_instance = "ollama-local"
 # Deterministic routing priority (optional)
-model_instance_priority = ["anthropic-cloud", "ollama-local"]
+model_instance_priority = ["openai-cloud", "ollama-local"]
 
-# Cloud provider instance - Anthropic
-[providers.instances.anthropic-cloud]
-profile = "anthropic_messages_v1"
-base_url = "https://api.anthropic.com"
+# Cloud provider instance - OpenAI
+[providers.instances.openai-cloud]
+profile = "open_ai_chat_completions"
+base_url = "https://api.openai.com/v1"
 is_local = false
-default_model = "claude-sonnet-4-5"
-label = "Anthropic Cloud"
+default_model = "gpt-4o"
+label = "OpenAI Cloud"
 # NEVER put api_key inline - use api_key_file instead:
-api_key_file = ".openakta/secrets/anthropic-cloud.key"
+api_key_file = ".openakta/secrets/openai-cloud.key"
 
 # Local provider instance - Ollama
 [providers.instances.ollama-local]

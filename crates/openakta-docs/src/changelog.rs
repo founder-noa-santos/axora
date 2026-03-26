@@ -90,7 +90,9 @@ pub struct ToonChangelogPayload {
 
 #[derive(Debug, Error)]
 pub enum ChangelogValidationError {
-    #[error("timestamp must be 14 ASCII digits (compact ISO 8601 UTC) and a valid calendar datetime")]
+    #[error(
+        "timestamp must be 14 ASCII digits (compact ISO 8601 UTC) and a valid calendar datetime"
+    )]
     InvalidTimestamp,
     #[error("description must not contain newlines")]
     InvalidDescription,
@@ -146,7 +148,8 @@ impl ToonChangelogPayload {
         }
         let doc = doc.map(|s| sanitize_segment(&s, MIGRATION_SEGMENT_MAX));
         let slug = slug.map(|s| sanitize_segment(&s, MIGRATION_SEGMENT_MAX));
-        if doc.as_ref().is_some_and(|s| s.is_empty()) || slug.as_ref().is_some_and(|s| s.is_empty()) {
+        if doc.as_ref().is_some_and(|s| s.is_empty()) || slug.as_ref().is_some_and(|s| s.is_empty())
+        {
             return Err(ChangelogValidationError::InvalidMigrationSegment);
         }
         let mut p = Self {
@@ -293,7 +296,9 @@ pub fn migration_filename(payload: &ToonChangelogPayload) -> Result<String, Appe
 }
 
 /// Workspace-relative path: `10-changelog/{migration_filename}`.
-pub fn migration_relative_path(payload: &ToonChangelogPayload) -> Result<String, AppendChangelogError> {
+pub fn migration_relative_path(
+    payload: &ToonChangelogPayload,
+) -> Result<String, AppendChangelogError> {
     let name = migration_filename(payload)?;
     Ok(format!("10-changelog/{name}"))
 }
@@ -301,9 +306,8 @@ pub fn migration_relative_path(payload: &ToonChangelogPayload) -> Result<String,
 /// Deprecated: use [`migration_relative_path`].
 #[deprecated(note = "use migration_relative_path")]
 pub fn external_changelog_relative_path(payload: &ToonChangelogPayload) -> String {
-    migration_relative_path(payload).unwrap_or_else(|_| {
-        format!("10-changelog/{}_{}.md", payload.ts, payload.sha256_16)
-    })
+    migration_relative_path(payload)
+        .unwrap_or_else(|_| format!("10-changelog/{}_{}.md", payload.ts, payload.sha256_16))
 }
 
 /// Writes under `docs_root/10-changelog/` using `{timestamp}_{doc_id}_{type}_{slug}.md`.
@@ -349,7 +353,9 @@ pub fn write_external_changelog_file(
 }
 
 /// One Markdown bullet line for this payload (validates checksum and timestamp).
-pub fn changelog_entry_line(payload: &ToonChangelogPayload) -> Result<String, AppendChangelogError> {
+pub fn changelog_entry_line(
+    payload: &ToonChangelogPayload,
+) -> Result<String, AppendChangelogError> {
     if !payload.validate_ts_compact() {
         return Err(AppendChangelogError::InvalidTimestamp);
     }
@@ -543,7 +549,10 @@ mod tests {
         .unwrap();
         write_external_migration_file(&docs, &p2).unwrap();
         let both = fs::read_to_string(&path).unwrap();
-        assert!(both.contains("first"), "roll-forward must retain prior fragment content");
+        assert!(
+            both.contains("first"),
+            "roll-forward must retain prior fragment content"
+        );
         assert!(both.contains("second"));
     }
 
@@ -562,7 +571,10 @@ mod tests {
         .unwrap();
         let md = "# Title\nno marker here\n";
         let out = append_changelog_entry(md, &p, Some(&docs)).unwrap();
-        assert_eq!(out, md, "inline markdown must be unchanged in external mode");
+        assert_eq!(
+            out, md,
+            "inline markdown must be unchanged in external mode"
+        );
         let fragment = docs.join(migration_relative_path(&p).unwrap());
         assert!(fragment.is_file(), "expected fragment at {:?}", fragment);
         let text = fs::read_to_string(&fragment).unwrap();

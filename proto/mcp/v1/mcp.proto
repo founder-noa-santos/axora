@@ -37,6 +37,12 @@ message ToolDefinition {
   bool is_destructive = 6;
   // If true, coordinator may allow invocation during mission `pending_answer` (read-only path).
   bool read_only = 7;
+  google.protobuf.Struct parameters = 8;
+  bool strict = 9;
+  string tool_kind = 10;
+  google.protobuf.Struct result_schema = 11;
+  bool requires_approval = 12;
+  string ui_renderer = 13;
 }
 
 message CapabilityPolicy {
@@ -60,6 +66,10 @@ message ToolCallRequest {
   string workspace_root = 7;
   /// Trusted mission id from coordinator / runtime (not model-supplied).
   string mission_id = 8;
+  string task_id = 9;
+  string turn_id = 10;
+  string tool_call_id = 11;
+  string parent_call_id = 12;
 }
 
 message ToolCallResult {
@@ -88,6 +98,18 @@ message AuditEvent {
   bool allowed = 8;
   string detail = 9;
   google.protobuf.Timestamp created_at = 10;
+  string mission_id = 11;
+  string task_id = 12;
+  string turn_id = 13;
+  string tool_call_id = 14;
+  string phase = 15;
+  string status = 16;
+  bool read_only = 17;
+  bool mutating = 18;
+  bool requires_approval = 19;
+  string args_preview = 20;
+  string result_preview = 21;
+  string error = 22;
 }
 
 message RetrieveSkillsRequest {

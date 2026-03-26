@@ -6,14 +6,14 @@ OPENAKTA is a **multi-agent coding system** with a Rust runtime and a **macOS-fi
 
 - **Rust**: toolchain matching MSRV in the repo root (`rust-toolchain.toml`, `Cargo.toml`).
 - **Node**: see root `package.json` `engines` and `packageManager` (pnpm).
-- **API keys**: e.g. Anthropic / OpenAI as needed for your provider setup (see [configuration.md](./configuration.md)).
+- **API keys**: e.g. OpenAI as needed for your provider setup (see [configuration.md](./configuration.md)).
 
 ## CLI quick start
 
 From the repository root:
 
 ```bash
-export ANTHROPIC_API_KEY=...
+export OPENAI_API_KEY=...
 cargo run -p openakta-cli -- do "add JWT auth"
 ```
 

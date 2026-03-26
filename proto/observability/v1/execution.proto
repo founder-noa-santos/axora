@@ -1,0 +1,74 @@
+syntax = "proto3";
+
+package observability.v1;
+
+import "google/protobuf/timestamp.proto";
+
+service ExecutionObservabilityService {
+  rpc StreamExecutionEvents(StreamExecutionEventsRequest) returns (stream ExecutionEvent);
+}
+
+message StreamExecutionEventsRequest {
+  string session_id = 1;
+  string mission_id = 2;
+  uint64 from_sequence = 3;
+}
+
+enum ExecutionPhase {
+  EXECUTION_PHASE_UNSPECIFIED = 0;
+  EXECUTION_PHASE_REQUESTED = 1;
+  EXECUTION_PHASE_APPROVED = 2;
+  EXECUTION_PHASE_STARTED = 3;
+  EXECUTION_PHASE_PROGRESS = 4;
+  EXECUTION_PHASE_COMPLETED = 5;
+  EXECUTION_PHASE_FAILED = 6;
+  EXECUTION_PHASE_DENIED = 7;
+}
+
+enum ExecutionEventKind {
+  EXECUTION_EVENT_KIND_UNSPECIFIED = 0;
+  EXECUTION_EVENT_KIND_MISSION = 1;
+  EXECUTION_EVENT_KIND_TASK = 2;
+  EXECUTION_EVENT_KIND_PROVIDER_REQUEST = 3;
+  EXECUTION_EVENT_KIND_TOOL_CALL = 4;
+  EXECUTION_EVENT_KIND_RETRIEVAL = 5;
+  EXECUTION_EVENT_KIND_APPROVAL = 6;
+  EXECUTION_EVENT_KIND_AGENT_ASSIGNMENT = 7;
+  EXECUTION_EVENT_KIND_AGENT_RESULT = 8;
+}
+
+message ExecutionEvent {
+  string event_id = 1;
+  string session_id = 2;
+  uint64 sequence = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string action_id = 5;
+  optional string parent_action_id = 6;
+  ExecutionEventKind event_kind = 7;
+  ExecutionPhase phase = 8;
+  string display_name = 9;
+  string mission_id = 10;
+  string task_id = 11;
+  string turn_id = 12;
+  string agent_id = 13;
+  optional string provider_request_id = 14;
+  optional string provider = 15;
+  optional string model = 16;
+  optional uint32 message_count = 17;
+  optional uint32 tool_call_count = 18;
+  optional string stop_reason = 19;
+  optional string usage_preview = 20;
+  optional string tool_call_id = 21;
+  optional string tool_kind = 22;
+  optional string tool_name = 23;
+  bool read_only = 24;
+  bool mutating = 25;
+  bool requires_approval = 26;
+  optional string target_path = 27;
+  optional string target_symbol = 28;
+  optional string query = 29;
+  optional string args_preview = 30;
+  optional string result_preview = 31;
+  optional string error = 32;
+  optional uint64 duration_ms = 33;
+}

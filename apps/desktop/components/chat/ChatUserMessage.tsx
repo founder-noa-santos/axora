@@ -1,6 +1,10 @@
 "use client";
 
-import { Message, MessageContent } from "@/components/ai-elements/message";
+import {
+  Message,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
 import type { Message as UiMessage } from "@/shared/contracts/message";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +18,9 @@ export function ChatUserMessage({
   return (
     <Message from="user" className={cn(className)}>
       <MessageContent>
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        <MessageResponse parseIncompleteMarkdown={false}>
+          {message.content}
+        </MessageResponse>
       </MessageContent>
     </Message>
   );

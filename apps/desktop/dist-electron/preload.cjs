@@ -11,7 +11,11 @@ var ipcChannels = {
   getPreferences: "desktop:get-preferences",
   updatePreferences: "desktop:update-preferences",
   getFullscreenState: "desktop:get-fullscreen-state",
-  onFullscreenChange: "desktop:on-fullscreen-change"
+  onFullscreenChange: "desktop:on-fullscreen-change",
+  getPendingReviewCount: "desktop:get-pending-review-count",
+  listPendingReviews: "desktop:list-pending-reviews",
+  getReviewDetail: "desktop:get-review-detail",
+  submitReviewResolution: "desktop:submit-review-resolution"
 };
 var appInfoSchema = import_zod.z.object({
   name: import_zod.z.string(),
@@ -31,6 +35,69 @@ var shellStateSchema = import_zod.z.object({
     status: import_zod.z.enum(["unknown", "offline", "online"]),
     endpoint: import_zod.z.string().nullable()
   })
+});
+var reviewQueueItemSchema = import_zod.z.object({
+  reviewId: import_zod.z.string(),
+  reportId: import_zod.z.string(),
+  workspaceRoot: import_zod.z.string(),
+  createdAtMs: import_zod.z.number(),
+  confidenceScore: import_zod.z.number(),
+  primaryDocPath: import_zod.z.string(),
+  highestSeverity: import_zod.z.string().optional(),
+  summary: import_zod.z.string().optional()
+});
+var reviewQueueListSchema = import_zod.z.object({
+  items: import_zod.z.array(reviewQueueItemSchema),
+  totalPending: import_zod.z.number()
+});
+var reviewFlagSchema = import_zod.z.object({
+  fingerprint: import_zod.z.string(),
+  domain: import_zod.z.string(),
+  kind: import_zod.z.string(),
+  severity: import_zod.z.string(),
+  docPath: import_zod.z.string(),
+  codePath: import_zod.z.string().optional(),
+  symbolName: import_zod.z.string().optional(),
+  ruleIds: import_zod.z.array(import_zod.z.string()),
+  message: import_zod.z.string(),
+  expectedExcerpt: import_zod.z.string(),
+  actualExcerpt: import_zod.z.string()
+});
+var reviewDetailSchema = import_zod.z.object({
+  reviewId: import_zod.z.string(),
+  reportId: import_zod.z.string(),
+  workspaceRoot: import_zod.z.string(),
+  createdAtMs: import_zod.z.number(),
+  confidenceScore: import_zod.z.number(),
+  primaryDocPath: import_zod.z.string(),
+  highestSeverity: import_zod.z.string().optional(),
+  summary: import_zod.z.string().optional(),
+  flags: import_zod.z.array(reviewFlagSchema),
+  breakdownJson: import_zod.z.string(),
+  confidenceAuditActionId: import_zod.z.string().optional()
+});
+var reviewResolutionChoiceSchema = import_zod.z.enum([
+  "update_doc",
+  "update_code"
+]);
+var reviewResolutionRequestSchema = import_zod.z.object({
+  reviewId: import_zod.z.string(),
+  choice: reviewResolutionChoiceSchema,
+  clientResolutionId: import_zod.z.string().uuid(),
+  userNote: import_zod.z.string().optional()
+});
+var reviewResolutionResponseSchema = import_zod.z.object({
+  serverResolutionId: import_zod.z.string(),
+  outcome: import_zod.z.enum([
+    "ok",
+    "rejected",
+    "conflict",
+    "duplicate",
+    "internal_error",
+    "unspecified"
+  ]),
+  patchReceiptId: import_zod.z.string().optional(),
+  toonChangelogEntryId: import_zod.z.string().optional()
 });
 var preferencesSchema = import_zod.z.object({
   themeMode: import_zod.z.enum(["dark", "system", "light"]),
@@ -62,6 +129,24 @@ var api = {
     update: (patch) => import_electron.ipcRenderer.invoke(
       ipcChannels.updatePreferences,
       patch
+    )
+  },
+  reviews: {
+    getPendingCount: (workspaceRoot) => import_electron.ipcRenderer.invoke(
+      ipcChannels.getPendingReviewCount,
+      workspaceRoot
+    ),
+    listPending: (input) => import_electron.ipcRenderer.invoke(
+      ipcChannels.listPendingReviews,
+      input
+    ),
+    getDetail: (reviewId) => import_electron.ipcRenderer.invoke(
+      ipcChannels.getReviewDetail,
+      reviewId
+    ),
+    submitResolution: (input) => import_electron.ipcRenderer.invoke(
+      ipcChannels.submitReviewResolution,
+      input
     )
   }
 };

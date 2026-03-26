@@ -40,8 +40,45 @@ pub mod livingdocs {
     }
 }
 
+pub mod work {
+    #[allow(missing_docs)]
+    pub mod v1 {
+        //! Work-management service definitions
+        include!(concat!(env!("OUT_DIR"), "/work.v1.rs"));
+    }
+}
+
+pub mod observability {
+    #[allow(missing_docs)]
+    pub mod v1 {
+        //! Execution observability service definitions
+        include!(concat!(env!("OUT_DIR"), "/observability.v1.rs"));
+    }
+}
+
+// Phase 1: Provider unification
+pub mod provider {
+    #[allow(missing_docs)]
+    pub mod v1 {
+        //! Provider service definitions
+        include!(concat!(env!("OUT_DIR"), "/provider.v1.rs"));
+    }
+}
+
+pub mod research {
+    #[allow(missing_docs)]
+    pub mod v1 {
+        //! Research service definitions
+        include!(concat!(env!("OUT_DIR"), "/research.v1.rs"));
+    }
+}
+
 pub use collective::v1::*;
 pub use mcp::v1 as mcp_v1;
+pub use observability::v1 as observability_v1;
+pub use provider::v1 as provider_v1;
+pub use research::v1 as research_v1;
+pub use work::v1 as work_v1;
 
 /// Re-export prost for downstream users
 pub use prost;

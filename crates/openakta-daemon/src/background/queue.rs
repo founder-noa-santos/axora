@@ -181,16 +181,10 @@ pub struct StoredResolutionResult {
 /// Result of [`SqliteJobQueue::submit_resolution`].
 #[derive(Debug, Clone)]
 pub enum SubmitResolutionOutcome {
-    Ok {
-        server_resolution_id: String,
-    },
-    Duplicate {
-        server_resolution_id: String,
-    },
+    Ok { server_resolution_id: String },
+    Duplicate { server_resolution_id: String },
     NotFound,
-    Conflict {
-        reason: String,
-    },
+    Conflict { reason: String },
 }
 
 #[derive(Debug, Clone)]
@@ -875,7 +869,12 @@ impl SqliteJobQueue {
     }
 
     /// Record a dangling commit OID produced by alternate-index LivingDocs commits (no branch update).
-    pub fn record_autocommit(&self, commit_id: &str, report_id: &str, workspace_root: &Path) -> Result<()> {
+    pub fn record_autocommit(
+        &self,
+        commit_id: &str,
+        report_id: &str,
+        workspace_root: &Path,
+    ) -> Result<()> {
         let conn = self.connect()?;
         let now = now_ms();
         conn.execute(
@@ -1109,10 +1108,7 @@ impl SqliteJobQueue {
         Ok(Some(report))
     }
 
-    pub fn latest_confidence_audit_action_id(
-        &self,
-        report_id: &str,
-    ) -> Result<Option<String>> {
+    pub fn latest_confidence_audit_action_id(&self, report_id: &str) -> Result<Option<String>> {
         let conn = self.connect()?;
         let row = conn
             .query_row(
@@ -1150,7 +1146,14 @@ impl SqliteJobQueue {
         workspace_root: &Path,
         page_size: u32,
         page_offset: u32,
-    ) -> Result<Vec<(ReconcileReviewRow, Option<String>, Option<String>, Option<String>)>> {
+    ) -> Result<
+        Vec<(
+            ReconcileReviewRow,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        )>,
+    > {
         let conn = self.connect()?;
         let ws = workspace_root.display().to_string();
         let limit = page_size.max(1).min(500);
@@ -1212,30 +1215,30 @@ impl SqliteJobQueue {
                     if s.chars().count() > 200 {
                         format!("{}…", s.chars().take(200).collect::<String>())
                     } else {
-                    s
-                }
-            });
-            Ok((
-                ReconcileReviewRow {
-                    review_id: row.get(0)?,
-                    report_id: row.get(1)?,
-                    workspace_root: PathBuf::from(row.get::<_, String>(2)?),
-                    created_at_ms: row.get(3)?,
-                    confidence_score: row.get(4)?,
-                    breakdown_json: row.get(5)?,
-                    decision: row.get(6)?,
-                    status: row.get(7)?,
-                    notes: None,
-                    resolution_choice: None,
-                    server_resolution_id: None,
-                    patch_receipt_id: None,
-                    toon_changelog_entry_id: None,
-                    resolution_error: None,
-                },
-                row.get::<_, Option<String>>(8)?,
-                row.get::<_, Option<String>>(9)?,
-                summary,
-            ))
+                        s
+                    }
+                });
+                Ok((
+                    ReconcileReviewRow {
+                        review_id: row.get(0)?,
+                        report_id: row.get(1)?,
+                        workspace_root: PathBuf::from(row.get::<_, String>(2)?),
+                        created_at_ms: row.get(3)?,
+                        confidence_score: row.get(4)?,
+                        breakdown_json: row.get(5)?,
+                        decision: row.get(6)?,
+                        status: row.get(7)?,
+                        notes: None,
+                        resolution_choice: None,
+                        server_resolution_id: None,
+                        patch_receipt_id: None,
+                        toon_changelog_entry_id: None,
+                        resolution_error: None,
+                    },
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, Option<String>>(9)?,
+                    summary,
+                ))
             },
         )?;
         let mut out = Vec::new();
@@ -1410,7 +1413,10 @@ impl SqliteJobQueue {
                 ORDER BY created_at_ms ASC
                 LIMIT 1
                 "#,
-                params![review_status_doc_update_queued(), review_status_code_update_queued()],
+                params![
+                    review_status_doc_update_queued(),
+                    review_status_code_update_queued()
+                ],
                 |row| {
                     Ok((
                         row.get::<_, String>(0)?,

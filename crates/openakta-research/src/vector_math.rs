@@ -69,7 +69,11 @@ pub fn cosine_similarity_with_norms(q: &[f32], q_norm: f32, d: &[f32], d_norm: f
         return 0.0;
     }
     let s = dot / (q_norm * d_norm);
-    if s.is_finite() { s } else { 0.0 }
+    if s.is_finite() {
+        s
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]

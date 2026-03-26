@@ -85,7 +85,7 @@ pub struct CodeRetrievalResult {
 }
 
 /// Dense code retrieval pipeline.
-pub struct CodeRetrievalPipeline<R = crate::CandleCrossEncoder> {
+pub struct CodeRetrievalPipeline<R = crate::OpenaktaReranker> {
     collection: Arc<dyn DenseVectorCollection>,
     embedder: Arc<dyn CodeEmbedder>,
     final_stage: UnifiedFinalStage<R>,

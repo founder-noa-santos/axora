@@ -7,7 +7,7 @@ OPENAKTA is a batteries-included multi-agent coding system with a Rust runtime a
 ## Quick start
 
 ```bash
-export ANTHROPIC_API_KEY=...
+export OPENAI_API_KEY=...
 cargo run -p openakta-cli -- do "add JWT auth"
 ```
 

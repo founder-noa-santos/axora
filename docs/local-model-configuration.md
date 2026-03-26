@@ -31,8 +31,8 @@ routing_enabled = true
 local_validation_retry_budget = 1
 
 [cloud_model]
-provider = "anthropic"
-model = "claude-sonnet-4-5"
+provider = "openai"
+model = "gpt-4o"
 
 [local_model]
 provider = "ollama"

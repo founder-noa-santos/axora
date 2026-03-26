@@ -159,10 +159,6 @@ impl RegistrySnapshot {
                 adapter_id: "openai".to_string(),
                 surface: provider.api.compatibility.surface,
             },
-            CompatibilityFamily::Anthropic => AdapterHint::Supported {
-                adapter_id: "anthropic".to_string(),
-                surface: provider.api.compatibility.surface,
-            },
             CompatibilityFamily::Google => AdapterHint::Supported {
                 adapter_id: "google".to_string(),
                 surface: provider.api.compatibility.surface,

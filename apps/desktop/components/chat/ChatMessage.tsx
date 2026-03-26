@@ -9,15 +9,29 @@ import { ChatToolApproval } from "./ChatToolApproval";
 export function ChatMessage({
   message,
   className,
+  onRetry,
+  onCopy,
+  onFeedback,
 }: {
   message: UiMessage;
   className?: string;
+  onRetry?: () => void;
+  onCopy?: (content: string) => void;
+  onFeedback?: (feedback: "like" | "dislike") => void;
 }) {
   switch (message.role) {
     case "user":
       return <ChatUserMessage message={message} className={className} />;
     case "assistant":
-      return <ChatAssistantMessage message={message} className={className} />;
+      return (
+        <ChatAssistantMessage
+          message={message}
+          className={className}
+          onRetry={onRetry}
+          onCopy={onCopy}
+          onFeedback={onFeedback}
+        />
+      );
     case "tool":
       return (
         <div className={className}>

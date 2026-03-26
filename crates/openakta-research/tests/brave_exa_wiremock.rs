@@ -2,9 +2,7 @@
 
 use std::sync::Arc;
 
-use openakta_research::{
-    BraveClient, ExaClient, SearchOptions, SearchQuery, SearchRouter,
-};
+use openakta_research::{BraveClient, ExaClient, SearchOptions, SearchQuery, SearchRouter};
 use secrecy::SecretString;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -34,15 +32,10 @@ async fn brave_401_then_exa_200_returns_exa_hits() {
         .expect("client");
     let key = SecretString::new("test-key".into());
 
-    let brave = BraveClient::new_with_endpoint_for_tests(client.clone(), key.clone(), brave_srv.uri());
-    let exa = ExaClient::new_with_endpoint_for_tests(
-        client,
-        key,
-        exa_srv.uri(),
-        "neural",
-        None,
-        vec![],
-    );
+    let brave =
+        BraveClient::new_with_endpoint_for_tests(client.clone(), key.clone(), brave_srv.uri());
+    let exa =
+        ExaClient::new_with_endpoint_for_tests(client, key, exa_srv.uri(), "neural", None, vec![]);
 
     let router = SearchRouter::new(vec![Arc::new(brave), Arc::new(exa)]);
 
@@ -84,23 +77,15 @@ async fn brave_429_then_exa_200() {
         .expect("client");
     let key = SecretString::new("k".into());
 
-    let brave = BraveClient::new_with_endpoint_for_tests(client.clone(), key.clone(), brave_srv.uri());
-    let exa = ExaClient::new_with_endpoint_for_tests(
-        client,
-        key,
-        exa_srv.uri(),
-        "neural",
-        None,
-        vec![],
-    );
+    let brave =
+        BraveClient::new_with_endpoint_for_tests(client.clone(), key.clone(), brave_srv.uri());
+    let exa =
+        ExaClient::new_with_endpoint_for_tests(client, key, exa_srv.uri(), "neural", None, vec![]);
 
     let router = SearchRouter::new(vec![Arc::new(brave), Arc::new(exa)]);
 
     let out = router
-        .search(
-            &SearchQuery { q: "q".into() },
-            &SearchOptions::default(),
-        )
+        .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
         .await
         .expect("fallback");
 
@@ -143,10 +128,7 @@ async fn exa_403_then_brave_200() {
     let router = SearchRouter::new(vec![Arc::new(exa), Arc::new(brave)]);
 
     let out = router
-        .search(
-            &SearchQuery { q: "q".into() },
-            &SearchOptions::default(),
-        )
+        .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
         .await
         .expect("fallback to Brave");
 

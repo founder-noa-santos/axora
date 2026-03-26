@@ -5,14 +5,15 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Context, Result};
 use openakta_agents::{
-    default_local_transport, transport_for_instance, CloudModelRef, Coordinator,
+    default_local_transport, local_provider_config_from_instance, CloudModelRef, Coordinator,
     CoordinatorConfig, InternalResultSubmission, LocalModelRef, ProviderRegistry,
-    ProviderRuntimeBundle, ProviderTransport, RuntimeBlackboard,
+    ProviderRuntimeBundle, RuntimeBlackboard,
 };
 use openakta_core::config_resolve::{
     build_model_registry_snapshot, build_provider_bundle, resolve_secrets,
 };
 use openakta_core::CoreConfig;
+use openakta_api_client::{ApiClientPool, ClientConfig};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -82,8 +83,11 @@ impl CoordinatorCodeResolutionRunner {
                 .context("build model registry for code resolution")?,
         );
 
-        let provider_registry =
-            Arc::new(build_provider_registry(&self.config, provider_bundle.clone(), registry)?);
+        let provider_registry = Arc::new(build_provider_registry(
+            &self.config,
+            provider_bundle.clone(),
+            registry,
+        )?);
         let blackboard = Arc::new(Mutex::new(RuntimeBlackboard::new()));
         let mut coordinator = Coordinator::new_with_provider_registry(
             CoordinatorConfig {
@@ -126,7 +130,9 @@ impl CoordinatorCodeResolutionRunner {
         let typed_results = blackboard
             .get_accessible("coordinator")
             .iter()
-            .filter_map(|entry| serde_json::from_str::<InternalResultSubmission>(&entry.content).ok())
+            .filter_map(|entry| {
+                serde_json::from_str::<InternalResultSubmission>(&entry.content).ok()
+            })
             .collect::<Vec<_>>();
         let result = typed_results
             .iter()
@@ -139,7 +145,10 @@ impl CoordinatorCodeResolutionRunner {
             .ok_or_else(|| anyhow!("missing patch receipt on successful coordinator result"))?;
         let receipt_json =
             serde_json::to_string(receipt).context("serialize patch receipt for stable id")?;
-        let receipt_id = format!("patch-receipt-{}", blake3::hash(receipt_json.as_bytes()).to_hex());
+        let receipt_id = format!(
+            "patch-receipt-{}",
+            blake3::hash(receipt_json.as_bytes()).to_hex()
+        );
 
         Ok(CodeResolutionResult {
             patch_receipt_id: receipt_id,
@@ -153,24 +162,18 @@ fn build_provider_registry(
     bundle: Arc<ProviderRuntimeBundle>,
     model_registry: Arc<openakta_agents::ModelRegistrySnapshot>,
 ) -> Result<ProviderRegistry> {
-    let mut cloud = HashMap::new();
     let mut local = HashMap::new();
     for (instance_id, instance) in &bundle.instances {
         if instance.is_local {
-            let local_config = openakta_agents::LocalProviderConfig {
-                provider: openakta_agents::LocalProviderKind::Ollama,
-                base_url: instance.base_url.clone(),
-                default_model: instance
-                    .default_model
-                    .clone()
-                    .unwrap_or_else(|| "qwen2.5-coder:7b".to_string()),
-                enabled_for: vec![
+            let local_config = local_provider_config_from_instance(
+                instance,
+                vec![
                     "syntax_fix".to_string(),
                     "docstring".to_string(),
                     "autocomplete".to_string(),
                     "small_edit".to_string(),
                 ],
-            };
+            );
             local.insert(
                 instance_id.clone(),
                 Arc::from(
@@ -178,30 +181,21 @@ fn build_provider_registry(
                         .map_err(|err| anyhow!(err.to_string()))?,
                 ),
             );
-        } else {
-            let transport: Arc<dyn ProviderTransport> = Arc::from(
-                transport_for_instance(instance, &bundle.http)
-                    .map_err(|err| anyhow!(err.to_string()))?,
-            );
-            cloud.insert(instance_id.clone(), transport);
         }
     }
 
-    Ok(ProviderRegistry::new(
-        cloud,
+    Ok(ProviderRegistry::new_with_api_client(
         local,
         default_cloud_ref(config, bundle.as_ref()),
         default_local_ref(config, bundle.as_ref()),
         config.fallback_policy,
         bundle,
         model_registry,
+        Arc::new(ApiClientPool::new(ClientConfig::default())?),
     ))
 }
 
-fn default_cloud_ref(
-    config: &CoreConfig,
-    bundle: &ProviderRuntimeBundle,
-) -> Option<CloudModelRef> {
+fn default_cloud_ref(config: &CoreConfig, bundle: &ProviderRuntimeBundle) -> Option<CloudModelRef> {
     let instance_id = config.providers.default_cloud_instance.clone()?;
     let instance = bundle.instances.get(&instance_id)?;
     Some(CloudModelRef {
@@ -212,10 +206,7 @@ fn default_cloud_ref(
     })
 }
 
-fn default_local_ref(
-    config: &CoreConfig,
-    bundle: &ProviderRuntimeBundle,
-) -> Option<LocalModelRef> {
+fn default_local_ref(config: &CoreConfig, bundle: &ProviderRuntimeBundle) -> Option<LocalModelRef> {
     let instance_id = config.providers.default_local_instance.clone()?;
     let instance = bundle.instances.get(&instance_id)?;
     Some(LocalModelRef {

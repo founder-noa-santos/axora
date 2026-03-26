@@ -1,9 +1,10 @@
+mod auth;
 mod doc;
 
 use anyhow::Context;
-use clap::{Parser, Subcommand, ValueEnum};
-use openakta_agents::{FallbackPolicy, ProviderInstanceId};
-use openakta_core::{init_tracing, RuntimeBootstrap, RuntimeBootstrapOptions};
+use clap::{ArgAction, Parser, Subcommand, ValueEnum};
+use openakta_agents::{FallbackPolicy, MessageSurface, ProviderInstanceId, ResponsePreference};
+use openakta_core::{init_tracing, MessageRequest, RuntimeBootstrap, RuntimeBootstrapOptions};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -17,6 +18,19 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Authenticate the CLI with Clerk.
+    Login {
+        /// Print the authorization URL instead of opening the browser.
+        #[arg(long)]
+        no_browser: bool,
+    },
+    /// Clear locally stored credentials.
+    Logout,
+    /// Inspect and manage CLI authentication state.
+    Auth {
+        #[command(subcommand)]
+        subcommand: AuthCommands,
+    },
     /// Execute a mission against the current workspace.
     Do {
         /// Natural-language mission for OPENAKTA.
@@ -42,12 +56,42 @@ enum Commands {
         /// Override the fallback policy.
         #[arg(long, value_enum)]
         fallback_policy: Option<FallbackPolicyArg>,
+        /// Disable remote API usage and require local execution only.
+        #[arg(long)]
+        no_auth: bool,
+    },
+    /// Ask the configured model directly, optionally with lightweight code context.
+    Ask {
+        /// Natural-language prompt.
+        prompt: String,
+        /// Override the workspace root.
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+        /// Local provider instance id to use.
+        #[arg(long)]
+        local_instance: Option<String>,
+        /// Model identifier to request.
+        #[arg(long)]
+        local_model: Option<String>,
+        /// Override the local runtime base URL.
+        #[arg(long)]
+        local_base_url: Option<String>,
+        /// Disable repository inspection and send only the prompt.
+        #[arg(long, action = ArgAction::SetTrue)]
+        no_code: bool,
     },
     /// Initialize AI-optimized project documentation.
     Doc {
         #[command(subcommand)]
         command: DocCommands,
     },
+}
+
+#[derive(Subcommand, Debug)]
+enum AuthCommands {
+    Status,
+    Whoami,
+    Refresh,
 }
 
 #[derive(Subcommand, Debug)]
@@ -96,12 +140,75 @@ impl From<FallbackPolicyArg> for FallbackPolicy {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    load_env_files();
+
+    // Initialize sqlite-vec BEFORE any SQLite connections
+    // This is the canonical, idempotent initialization with two-tier verification
+    // End users do NOT need to install sqlite-vec manually - it's statically linked
+    openakta_memory::ensure_sqlite_vec_ready()
+        .context("sqlite-vec initialization failed - this is a product bug, not user error")?;
+
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "openakta=info");
     }
     init_tracing();
 
     match Cli::parse().command {
+        Commands::Login { no_browser } => {
+            let auth = auth::AuthManager::from_env()?;
+            let whoami = auth.login(auth::login::LoginOptions { no_browser }).await?;
+            println!("Logged in as {}", whoami.user_id);
+            if let Some(org_id) = whoami.org_id {
+                println!("Organization: {}", org_id);
+            }
+            if let Some(email) = whoami.email {
+                println!("Email: {}", email);
+            }
+            println!("Expires at {}", whoami.expires_at);
+        }
+        Commands::Logout => {
+            let auth = auth::AuthManager::from_env()?;
+            auth.logout().await?;
+            println!("Logged out");
+        }
+        Commands::Auth { subcommand } => {
+            let auth = auth::AuthManager::from_env()?;
+            match subcommand {
+                AuthCommands::Status => {
+                    let status = auth.status().await?;
+                    if status.authenticated {
+                        println!("authenticated");
+                        if let Some(user_id) = status.user_id {
+                            println!("user_id: {}", user_id);
+                        }
+                        if let Some(org_id) = status.org_id {
+                            println!("org_id: {}", org_id);
+                        }
+                        if let Some(expires_at) = status.expires_at {
+                            println!("expires_at: {}", expires_at);
+                        }
+                    } else {
+                        println!("not authenticated");
+                    }
+                }
+                AuthCommands::Whoami => {
+                    let whoami = auth.whoami().await?;
+                    println!("user_id: {}", whoami.user_id);
+                    if let Some(org_id) = whoami.org_id {
+                        println!("org_id: {}", org_id);
+                    }
+                    if let Some(email) = whoami.email {
+                        println!("email: {}", email);
+                    }
+                    println!("expires_at: {}", whoami.expires_at);
+                }
+                AuthCommands::Refresh => {
+                    let whoami = auth.refresh().await?;
+                    println!("refreshed session for {}", whoami.user_id);
+                    println!("expires_at: {}", whoami.expires_at);
+                }
+            }
+        }
         Commands::Do {
             mission,
             workspace,
@@ -111,13 +218,23 @@ async fn main() -> anyhow::Result<()> {
             local_model,
             local_base_url,
             fallback_policy,
+            no_auth,
         } => {
             let workspace_root = workspace.unwrap_or(
                 std::env::current_dir().context("failed to determine current directory")?,
             );
-            let result = RuntimeBootstrap::run_mission(
+            let auth_provider = if no_auth {
+                None
+            } else {
+                let auth = auth::AuthManager::from_env()?;
+                auth.whoami()
+                    .await
+                    .context("authentication required; run `openakta login` first")?;
+                Some(auth.auth_provider().await)
+            };
+            let result = RuntimeBootstrap::handle_message(
                 RuntimeBootstrapOptions {
-                    workspace_root,
+                    workspace_root: workspace_root.clone(),
                     cloud_instance: provider.map(ProviderInstanceId),
                     cloud_model: model,
                     local_instance: local_instance.map(ProviderInstanceId),
@@ -126,18 +243,72 @@ async fn main() -> anyhow::Result<()> {
                     fallback_policy: fallback_policy.map(FallbackPolicy::from),
                     routing_enabled: None,
                     local_validation_retry_budget: None,
-                    start_background_services: true,
+                    start_background_services: !no_auth,
+                    remote_enabled: !no_auth,
+                    auth_provider,
                 },
-                &mission,
+                MessageRequest {
+                    message: mission,
+                    workspace_root,
+                    surface: MessageSurface::CliDo,
+                    response_preference: ResponsePreference::PreferMission,
+                    allow_code_context: true,
+                    side_effects_allowed: true,
+                    remote_enabled: !no_auth,
+                    workspace_context_override: None,
+                },
             )
             .await?;
 
             if result.success {
                 println!("{}", result.output);
             } else {
-                eprintln!("{}", result.output);
+                // Bug class A hardening: never emit empty stderr on mission failure
+                if result.output.trim().is_empty() {
+                    eprintln!("Mission '{}' failed (tasks_failed: {}, tasks_completed: {}, duration: {:.1}s)",
+                        result.mission_id, result.tasks_failed, result.tasks_completed, result.duration.as_secs_f64());
+                    eprintln!("No merged output was recorded. Enable debug logs (RUST_LOG=debug) for details.");
+                } else {
+                    eprintln!("{}", result.output);
+                }
+                eprintln!("Mission failed. See logs above for details.");
                 std::process::exit(1);
             }
+        }
+        Commands::Ask {
+            prompt,
+            workspace,
+            local_instance,
+            local_model,
+            local_base_url,
+            no_code,
+        } => {
+            let workspace_root = workspace.unwrap_or(
+                std::env::current_dir().context("failed to determine current directory")?,
+            );
+            let output = RuntimeBootstrap::handle_message(
+                RuntimeBootstrapOptions {
+                    workspace_root: workspace_root.clone(),
+                    local_instance: local_instance.map(ProviderInstanceId),
+                    local_model,
+                    local_base_url,
+                    start_background_services: false,
+                    remote_enabled: false,
+                    ..Default::default()
+                },
+                MessageRequest {
+                    message: prompt,
+                    workspace_root,
+                    surface: MessageSurface::CliAsk,
+                    response_preference: ResponsePreference::PreferDirectReply,
+                    allow_code_context: !no_code,
+                    side_effects_allowed: false,
+                    remote_enabled: false,
+                    workspace_context_override: None,
+                },
+            )
+            .await?;
+            println!("{}", output.output);
         }
         Commands::Doc { command } => match command {
             DocCommands::Init {
@@ -192,4 +363,31 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn load_env_files() {
+    let mut seen = std::collections::HashSet::new();
+    let mut candidates = Vec::new();
+    let mut current = std::env::current_dir().ok();
+
+    while let Some(dir) = current {
+        candidates.push(dir.join(".env.local"));
+        candidates.push(dir.join(".env"));
+        candidates.push(dir.join("openakta-api").join(".env.local"));
+        candidates.push(dir.join("openakta-api").join(".env"));
+        candidates.push(dir.join("openakta-web").join(".env.local"));
+        candidates.push(dir.join("openakta-web").join(".env"));
+
+        if let Some(parent) = dir.parent() {
+            current = Some(parent.to_path_buf());
+        } else {
+            break;
+        }
+    }
+
+    for path in candidates {
+        if seen.insert(path.clone()) && path.exists() {
+            let _ = dotenvy::from_path(&path);
+        }
+    }
 }

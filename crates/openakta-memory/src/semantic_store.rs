@@ -390,14 +390,13 @@ impl PersistentSemanticStore {
         let path_str = path.as_ref().display().to_string();
         if let Some(parent) = path.as_ref().parent() {
             if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| SemanticError::Storage {
-                        path: path_str.clone(),
-                        source: rusqlite::Error::SqliteFailure(
-                            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
-                            Some(format!("failed to create directory: {}", e)),
-                        ),
-                    })?;
+                std::fs::create_dir_all(parent).map_err(|e| SemanticError::Storage {
+                    path: path_str.clone(),
+                    source: rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_IOERR),
+                        Some(format!("failed to create directory: {}", e)),
+                    ),
+                })?;
             }
         }
 
@@ -541,8 +540,7 @@ impl PersistentSemanticStore {
 
         let mut results = Vec::new();
         for row in rows {
-            let (id, content, embedding, metadata) =
-                row.map_err(|e| db_error(&self.path, e))?;
+            let (id, content, embedding, metadata) = row.map_err(|e| db_error(&self.path, e))?;
             if embedding.len() != self.embedding_dim {
                 continue;
             }

@@ -86,7 +86,9 @@ fn git_run(repo_root: &Path, index: Option<&Path>, args: &[&str]) -> Result<()> 
         cmd.env("GIT_INDEX_FILE", idx);
     }
     cmd.args(args);
-    let out = cmd.output().with_context(|| format!("git {}", args.join(" ")))?;
+    let out = cmd
+        .output()
+        .with_context(|| format!("git {}", args.join(" ")))?;
     if !out.status.success() {
         anyhow::bail!(
             "git {} failed: {}",
@@ -104,7 +106,9 @@ fn git_stdout_trim(repo_root: &Path, index: Option<&Path>, args: &[&str]) -> Res
         cmd.env("GIT_INDEX_FILE", idx);
     }
     cmd.args(args);
-    let out = cmd.output().with_context(|| format!("git {}", args.join(" ")))?;
+    let out = cmd
+        .output()
+        .with_context(|| format!("git {}", args.join(" ")))?;
     if !out.status.success() {
         anyhow::bail!(
             "git {} failed: {}",
@@ -209,6 +213,9 @@ mod tests {
             .unwrap();
 
         let r = try_commit_text_at_head(repo, "x.md", "body", "msg").unwrap();
-        assert!(r.is_none(), "expected graceful skip when HEAD does not exist");
+        assert!(
+            r.is_none(),
+            "expected graceful skip when HEAD does not exist"
+        );
     }
 }

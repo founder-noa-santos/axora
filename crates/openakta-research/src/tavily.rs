@@ -112,13 +112,10 @@ impl SearchProvider for TavilyClient {
             .map_err(|e| crate::http_util::map_reqwest(PROVIDER, e))?;
 
         let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| SearchError::Transport {
-                provider: PROVIDER,
-                message: e.to_string(),
-            })?;
+        let text = resp.text().await.map_err(|e| SearchError::Transport {
+            provider: PROVIDER,
+            message: e.to_string(),
+        })?;
 
         if !status.is_success() {
             return Err(SearchError::Http {
@@ -139,7 +136,13 @@ mod tests {
     #[test]
     fn parse_malformed_json_returns_parse_error() {
         let err = parse_tavily_response_body("%%%").unwrap_err();
-        assert!(matches!(err, SearchError::Parse { provider: "tavily", .. }));
+        assert!(matches!(
+            err,
+            SearchError::Parse {
+                provider: "tavily",
+                ..
+            }
+        ));
     }
 
     #[test]

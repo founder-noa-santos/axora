@@ -7,9 +7,9 @@
   "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"pnpm dev:renderer\" \"pnpm dev:electron:bundle\" \"pnpm dev:electron\"",
-    "dev:renderer": "next dev --port 3000",
+    "dev:renderer": "next dev --port 4000",
     "dev:electron:bundle": "tsup --watch",
-    "dev:electron": "wait-on tcp:127.0.0.1:3000 file:dist-electron/main.cjs && cross-env NODE_ENV=development ELECTRON_RENDERER_URL=http://127.0.0.1:3000 electronmon .",
+    "dev:electron": "wait-on tcp:127.0.0.1:4000 file:dist-electron/main.cjs && cross-env NODE_ENV=development ELECTRON_RENDERER_URL=http://127.0.0.1:4000 electronmon .",
     "build": "pnpm clean && pnpm build:renderer && pnpm build:electron",
     "build:renderer": "next build",
     "build:electron": "cross-env NODE_ENV=production tsup",

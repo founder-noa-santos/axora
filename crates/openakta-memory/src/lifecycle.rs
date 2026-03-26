@@ -313,7 +313,10 @@ impl MemoryLifecycle {
     }
 
     /// Create lifecycle manager with vector store for semantic pruning
-    pub fn with_vector_store(config: LifecycleConfig, vector_store: Arc<dyn crate::VectorStore>) -> Self {
+    pub fn with_vector_store(
+        config: LifecycleConfig,
+        vector_store: Arc<dyn crate::VectorStore>,
+    ) -> Self {
         let decay_model = EbbinghausDecay::new(config.half_life_days);
         let utility_tracker = UtilityTracker::new();
 

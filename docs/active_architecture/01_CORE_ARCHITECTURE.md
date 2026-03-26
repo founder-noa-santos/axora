@@ -9,7 +9,7 @@
 ## 🎯 Overview
 
 OPENAKTA uses a **hybrid architecture**:
-- **Cloud APIs** for reasoning (Anthropic, OpenAI) — No local LLM inference
+- **Cloud APIs** for reasoning (OpenAI-family) — No local LLM inference
 - **Local infrastructure** for indexing, RAG, and memory — Zero cloud costs for embeddings
 - **Deterministic orchestration** — State machines, not conversational swarms
 

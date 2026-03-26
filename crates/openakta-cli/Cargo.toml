@@ -7,6 +7,7 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "Batteries-included OPENAKTA CLI"
+default-run = "openakta"
 
 [lints]
 workspace = true
@@ -17,17 +18,42 @@ path = "src/main.rs"
 
 [dependencies]
 openakta-agents.workspace = true
+openakta-api-client.workspace = true
 openakta-core.workspace = true
 openakta-docs.workspace = true
+openakta-memory.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
 chrono.workspace = true
 clap = { version = "4.6", features = ["derive", "env"] }
+dotenvy = "0.15"
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml = "0.9"
+sha2.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 walkdir = "2.5"
+aes-gcm = "0.10"
+argon2 = "0.5"
+base64 = "0.22"
+directories = "5.0"
+keyring = "3.6"
+rand = "0.8"
+rpassword = "7.3"
+url = "2.5"
+webbrowser = "1.0"
+zeroize = "1.8"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6", features = ["apple-native"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6", features = ["windows-native"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6", features = ["sync-secret-service", "vendored", "crypto-rust"] }
 
 [dev-dependencies]
 tempfile = "3.27"

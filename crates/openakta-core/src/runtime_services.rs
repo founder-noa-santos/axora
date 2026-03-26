@@ -7,10 +7,9 @@ use openakta_memory::{
     builtin_skill_root, ConsolidationPipeline, ConsolidationWorker, DocType, EpisodicStore,
     EpisodicStoreConfig, HybridSkillIndex, LightweightLLM, MemoryLifecycle,
     PersistentSemanticStore, SemanticMemory, SemanticMetadata, SkillCatalog, SkillCorpusIngestor,
-    SkillRetrievalConfig, SkillRetrievalPipeline, SqliteLinearVectorStore, SqliteVecStore,
-    VectorStore,
+    SkillRetrievalConfig, SkillRetrievalPipeline, SqliteVecStore, VectorStore,
 };
-use openakta_rag::{CandleCrossEncoder, CodeRetrievalPipeline};
+use openakta_rag::{CodeRetrievalPipeline, OpenaktaReranker};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,19 +37,13 @@ impl MemoryServices {
     /// Create runtime-managed memory services and sync the built-in skill corpus.
     pub async fn new(config: &CoreConfig) -> anyhow::Result<Self> {
         let episodic_path = config.database_path.with_extension("episodic.db");
-        info!(
-            "Opening episodic store at: {}",
-            episodic_path.display()
-        );
+        info!("Opening episodic store at: {}", episodic_path.display());
         let episodic_store = EpisodicStore::new(EpisodicStoreConfig::persistent(
             &episodic_path.display().to_string(),
         ))
         .await?;
         let skill_catalog_path = config.skill_index_root.join("skill-catalog.db");
-        info!(
-            "Opening skill catalog at: {}",
-            skill_catalog_path.display()
-        );
+        info!("Opening skill catalog at: {}", skill_catalog_path.display());
         let skill_catalog = SkillCatalog::new(&skill_catalog_path)?;
         SkillCorpusIngestor::sync_builtin_skills(&skill_catalog, builtin_skill_root())
             .await
@@ -103,19 +96,20 @@ impl MemoryServices {
             )
             .map_err(anyhow::Error::msg)?,
         );
-        let skill_retrieval: SkillRetrievalPipeline<HybridSkillIndex, CandleCrossEncoder> =
+        let reranker = OpenaktaReranker::for_workspace(&config.workspace_root);
+        let skill_retrieval: SkillRetrievalPipeline<HybridSkillIndex, OpenaktaReranker> =
             SkillRetrievalPipeline::with_components(
                 skill_config.clone(),
                 skill_catalog.clone(),
                 SkillCorpusIngestor::new(&skill_config.corpus_root),
                 skill_index,
-                CandleCrossEncoder::new().map_err(anyhow::Error::msg)?,
+                reranker,
             )
             .map_err(anyhow::Error::msg)?;
         let code_retrieval = Arc::new(CodeRetrievalPipeline::new(
             dual_store.code_collection(),
             code_embedder,
-            CandleCrossEncoder::new().map_err(anyhow::Error::msg)?,
+            OpenaktaReranker::for_workspace(&config.workspace_root),
         ));
         skill_retrieval
             .sync_if_needed()
@@ -132,34 +126,15 @@ impl MemoryServices {
         )
         .map_err(anyhow::Error::msg)?;
 
-        // Wire up vector store based on backend selection (Phase 1-5)
+        // Wire up vector store - sqlite-vec is the only supported local backend
         let vector_store: Arc<dyn VectorStore> = match &config.semantic_vector_backend {
-            SemanticVectorBackend::SqliteLinear => Arc::new(
-                SqliteLinearVectorStore::new(
-                    &config.semantic_store_path.display().to_string(),
-                    384,
-                    config.semantic_scan_cap,
-                )
-                .map_err(anyhow::Error::msg)?,
-            ),
             SemanticVectorBackend::SqliteVec => {
-                // Phase 2: sqlite-vec with migration from legacy JSON format
                 let path_str = config.semantic_store_path.display().to_string();
-
-                // First try to create the sqlite-vec store
-                let vec_store = SqliteVecStore::new(
-                    &path_str,
-                    384,
-                    config.semantic_scan_cap,
-                ).map_err(anyhow::Error::msg)?;
-
-                // Migration is handled inside SqliteVecStore::new via run_migrations
-                // The migrate_from_json function is available for manual migration if needed
-
+                let vec_store = SqliteVecStore::new(&path_str, 384, config.semantic_scan_cap)
+                    .map_err(anyhow::Error::msg)?;
                 Arc::new(vec_store)
             }
             SemanticVectorBackend::External { endpoint, api_key } => {
-                // Phase 5: External Qdrant/cloud endpoint (stub — requires implementation)
                 return Err(anyhow::anyhow!(
                     "External vector backend not yet implemented: endpoint={}, api_key={}",
                     endpoint,

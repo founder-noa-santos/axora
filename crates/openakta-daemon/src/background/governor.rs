@@ -121,7 +121,9 @@ impl ResourceGovernor {
 
     pub fn current_rss_bytes(&mut self) -> Option<u64> {
         self.refresh();
-        self.system.process(self.pid).map(|process| process.memory())
+        self.system
+            .process(self.pid)
+            .map(|process| process.memory())
     }
 
     fn refresh(&mut self) {

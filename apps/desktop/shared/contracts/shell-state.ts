@@ -36,7 +36,7 @@ export const ShellStateSchema = z.object({
   }),
 
   model: z.object({
-    provider: z.enum(["openai", "anthropic", "local", "auto"]).default("auto"),
+    provider: z.enum(["openai", "local", "auto"]).default("auto"),
     modelId: z.string().default("gpt-4o"),
     contextWindowK: z.number().optional(),
   }),

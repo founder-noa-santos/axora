@@ -589,7 +589,8 @@ fn push_fenced_expectation_block(
 ) {
     match parse_fenced_expectation_yaml(block_body) {
         Ok(expectation) => {
-            if let (Some(code_path), Some(symbol_name)) = (expectation.code_path, expectation.symbol)
+            if let (Some(code_path), Some(symbol_name)) =
+                (expectation.code_path, expectation.symbol)
             {
                 index.symbol_expectations.push(DocSymbolExpectation {
                     doc_path: doc_path.to_path_buf(),
@@ -620,7 +621,9 @@ fn push_fenced_expectation_block(
     }
 }
 
-fn parse_fenced_expectation_yaml(block_body: &str) -> std::result::Result<FencedExpectationBlock, serde_yaml::Error> {
+fn parse_fenced_expectation_yaml(
+    block_body: &str,
+) -> std::result::Result<FencedExpectationBlock, serde_yaml::Error> {
     parse_yaml::<FencedExpectationBlock>(block_body)
         .or_else(|_| parse_yaml::<FencedExpectationBlock>(&normalize_expectation_yaml(block_body)))
 }
@@ -640,7 +643,10 @@ fn normalize_expectation_yaml(block_body: &str) -> String {
             ) {
                 let value = value.trim();
                 if !value.is_empty()
-                    && !matches!(value.chars().next(), Some('"') | Some('\'') | Some('|') | Some('>'))
+                    && !matches!(
+                        value.chars().next(),
+                        Some('"') | Some('\'') | Some('|') | Some('>')
+                    )
                 {
                     normalized.push(format!(
                         "{indent}{key}: {}",

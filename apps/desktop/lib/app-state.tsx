@@ -17,11 +17,34 @@ export interface Message {
   timestamp: number;
 }
 
+export interface ExecutionTraceItem {
+  id: string;
+  messageId: string;
+  toolCallId: string;
+  toolName: string;
+  toolKind: string;
+  phase:
+    | "requested"
+    | "approved"
+    | "started"
+    | "progress"
+    | "completed"
+    | "failed"
+    | "denied";
+  status: "pending" | "running" | "input-available" | "complete" | "error";
+  parameters: Record<string, unknown>;
+  result?: string;
+  error?: string;
+  requiresApproval: boolean;
+  timestamp: number;
+}
+
 export interface Thread {
   id: string;
   title: string;
   projectId: string;
   messages: Message[];
+  executionTrace: ExecutionTraceItem[];
   createdAt: number;
   updatedAt: number;
 }
@@ -70,6 +93,7 @@ const INITIAL_THREADS: Thread[] = [
     title: "openakta",
     projectId: "proj-1",
     messages: [],
+    executionTrace: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -78,6 +102,7 @@ const INITIAL_THREADS: Thread[] = [
     title: "nexus-social",
     projectId: "proj-2",
     messages: [],
+    executionTrace: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -86,6 +111,7 @@ const INITIAL_THREADS: Thread[] = [
     title: "fluri-v0",
     projectId: "proj-3",
     messages: [],
+    executionTrace: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
@@ -205,6 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         title: project?.name || "New thread",
         projectId: newProjectId,
         messages: [],
+        executionTrace: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -313,6 +340,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         content: generateMockResponse(content),
         timestamp: Date.now(),
       };
+      const traceItems = generateMockTrace(content, assistantMessage.id);
 
       setState((prev) => ({
         ...prev,
@@ -321,6 +349,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ? {
                 ...t,
                 messages: [...t.messages, assistantMessage],
+                executionTrace: [...t.executionTrace, ...traceItems],
                 updatedAt: Date.now(),
               }
             : t,
@@ -361,6 +390,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           title: project?.name || "New thread",
           projectId,
           messages: [],
+          executionTrace: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
@@ -408,4 +438,51 @@ export function useAppState() {
     throw new Error("useAppState must be used within AppProvider");
   }
   return context;
+}
+
+function generateMockTrace(
+  userMessage: string,
+  messageId: string,
+): ExecutionTraceItem[] {
+  const lower = userMessage.toLowerCase();
+  const timestamp = Date.now();
+
+  if (lower.includes("read") || lower.includes("inspect") || lower.includes("search")) {
+    const toolCallId = `tool-${timestamp}`;
+    return [
+      {
+        id: `${toolCallId}-requested`,
+        messageId,
+        toolCallId,
+        toolName: lower.includes("search") ? "graph_retrieve_code" : "read_file",
+        toolKind: lower.includes("search") ? "retrieval" : "filesystem",
+        phase: "requested",
+        status: "pending",
+        parameters: lower.includes("search")
+          ? { query: userMessage }
+          : { path: "src/main.rs" },
+        requiresApproval: false,
+        timestamp,
+      },
+      {
+        id: `${toolCallId}-completed`,
+        messageId,
+        toolCallId,
+        toolName: lower.includes("search") ? "graph_retrieve_code" : "read_file",
+        toolKind: lower.includes("search") ? "retrieval" : "filesystem",
+        phase: "completed",
+        status: "complete",
+        parameters: lower.includes("search")
+          ? { query: userMessage }
+          : { path: "src/main.rs" },
+        result: lower.includes("search")
+          ? "Retrieved matching code context."
+          : "Read src/main.rs successfully.",
+        requiresApproval: false,
+        timestamp: timestamp + 1,
+      },
+    ];
+  }
+
+  return [];
 }

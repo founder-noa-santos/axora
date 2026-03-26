@@ -1,20 +1,32 @@
-# Local manual testing — Alibaba Cloud Coding Plan (OpenAI-compatible).
-# Chave: .openakta/secrets/alibaba-coding.key (não commitar).
+# Local manual testing via OpenRouter (OpenAI-compatible).
+# API key file: .openakta/secrets/openrouter.key (do not commit)
+# Endpoint: https://openrouter.ai/api/v1
 
-fallback_policy = "explicit"
+fallback_policy = "never"
 routing_enabled = false
 local_validation_retry_budget = 1
 
+# Remote model registry - authoritative provider and model metadata
+[remote_registry]
+url = "https://openakta.github.io/data-artifacts/providers/v1.json"
+http_timeout_secs = 10
+
+
 [providers]
-default_cloud_instance = "alibaba-coding"
+default_local_instance = "local"
 
-[providers.instances.alibaba-coding]
+[providers.instances.local]
 profile = "open_ai_compatible"
-base_url = "https://coding-intl.dashscope.aliyuncs.com/v1"
-is_local = false
-# Modelos típicos do Coding Plan: qwen3-coder-plus, qwen3-coder-flash, etc.
-default_model = "qwen3-coder-plus"
-label = "Alibaba Coding Plan (DashScope intl)"
+base_url = "https://openrouter.ai/api/v1"
+is_local = true
+default_model = "openai/gpt-4o-mini"
+label = "OpenRouter"
 
-[providers.instances.alibaba-coding.secret]
-api_key_file = ".openakta/secrets/alibaba-coding.key"
+[providers.instances.local.secret]
+api_key_file = ".openakta/secrets/openrouter.key"
+
+[[registry_models]]
+name = "openai/gpt-4o-mini"
+max_context_window = 128000
+max_output_tokens = 16384
+preferred_instance = "local"

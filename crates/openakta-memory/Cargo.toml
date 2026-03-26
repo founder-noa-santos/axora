@@ -49,6 +49,11 @@ prost-types.workspace = true
 tiktoken-rs.workspace = true
 bytemuck = "1.14"
 
+# Optional dev-only dynamic loading (NOT for production)
+[features]
+default = []
+sqlite-vec-dynamic-dev = []
+
 [dev-dependencies]
 tokio-test.workspace = true
 tempfile = "3.27"

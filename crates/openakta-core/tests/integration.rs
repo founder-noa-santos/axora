@@ -179,7 +179,9 @@ async fn collective_graceful_shutdown_serve_with_shutdown() {
     let joined = timeout(Duration::from_secs(5), handle)
         .await
         .expect("timed out waiting for collective shutdown");
-    joined.expect("task join failed").expect("serve_with_shutdown failed");
+    joined
+        .expect("task join failed")
+        .expect("serve_with_shutdown failed");
 }
 
 /// Test frame executor

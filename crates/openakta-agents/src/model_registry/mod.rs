@@ -36,6 +36,9 @@ struct RemoteRegistryBody {
     version: Option<u64>,
     #[serde(default)]
     models: Vec<RemoteRegistryEntry>,
+    // New format: providers with supported_model_ids
+    #[serde(default)]
+    providers: Vec<RemoteProviderEntry>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,6 +47,21 @@ struct RemoteRegistryEntry {
     max_context_window: u32,
     max_output_tokens: u32,
     preferred_instance: Option<ProviderInstanceId>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoteProviderEntry {
+    id: String,
+    #[serde(default)]
+    supported_model_ids: Vec<String>,
+    #[allow(dead_code)]
+    api: Option<RemoteProviderApi>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RemoteProviderApi {
+    #[allow(dead_code)]
+    base_url: String,
 }
 
 /// Builtin catalog of known models.
@@ -84,21 +102,48 @@ pub fn parse_remote_json(bytes: &[u8]) -> anyhow::Result<HashMap<String, ModelRe
             ));
         }
     }
-    Ok(body
-        .models
-        .into_iter()
-        .map(|entry| {
-            (
-                entry.name.clone(),
+
+    let mut models = HashMap::new();
+
+    // Parse legacy format: direct models array
+    for entry in body.models {
+        models.insert(
+            entry.name.clone(),
+            ModelRegistryEntry {
+                name: entry.name,
+                max_context_window: entry.max_context_window,
+                max_output_tokens: entry.max_output_tokens,
+                preferred_instance: entry.preferred_instance,
+            },
+        );
+    }
+
+    // Parse new format: providers with supported_model_ids
+    for provider in body.providers {
+        let provider_id = ProviderInstanceId(provider.id.clone());
+        for model_id in provider.supported_model_ids {
+            // Use default context windows for known providers
+            // In production, this should come from provider metadata
+            let (context_window, output_tokens) = match provider.id.as_str() {
+                "qwen-dashscope" => (131072, 8192),
+                "openai" => (128000, 8192),
+                "deepseek" => (128000, 4096),
+                _ => (32768, 4096),
+            };
+
+            models.insert(
+                model_id.clone(),
                 ModelRegistryEntry {
-                    name: entry.name,
-                    max_context_window: entry.max_context_window,
-                    max_output_tokens: entry.max_output_tokens,
-                    preferred_instance: entry.preferred_instance,
+                    name: model_id,
+                    max_context_window: context_window,
+                    max_output_tokens: output_tokens,
+                    preferred_instance: Some(provider_id.clone()),
                 },
-            )
-        })
-        .collect())
+            );
+        }
+    }
+
+    Ok(models)
 }
 
 /// Apply TOML model extensions.

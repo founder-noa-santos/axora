@@ -313,7 +313,7 @@ where
 }
 
 /// Shared rerank + budget stage for multiple retrieval domains.
-pub struct UnifiedFinalStage<R = crate::reranker::CandleCrossEncoder> {
+pub struct UnifiedFinalStage<R = crate::reranker::OpenaktaReranker> {
     classifier: GaussianMemgasClassifier,
     selector: KnapsackBudgetedSelector,
     reranker: R,

@@ -4,6 +4,7 @@ pub mod execution;
 pub mod mass_refactor;
 
 use execution::{CommandRequest, ExecutorRouter, PatchRequest, ToolExecutor};
+use glob::Pattern;
 use mass_refactor::{
     next_mass_refactor_session_id, MassRefactorRequest, MassRefactorTool,
     MASS_REFACTOR_CONSENT_APPROVED,
@@ -258,6 +259,8 @@ impl EmbeddedToolRegistry {
         let mut tools: HashMap<String, Arc<dyn EmbeddedTool>> = HashMap::new();
         for tool in [
             Arc::new(ReadFileTool) as Arc<dyn EmbeddedTool>,
+            Arc::new(ListDirTool),
+            Arc::new(GlobPathsTool),
             Arc::new(GenerateDiffTool),
             Arc::new(ApplyPatchTool),
             Arc::new(AstChunkTool),
@@ -290,6 +293,37 @@ impl EmbeddedToolRegistry {
             })
             .map(|tool| tool.definition())
             .collect()
+    }
+}
+
+fn make_tool_definition(
+    name: &str,
+    description: &str,
+    required_actions: Vec<String>,
+    allowed_scope_patterns: Vec<String>,
+    supports_streaming: bool,
+    is_destructive: bool,
+    read_only: bool,
+    parameters: Struct,
+    result_schema: Option<Struct>,
+    tool_kind: &str,
+    requires_approval: bool,
+    ui_renderer: &str,
+) -> ToolDefinition {
+    ToolDefinition {
+        name: name.to_string(),
+        description: description.to_string(),
+        required_actions,
+        allowed_scope_patterns,
+        supports_streaming,
+        is_destructive,
+        read_only,
+        parameters: Some(parameters),
+        strict: false,
+        tool_kind: tool_kind.to_string(),
+        result_schema,
+        requires_approval,
+        ui_renderer: ui_renderer.to_string(),
     }
 }
 
@@ -575,6 +609,22 @@ impl McpService {
             allowed,
             detail,
             created_at: Some(Timestamp::from(std::time::SystemTime::now())),
+            mission_id: request.mission_id.clone(),
+            task_id: request.task_id.clone(),
+            turn_id: request.turn_id.clone(),
+            tool_call_id: request.tool_call_id.clone(),
+            phase: if allowed { "completed" } else { "denied" }.to_string(),
+            status: if allowed { "completed" } else { "denied" }.to_string(),
+            read_only: false,
+            mutating: false,
+            requires_approval: false,
+            args_preview: request
+                .arguments
+                .as_ref()
+                .map(|arguments| format!("{arguments:?}"))
+                .unwrap_or_default(),
+            result_preview: String::new(),
+            error: String::new(),
         }
     }
 }
@@ -609,9 +659,7 @@ impl ToolService for McpService {
     ) -> Result<Response<ListToolsResponse>, Status> {
         let req = request.into_inner();
         Ok(Response::new(ListToolsResponse {
-            tools: self
-                .registry
-                .definitions_for_capability_profile(&req.role),
+            tools: self.registry.definitions_for_capability_profile(&req.role),
         }))
     }
 
@@ -738,6 +786,8 @@ impl GraphRetrievalService for McpService {
 }
 
 struct ReadFileTool;
+struct ListDirTool;
+struct GlobPathsTool;
 struct GenerateDiffTool;
 struct ApplyPatchTool;
 struct AstChunkTool;
@@ -753,15 +803,20 @@ struct RequestUserInputTool {
 #[tonic::async_trait]
 impl EmbeddedTool for ReadFileTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "read_file".to_string(),
-            description: "Read a UTF-8 file inside the workspace".to_string(),
-            required_actions: vec!["read_file".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "read_file",
+            "Read a UTF-8 file inside the workspace",
+            vec!["read_file".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([("path", string_value("string"))]),
+            Some(struct_from_map([("content", string_value("string"))])),
+            "filesystem",
+            false,
+            "file_read",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -775,18 +830,150 @@ impl EmbeddedTool for ReadFileTool {
 }
 
 #[tonic::async_trait]
+impl EmbeddedTool for ListDirTool {
+    fn definition(&self) -> ToolDefinition {
+        make_tool_definition(
+            "list_dir",
+            "List directory entries inside the workspace",
+            vec!["list_dir".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("path", string_value("string")),
+                ("max_entries", string_value("integer")),
+            ]),
+            Some(struct_from_map([
+                ("entries", string_value("string[]")),
+                ("truncated", bool_value(true)),
+            ])),
+            "filesystem",
+            false,
+            "search_results",
+        )
+    }
+
+    async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
+        if !ctx.scope.is_dir() {
+            return Err(McpError::ToolExecution(format!(
+                "'{}' is not a directory",
+                ctx.scope.display()
+            )));
+        }
+
+        let max_entries = integer_argument(&ctx.request.arguments, "max_entries")
+            .unwrap_or(200)
+            .clamp(1, 1_000);
+        let mut entries = std::fs::read_dir(&ctx.scope)
+            .map_err(|err| McpError::ToolExecution(err.to_string()))?
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .collect::<Vec<_>>();
+        entries.sort();
+        let truncated = entries.len() > max_entries;
+        entries.truncate(max_entries);
+
+        Ok(success_result(
+            ctx.request,
+            Some(struct_from_map([
+                ("entries", string_list_value(entries)),
+                ("truncated", bool_value(truncated)),
+            ])),
+        ))
+    }
+}
+
+#[tonic::async_trait]
+impl EmbeddedTool for GlobPathsTool {
+    fn definition(&self) -> ToolDefinition {
+        make_tool_definition(
+            "glob_paths",
+            "Find workspace paths matching a glob pattern",
+            vec!["glob_paths".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("pattern", string_value("string")),
+                ("path", string_value("string")),
+                ("max_results", string_value("integer")),
+            ]),
+            Some(struct_from_map([
+                ("paths", string_value("string[]")),
+                ("truncated", bool_value(true)),
+            ])),
+            "filesystem",
+            false,
+            "search_results",
+        )
+    }
+
+    async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
+        let pattern = required_argument(&ctx.request.arguments, "pattern")?;
+        let matcher =
+            Pattern::new(&pattern).map_err(|err| McpError::ToolExecution(err.to_string()))?;
+        let max_results = integer_argument(&ctx.request.arguments, "max_results")
+            .unwrap_or(200)
+            .clamp(1, 1_000);
+        let base = if ctx.scope.is_dir() {
+            ctx.scope.clone()
+        } else {
+            ctx.scope
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| ctx.workspace_root.to_path_buf())
+        };
+
+        let mut paths = Vec::new();
+        for entry in walkdir::WalkDir::new(&base)
+            .into_iter()
+            .filter_entry(|entry| should_descend_tool_walk(entry))
+            .filter_map(|entry| entry.ok())
+        {
+            let path = entry.path();
+            let relative = relative_to_workspace(ctx.workspace_root, path);
+            if matcher.matches_path(Path::new(&relative)) {
+                paths.push(relative);
+                if paths.len() >= max_results {
+                    break;
+                }
+            }
+        }
+        paths.sort();
+        let truncated = paths.len() >= max_results;
+
+        Ok(success_result(
+            ctx.request,
+            Some(struct_from_map([
+                ("paths", string_list_value(paths)),
+                ("truncated", bool_value(truncated)),
+            ])),
+        ))
+    }
+}
+
+#[tonic::async_trait]
 impl EmbeddedTool for GenerateDiffTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "generate_diff".to_string(),
-            description: "Generate a unified diff from current and updated file content"
-                .to_string(),
-            required_actions: vec!["generate_diff".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "generate_diff",
+            "Generate a unified diff from current and updated file content",
+            vec!["generate_diff".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("path", string_value("string")),
+                ("updated_content", string_value("string")),
+            ]),
+            Some(struct_from_map([("diff", string_value("string"))])),
+            "filesystem",
+            false,
+            "tool_call",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -804,15 +991,26 @@ impl EmbeddedTool for GenerateDiffTool {
 #[tonic::async_trait]
 impl EmbeddedTool for ApplyPatchTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "apply_patch".to_string(),
-            description: "Apply a unified diff patch to a file inside the workspace".to_string(),
-            required_actions: vec!["apply_patch".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: true,
-            read_only: false,
-        }
+        make_tool_definition(
+            "apply_patch",
+            "Apply a unified diff patch to a file inside the workspace",
+            vec!["apply_patch".to_string()],
+            vec![".".to_string()],
+            false,
+            true,
+            false,
+            struct_from_map([
+                ("path", string_value("string")),
+                ("patch", string_value("string")),
+            ]),
+            Some(struct_from_map([
+                ("path", string_value("string")),
+                ("applied", bool_value(true)),
+            ])),
+            "filesystem",
+            true,
+            "tool_call",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -846,15 +1044,20 @@ impl EmbeddedTool for ApplyPatchTool {
 #[tonic::async_trait]
 impl EmbeddedTool for AstChunkTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "ast_chunk".to_string(),
-            description: "Chunk a source file using the native Tree-sitter chunker".to_string(),
-            required_actions: vec!["ast_chunk".to_string()],
-            allowed_scope_patterns: vec!["src".to_string(), ".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "ast_chunk",
+            "Chunk a source file using the native Tree-sitter chunker",
+            vec!["ast_chunk".to_string()],
+            vec!["src".to_string(), ".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([("path", string_value("string"))]),
+            None,
+            "filesystem",
+            false,
+            "search_results",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -896,15 +1099,23 @@ impl EmbeddedTool for AstChunkTool {
 #[tonic::async_trait]
 impl EmbeddedTool for SymbolLookupTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "symbol_lookup".to_string(),
-            description: "Lookup symbols through the native SCIP parser registry".to_string(),
-            required_actions: vec!["symbol_lookup".to_string()],
-            allowed_scope_patterns: vec!["src".to_string(), ".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "symbol_lookup",
+            "Lookup symbols through the native SCIP parser registry",
+            vec!["symbol_lookup".to_string()],
+            vec!["src".to_string(), ".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("path", string_value("string")),
+                ("query", string_value("string")),
+            ]),
+            None,
+            "retrieval",
+            false,
+            "search_results",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -942,15 +1153,23 @@ impl EmbeddedTool for SymbolLookupTool {
 #[tonic::async_trait]
 impl EmbeddedTool for RunCommandTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "run_command".to_string(),
-            description: "Run a bounded command in the workspace".to_string(),
-            required_actions: vec!["run_command".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: true,
-            read_only: false,
-        }
+        make_tool_definition(
+            "run_command",
+            "Run a bounded command in the workspace",
+            vec!["run_command".to_string()],
+            vec![".".to_string()],
+            false,
+            true,
+            false,
+            struct_from_map([
+                ("program", string_value("string")),
+                ("args", string_value("string[]")),
+            ]),
+            None,
+            "command",
+            true,
+            "shell_command",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -1015,15 +1234,25 @@ impl EmbeddedTool for RunCommandTool {
 #[tonic::async_trait]
 impl EmbeddedTool for MassRefactorTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "mass_refactor".to_string(),
-            description: "Run a sandboxed Python refactor against a staged workspace".to_string(),
-            required_actions: vec!["mass_refactor".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: true,
-            read_only: false,
-        }
+        make_tool_definition(
+            "mass_refactor",
+            "Run a sandboxed Python refactor against a staged workspace",
+            vec!["mass_refactor".to_string()],
+            vec![".".to_string()],
+            false,
+            true,
+            false,
+            struct_from_map([
+                ("script", string_value("string")),
+                ("target_paths", string_value("string[]")),
+                ("consent_mode", string_value("string")),
+                ("timeout_secs", number_value(30.0)),
+            ]),
+            None,
+            "refactor",
+            true,
+            "tool_call",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -1107,16 +1336,25 @@ impl EmbeddedTool for MassRefactorTool {
 #[tonic::async_trait]
 impl EmbeddedTool for GraphRetrieveSkillsTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "graph_retrieve_skills".to_string(),
-            description: "Retrieve statistically relevant SKILL.md payloads for the active task"
-                .to_string(),
-            required_actions: vec!["graph_retrieve_skills".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "graph_retrieve_skills",
+            "Retrieve statistically relevant SKILL.md payloads for the active task",
+            vec!["graph_retrieve_skills".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("query", string_value("string")),
+                ("task_id", string_value("string")),
+                ("focal_files", string_value("string[]")),
+                ("focal_symbols", string_value("string[]")),
+            ]),
+            None,
+            "retrieval",
+            false,
+            "search_results",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -1184,16 +1422,25 @@ impl EmbeddedTool for GraphRetrieveSkillsTool {
 #[tonic::async_trait]
 impl EmbeddedTool for GraphRetrieveCodeTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "graph_retrieve_code".to_string(),
-            description: "Retrieve structurally reachable code context for the active task"
-                .to_string(),
-            required_actions: vec!["graph_retrieve_code".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "graph_retrieve_code",
+            "Retrieve structurally reachable code context for the active task",
+            vec!["graph_retrieve_code".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("query", string_value("string")),
+                ("task_id", string_value("string")),
+                ("focal_files", string_value("string[]")),
+                ("focal_symbols", string_value("string[]")),
+            ]),
+            None,
+            "retrieval",
+            false,
+            "search_results",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -1241,17 +1488,26 @@ impl EmbeddedTool for GraphRetrieveCodeTool {
 #[tonic::async_trait]
 impl EmbeddedTool for RequestUserInputTool {
     fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: "request_user_input".to_string(),
-            description:
-                "Raise a structured HITL question; mission enters pending_answer until answered"
-                    .to_string(),
-            required_actions: vec!["request_user_input".to_string()],
-            allowed_scope_patterns: vec![".".to_string()],
-            supports_streaming: false,
-            is_destructive: false,
-            read_only: true,
-        }
+        make_tool_definition(
+            "request_user_input",
+            "Raise a structured HITL question; mission enters pending_answer until answered",
+            vec!["request_user_input".to_string()],
+            vec![".".to_string()],
+            false,
+            false,
+            true,
+            struct_from_map([
+                ("mission_id", string_value("string")),
+                ("turn_index", number_value(0.0)),
+                ("kind", string_value("string")),
+                ("text", string_value("string")),
+                ("options_json", string_value("string")),
+            ]),
+            None,
+            "approval",
+            false,
+            "approval_request",
+        )
     }
 
     async fn execute(&self, ctx: ToolExecutionContext<'_>) -> Result<ToolCallResult, McpError> {
@@ -1603,6 +1859,10 @@ fn extract_argument(arguments: &Option<Struct>, key: &str) -> Option<String> {
         })
 }
 
+fn integer_argument(arguments: &Option<Struct>, key: &str) -> Option<usize> {
+    extract_argument(arguments, key).and_then(|value| value.parse::<usize>().ok())
+}
+
 fn list_argument(arguments: &Option<Struct>, key: &str) -> Vec<String> {
     arguments
         .as_ref()
@@ -1815,6 +2075,22 @@ fn relative_to_workspace(workspace_root: &Path, path: &Path) -> String {
         .to_string()
 }
 
+fn should_descend_tool_walk(entry: &walkdir::DirEntry) -> bool {
+    !matches!(
+        entry.file_name().to_string_lossy().as_ref(),
+        ".git"
+            | ".next"
+            | ".openakta"
+            | ".turbo"
+            | "build"
+            | "coverage"
+            | "dist"
+            | "node_modules"
+            | "target"
+            | ".DS_Store"
+    )
+}
+
 /// Named capability profiles (`architect`, `coder`, …) gate which embedded tools are exposed.
 /// This is **not** multi-tenant RBAC — profiles are local machine/runtime labels only.
 fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> bool {
@@ -1824,6 +2100,8 @@ fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> 
         "architect" => matches!(
             tool_name,
             "read_file"
+                | "list_dir"
+                | "glob_paths"
                 | "symbol_lookup"
                 | "graph_retrieve_skills"
                 | "graph_retrieve_code"
@@ -1833,6 +2111,8 @@ fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> 
         "coder" => matches!(
             tool_name,
             "read_file"
+                | "list_dir"
+                | "glob_paths"
                 | "generate_diff"
                 | "apply_patch"
                 | "ast_chunk"
@@ -1844,6 +2124,8 @@ fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> 
         "refactorer" => matches!(
             tool_name,
             "read_file"
+                | "list_dir"
+                | "glob_paths"
                 | "graph_retrieve_skills"
                 | "graph_retrieve_code"
                 | "request_user_input"
@@ -1852,6 +2134,8 @@ fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> 
         "tester" => matches!(
             tool_name,
             "read_file"
+                | "list_dir"
+                | "glob_paths"
                 | "run_command"
                 | "graph_retrieve_skills"
                 | "graph_retrieve_code"
@@ -1859,11 +2143,19 @@ fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> 
         ),
         "executor" => matches!(
             tool_name,
-            "read_file" | "run_command" | "apply_patch" | "generate_diff" | "request_user_input"
+            "read_file"
+                | "list_dir"
+                | "glob_paths"
+                | "run_command"
+                | "apply_patch"
+                | "generate_diff"
+                | "request_user_input"
         ),
         "reviewer" => matches!(
             tool_name,
             "read_file"
+                | "list_dir"
+                | "glob_paths"
                 | "generate_diff"
                 | "graph_retrieve_skills"
                 | "graph_retrieve_code"
@@ -1872,7 +2164,13 @@ fn capability_profile_allows_tool(capability_profile: &str, tool_name: &str) -> 
         ),
         "worker" | "implementation" => matches!(
             tool_name,
-            "read_file" | "run_command" | "generate_diff" | "apply_patch" | "request_user_input"
+            "read_file"
+                | "list_dir"
+                | "glob_paths"
+                | "run_command"
+                | "generate_diff"
+                | "apply_patch"
+                | "request_user_input"
         ),
         _ => tool_name == "read_file",
     }
@@ -1896,6 +2194,14 @@ fn string_value(value: impl Into<String>) -> Value {
 fn bool_value(value: bool) -> Value {
     Value {
         kind: Some(Kind::BoolValue(value)),
+    }
+}
+
+fn string_list_value(values: Vec<String>) -> Value {
+    Value {
+        kind: Some(Kind::ListValue(ListValue {
+            values: values.into_iter().map(string_value).collect(),
+        })),
     }
 }
 
@@ -1932,7 +2238,7 @@ mod tests {
             container_executor: ContainerExecutorConfig::default(),
             wasi_executor: WasiExecutorConfig::default(),
             mass_refactor_executor: MassRefactorExecutorConfig::default(),
-            dense_backend: VectorBackendKind::SqliteVec,
+            dense_backend: VectorBackendKind::SqliteJson,
             dense_qdrant_url: "http://127.0.0.1:6334".to_string(),
             dense_store_path: root.join(".openakta/vectors.db"),
             code_collection: CollectionSpec::code_default(),
@@ -1941,7 +2247,7 @@ mod tests {
             skill_config: SkillRetrievalConfig {
                 corpus_root: root.join("skills"),
                 catalog_db_path: root.join(".openakta/skill-index/skill-catalog.db"),
-                dense_backend: VectorBackendKind::SqliteVec,
+                dense_backend: VectorBackendKind::SqliteJson,
                 dense_store_path: root.join(".openakta/vectors.db"),
                 qdrant_url: "http://127.0.0.1:6334".to_string(),
                 dense_collection: CollectionSpec::skill_default(),
@@ -1969,6 +2275,22 @@ mod tests {
         }
     }
 
+    fn output_string_list(result: &ToolCallResult, key: &str) -> Vec<String> {
+        let output = result.output.as_ref().expect("structured tool output");
+        let value = output.fields.get(key).expect("missing output field");
+        match value.kind.as_ref() {
+            Some(Kind::ListValue(list)) => list
+                .values
+                .iter()
+                .filter_map(|value| match value.kind.as_ref() {
+                    Some(Kind::StringValue(value)) => Some(value.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => panic!("expected list output for {key}"),
+        }
+    }
+
     #[tokio::test]
     async fn read_file_denies_outside_workspace() {
         let service = McpService::new();
@@ -1981,6 +2303,7 @@ mod tests {
             policy: Some(policy("/Users/noasantos/Fluri/openakta", &["read_file"])),
             workspace_root: "/Users/noasantos/Fluri/openakta".to_string(),
             mission_id: String::new(),
+            ..Default::default()
         };
 
         let result = service.call_tool(Request::new(req)).await;
@@ -2009,6 +2332,7 @@ mod tests {
             }),
             workspace_root: "/tmp".into(),
             mission_id: String::new(),
+            ..Default::default()
         };
         let err = service
             .call_tool(Request::new(req))
@@ -2039,6 +2363,7 @@ mod tests {
             }),
             workspace_root: "/tmp".into(),
             mission_id: String::new(),
+            ..Default::default()
         };
         let err = service
             .call_tool(Request::new(req))
@@ -2100,6 +2425,7 @@ mod tests {
             )),
             workspace_root: temp_dir.path().display().to_string(),
             mission_id: String::new(),
+            ..Default::default()
         };
 
         let err = service
@@ -2144,6 +2470,7 @@ mod tests {
             policy: Some(policy("/Users/noasantos/Fluri/openakta", &["run_command"])),
             workspace_root: "/tmp/ignore-me".to_string(),
             mission_id: String::new(),
+            ..Default::default()
         };
 
         let result = service
@@ -2178,6 +2505,7 @@ mod tests {
             )),
             workspace_root: temp_dir.path().display().to_string(),
             mission_id: String::new(),
+            ..Default::default()
         };
 
         let result = service
@@ -2212,6 +2540,7 @@ mod tests {
             )),
             workspace_root: temp_dir.path().display().to_string(),
             mission_id: String::new(),
+            ..Default::default()
         };
 
         let result = service.call_tool(Request::new(req)).await;
@@ -2247,6 +2576,7 @@ mod tests {
             )),
             workspace_root: temp_dir.path().display().to_string(),
             mission_id: String::new(),
+            ..Default::default()
         };
 
         let result = service
@@ -2255,6 +2585,96 @@ mod tests {
             .unwrap()
             .into_inner();
         assert!(result.success);
+    }
+
+    #[tokio::test]
+    async fn list_dir_returns_sorted_entries() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::create_dir_all(temp_dir.path().join("apps/auth")).unwrap();
+        fs::write(temp_dir.path().join("package.json"), "{}").unwrap();
+        fs::write(
+            temp_dir.path().join("pnpm-workspace.yaml"),
+            "packages:\n  - apps/*\n",
+        )
+        .unwrap();
+
+        let service = McpService::with_config(test_mcp_config(temp_dir.path().to_path_buf()));
+        let req = ToolCallRequest {
+            request_id: "req-list-dir".to_string(),
+            agent_id: "agent-1".to_string(),
+            role: "architect".to_string(),
+            tool_name: "list_dir".to_string(),
+            arguments: Some(struct_from_map([
+                ("path", string_value(".")),
+                ("max_entries", string_value("10")),
+            ])),
+            policy: Some(policy(
+                &temp_dir.path().display().to_string(),
+                &["list_dir"],
+            )),
+            workspace_root: temp_dir.path().display().to_string(),
+            mission_id: String::new(),
+            ..Default::default()
+        };
+
+        let result = service
+            .call_tool(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        let entries = output_string_list(&result, "entries");
+        assert!(result.success);
+        assert!(entries.contains(&"apps".to_string()));
+        assert!(entries.contains(&"package.json".to_string()));
+        assert!(entries.contains(&"pnpm-workspace.yaml".to_string()));
+    }
+
+    #[tokio::test]
+    async fn glob_paths_skips_generated_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::create_dir_all(temp_dir.path().join("apps/auth/.next/dev")).unwrap();
+        fs::create_dir_all(temp_dir.path().join("apps/bnf")).unwrap();
+        fs::write(temp_dir.path().join("package.json"), "{}").unwrap();
+        fs::write(temp_dir.path().join("apps/auth/package.json"), "{}").unwrap();
+        fs::write(temp_dir.path().join("apps/bnf/package.json"), "{}").unwrap();
+        fs::write(
+            temp_dir.path().join("apps/auth/.next/dev/package.json"),
+            "{}",
+        )
+        .unwrap();
+
+        let service = McpService::with_config(test_mcp_config(temp_dir.path().to_path_buf()));
+        let req = ToolCallRequest {
+            request_id: "req-glob".to_string(),
+            agent_id: "agent-1".to_string(),
+            role: "architect".to_string(),
+            tool_name: "glob_paths".to_string(),
+            arguments: Some(struct_from_map([
+                ("pattern", string_value("**/package.json")),
+                ("max_results", string_value("20")),
+            ])),
+            policy: Some(policy(
+                &temp_dir.path().display().to_string(),
+                &["glob_paths"],
+            )),
+            workspace_root: temp_dir.path().display().to_string(),
+            mission_id: String::new(),
+            ..Default::default()
+        };
+
+        let result = service
+            .call_tool(Request::new(req))
+            .await
+            .unwrap()
+            .into_inner();
+        let paths = output_string_list(&result, "paths");
+        assert!(result.success);
+        assert!(paths.contains(&"apps/auth/package.json".to_string()));
+        assert!(paths.contains(&"apps/bnf/package.json".to_string()));
+        assert!(paths.contains(&"package.json".to_string()));
+        assert!(!paths
+            .iter()
+            .any(|path| path.contains(".next/dev/package.json")));
     }
 
     #[tokio::test]
@@ -2442,7 +2862,7 @@ mod tests {
             SkillRetrievalConfig {
                 corpus_root: skill_root.clone(),
                 catalog_db_path: catalog_db.clone(),
-                dense_backend: VectorBackendKind::SqliteVec,
+                dense_backend: VectorBackendKind::SqliteJson,
                 dense_store_path: temp_dir.path().join("vectors.db"),
                 qdrant_url: "http://127.0.0.1:6334".to_string(),
                 dense_collection: CollectionSpec::skill_default(),
@@ -2529,7 +2949,7 @@ mod tests {
                     SkillRetrievalConfig {
                         corpus_root: temp_dir.path().join("skills"),
                         catalog_db_path: temp_dir.path().join("catalog.db"),
-                        dense_backend: VectorBackendKind::SqliteVec,
+                        dense_backend: VectorBackendKind::SqliteJson,
                         dense_store_path: temp_dir.path().join("vectors.db"),
                         qdrant_url: "http://127.0.0.1:6334".to_string(),
                         dense_collection: CollectionSpec::skill_default(),

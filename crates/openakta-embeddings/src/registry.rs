@@ -71,7 +71,7 @@ impl EmbeddingRegistry {
 mod tests {
     use super::*;
     use crate::config::{CodeEmbeddingConfig, SkillEmbeddingConfig};
-    use crate::embedder::{EmbeddingModel, JinaCodeEmbedder, BgeSkillEmbedder};
+    use crate::embedder::{BgeSkillEmbedder, EmbeddingModel, JinaCodeEmbedder};
 
     #[tokio::test]
     async fn test_registry_creation() {
@@ -86,11 +86,7 @@ mod tests {
         // For this test, we reuse skill as a placeholder
         let semantic_embedder = skill_embedder.clone();
 
-        let registry = EmbeddingRegistry::new(
-            semantic_embedder,
-            code_embedder,
-            skill_embedder,
-        );
+        let registry = EmbeddingRegistry::new(semantic_embedder, code_embedder, skill_embedder);
 
         assert!(registry.semantic.as_ref().profile().dimensions > 0);
         assert!(registry.code.as_ref().profile().dimensions > 0);

@@ -53,12 +53,11 @@ impl Database {
         })?;
 
         if self.config.wal_mode {
-            conn.execute_batch("PRAGMA journal_mode = WAL;").map_err(|e| {
-                StorageError::Database {
+            conn.execute_batch("PRAGMA journal_mode = WAL;")
+                .map_err(|e| StorageError::Database {
                     path: self.config.path.clone(),
                     source: e,
-                }
-            })?;
+                })?;
             debug!("WAL mode enabled");
         }
 
@@ -135,7 +134,9 @@ mod tests {
 
         // Create a temp file and write garbage to simulate corruption
         let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"this is not a valid sqlite database").unwrap();
+        temp_file
+            .write_all(b"this is not a valid sqlite database")
+            .unwrap();
         temp_file.flush().unwrap();
 
         let db = Database::new(DatabaseConfig {

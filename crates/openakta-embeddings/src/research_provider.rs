@@ -150,10 +150,9 @@ impl ResearchMinilmEmbedder {
         }
 
         let device = load_device(&config.device)?;
-        let vb = unsafe {
-            VarBuilder::from_mmaped_safetensors(&[&weights_path], DType::F32, &device)
-        }
-        .map_err(|e| EmbeddingError::ModelLoad(e.to_string()))?;
+        let vb =
+            unsafe { VarBuilder::from_mmaped_safetensors(&[&weights_path], DType::F32, &device) }
+                .map_err(|e| EmbeddingError::ModelLoad(e.to_string()))?;
 
         let model = BertModel::load(vb, &bert_cfg)
             .map_err(|e| EmbeddingError::ModelLoad(format!("BertModel::load: {e}")))?;
@@ -173,11 +172,7 @@ impl ResearchMinilmEmbedder {
             .tokenizer
             .encode(EncodeInput::Single(text.into()), true)
             .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
-        encoding.truncate(
-            self.max_length,
-            0,
-            tokenizers::TruncationDirection::Right,
-        );
+        encoding.truncate(self.max_length, 0, tokenizers::TruncationDirection::Right);
 
         let ids = encoding.get_ids().to_vec();
         let type_ids = encoding.get_type_ids().to_vec();
@@ -244,32 +239,39 @@ fn mean_pool(hidden: &Tensor, attention_mask: &Tensor) -> Result<Tensor> {
     let mask = attention_mask
         .to_dtype(DType::F32)
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
-    let mask_exp = mask.unsqueeze(2).map_err(|e| EmbeddingError::Inference(e.to_string()))?;
+    let mask_exp = mask
+        .unsqueeze(2)
+        .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
     let weighted = hidden
         .broadcast_mul(&mask_exp)
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
     let summed = weighted
         .sum(1)
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
-    let mask_sum = mask.sum(1).map_err(|e| EmbeddingError::Inference(e.to_string()))?;
+    let mask_sum = mask
+        .sum(1)
+        .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
     let eps = Tensor::ones_like(&mask_sum).map_err(|e| EmbeddingError::Inference(e.to_string()))?
         * 1e-9f64;
     let mask_sum = (mask_sum + eps).map_err(|e| EmbeddingError::Inference(e.to_string()))?;
-    let denom = mask_sum.unsqueeze(1).map_err(|e| EmbeddingError::Inference(e.to_string()))?;
+    let denom = mask_sum
+        .unsqueeze(1)
+        .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
     Ok(summed
         .broadcast_div(&denom)
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?)
 }
 
 fn l2_normalize_batch(x: &Tensor) -> Result<Tensor> {
-    let sq = x.sqr().map_err(|e| EmbeddingError::Inference(e.to_string()))?;
+    let sq = x
+        .sqr()
+        .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
     let norm = sq
         .sum_keepdim(1)
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?
         .sqrt()
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?;
-    Ok(x
-        .broadcast_div(&norm)
+    Ok(x.broadcast_div(&norm)
         .map_err(|e| EmbeddingError::Inference(e.to_string()))?)
 }
 
@@ -321,7 +323,11 @@ mod tests {
     /// `sentence-transformers/all-MiniLM-L6-v2`).
     #[test]
     fn minilm_optional_smoke() {
-        if std::env::var("OPENAKTA_EMBEDDING_MODEL_TEST").ok().as_deref() != Some("1") {
+        if std::env::var("OPENAKTA_EMBEDDING_MODEL_TEST")
+            .ok()
+            .as_deref()
+            != Some("1")
+        {
             return;
         }
         let cfg = ResearchMinilmConfig::default();

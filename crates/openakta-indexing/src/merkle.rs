@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 /// File-level hash entry.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -79,10 +79,22 @@ impl MerkleTree {
         let mut block_hashes = HashMap::new();
 
         for path in walk_files(root_path)? {
+            if should_skip_file(&path) {
+                debug!("Skipping file {}", path.display());
+                continue;
+            }
             let relative_path = path.strip_prefix(root_path).unwrap_or(&path).to_path_buf();
-            let content = fs::read_to_string(&path).map_err(|e| {
-                IndexingError::FileRead(format!("Failed to read {}: {}", path.display(), e))
-            })?;
+            let content = match fs::read_to_string(&path) {
+                Ok(content) => content,
+                Err(err) => {
+                    warn!(
+                        "Skipping unreadable/non-UTF8 file {}: {}",
+                        path.display(),
+                        err
+                    );
+                    continue;
+                }
+            };
             let file_hash = hash(content.as_bytes()).to_hex().to_string();
             file_hashes.insert(
                 relative_path.clone(),
@@ -313,6 +325,13 @@ fn should_skip_directory(name: &str) -> bool {
         name,
         "target" | "node_modules" | ".git" | "dist" | "build" | "__pycache__" | ".venv" | "vendor"
     )
+}
+
+fn should_skip_file(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .map(|name| matches!(name, ".DS_Store"))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]

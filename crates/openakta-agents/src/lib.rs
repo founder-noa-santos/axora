@@ -13,14 +13,17 @@ pub mod coordinator;
 pub mod decomposer;
 pub mod diagnostics;
 pub mod error;
+pub mod execution_trace;
 pub mod executor;
 pub mod graph;
 pub mod heartbeat;
 pub mod hitl;
+pub mod intake;
 pub mod mcp_client;
 pub mod merger;
 pub mod model_registry;
 pub mod monitor;
+pub mod openai_family;
 pub mod patch_protocol;
 pub mod prompt_assembly;
 pub mod provider;
@@ -34,6 +37,7 @@ pub mod state_machine;
 pub mod task;
 pub mod task_queue;
 pub mod token_budget;
+pub mod tool_registry;
 pub mod transport;
 pub mod wire_profile;
 pub mod worker_pool;
@@ -68,6 +72,10 @@ pub use decomposer::{
 };
 pub use diagnostics::{WideEvent, WideEventError, WideEventMeta};
 pub use error::AgentError;
+pub use execution_trace::{
+    read_events_from_path, read_session_events, ExecutionEventKind, ExecutionSummaryRenderer,
+    ExecutionTraceEvent, ExecutionTracePhase, ExecutionTraceRegistry, ExecutionTraceService,
+};
 pub use executor::{
     ConcurrentExecutor, ExecutorConfig, ExecutorStats, MissionResult as ExecutorMissionResult,
 };
@@ -81,6 +89,10 @@ pub use heartbeat::{
 pub use hitl::{
     redact_answer_for_logs, HitlConfig, HitlError, HitlMetrics, HitlSubmitAnswerOutcome,
     MissionHitlGate,
+};
+pub use intake::{
+    DecompositionBudget, DelegationBudget, MessageExecutionMode, MessageSurface, MissionDecision,
+    MissionGate, MissionGateRequest, ResponsePreference, RetrievalPlan, RiskLevel, TaskTargetHints,
 };
 pub use mcp_client::McpClient;
 pub use merger::{
@@ -101,24 +113,24 @@ pub use patch_protocol::{
 };
 pub use prompt_assembly::PromptAssembly;
 pub use provider::{
-    AnthropicProvider, CacheMetrics, CacheRetention, ModelBoundaryPayload,
-    ModelBoundaryPayloadType, ModelRequest, ModelResponse, ModelResponseChunk, OpenAiProvider,
+    CacheMetrics, CacheRetention, ModelBoundaryPayload, ModelBoundaryPayloadType, ModelRequest,
+    ModelResponse, ModelResponseChunk, ModelToolCall, ModelToolSchema, OpenAiProvider,
     PreparedProviderRequest, PromptCacheScope, PromptSegment, ProviderClient, ProviderKind,
     ProviderUsage,
 };
 pub use provider_registry::ProviderRegistry;
 pub use provider_transport::{
-    default_local_transport, transport_for_instance, CloudModelRef, FallbackPolicy,
-    LiveHttpTransport, LocalModelRef, LocalProviderConfig, LocalProviderKind,
-    LocalProviderTransport, ModelRegistryEntry, ModelRegistrySnapshot, ModelRoutingHint,
-    OllamaTransport, ProviderExecutionTelemetry, ProviderInstanceConfig, ProviderInstanceId,
+    default_local_transport, local_provider_config_from_instance, CloudModelRef, FallbackPolicy,
+    LocalModelRef, LocalProviderConfig, LocalProviderKind, LocalProviderTransport,
+    ModelRegistryEntry, ModelRegistrySnapshot, ModelRoutingHint, OllamaTransport,
+    ProviderExecutionTelemetry, ProviderInstanceConfig, ProviderInstanceId,
     ProviderInstancesConfig, ProviderProfileId, ProviderRuntimeBundle, ProviderRuntimeConfig,
     ProviderTransport, ProviderTransportError, RemoteRegistryConfig, ResolvedProviderInstance,
     RoutingReason, RoutingResolution, SecretRef, TomlModelRegistryEntry,
 };
 pub use react::{
-    Action, ActionExecution, ActionProposal, DualThreadReactAgent, DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
-    InterruptSignal, Observation, ReactCycle, ReactStats, Tool, ToolSet,
+    Action, ActionExecution, ActionProposal, DualThreadReactAgent, InterruptSignal, Observation,
+    ReactCycle, ReactStats, Tool, ToolSet, DEFAULT_INTERRUPT_LAG_STREAK_LIMIT,
 };
 pub use result_contract::{
     DiffValidationDecision, PublicationPayload, PublicationPayloadType, ResultPublicationGuard,
@@ -132,6 +144,9 @@ pub use task_queue::{
     TaskQueueError, TaskQueueStatus, WorkerAssignment,
 };
 pub use token_budget::{derive_effective_budget, EffectiveTokenBudget};
+pub use tool_registry::{
+    CostClass, ExecutorKind, ResultNormalizerKind, ToolKind, ToolRegistry, ToolSpec, UiRenderer,
+};
 pub use transport::{
     InternalBlockerAlert, InternalContextReference, InternalProgressUpdate,
     InternalResultSubmission, InternalTaskAssignment, InternalTokenUsage,

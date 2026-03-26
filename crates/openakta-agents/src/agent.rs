@@ -1,14 +1,8 @@
 //! Agent trait and implementations
 
-use crate::error::AgentError;
-use crate::provider::{
-    CacheRetention, ModelBoundaryPayload, ModelBoundaryPayloadType, ModelRequest,
-};
-use crate::provider_transport::{ProviderTransport, ProviderTransportError};
 use crate::task::Task;
 use crate::Result;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// Agent state
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -220,94 +214,21 @@ impl Agent for RefactorerAgent {
 }
 
 /// Reviewer agent - responsible for code review
+///
+/// ## Phase 7 Note
+///
+/// This agent previously used direct cloud transports. In Phase 7+, cloud execution
+/// uses the API client pool. The reviewer functionality is now handled directly by
+/// the coordinator's `execute_arbiter_review` method using the API client.
 pub struct ReviewerAgent {
     base: BaseAgent,
-    cloud_transport: Option<Arc<dyn ProviderTransport>>,
-    wire_profile: Option<crate::wire_profile::WireProfile>,
-    model: Option<String>,
 }
 
 impl ReviewerAgent {
     pub fn new() -> Self {
         Self {
             base: BaseAgent::new("Reviewer", "Code Reviewer"),
-            cloud_transport: None,
-            wire_profile: None,
-            model: None,
         }
-    }
-
-    /// Create a reviewer agent bound to a cloud transport.
-    pub fn with_cloud_transport(
-        wire_profile: crate::wire_profile::WireProfile,
-        model: impl Into<String>,
-        transport: Arc<dyn ProviderTransport>,
-    ) -> Self {
-        Self {
-            base: BaseAgent::new("Reviewer", "Code Reviewer"),
-            cloud_transport: Some(transport),
-            wire_profile: Some(wire_profile),
-            model: Some(model.into()),
-        }
-    }
-
-    async fn execute_async(&self, task: Task) -> Result<TaskResult> {
-        let wire_profile = self.wire_profile.ok_or_else(|| {
-            AgentError::ExecutionFailed("reviewer cloud provider is not configured".to_string())
-        })?;
-        let model = self.model.clone().ok_or_else(|| {
-            AgentError::ExecutionFailed("reviewer cloud model is not configured".to_string())
-        })?;
-        let transport = self.cloud_transport.as_ref().ok_or_else(|| {
-            AgentError::ExecutionFailed("reviewer cloud transport is not configured".to_string())
-        })?;
-
-        let request = ModelRequest {
-            provider: wire_profile,
-            model,
-            system_instructions: vec![
-                "You are the OPENAKTA cloud arbiter. Review the failed local output, repair it when possible, and return only the corrected result payload.".to_string(),
-            ],
-            tool_schemas: Vec::new(),
-            invariant_mission_context: Vec::new(),
-            payload: ModelBoundaryPayload {
-                payload_type: ModelBoundaryPayloadType::TaskExecution,
-                task_id: task.id.clone(),
-                title: "OPENAKTA arbitration review".to_string(),
-                description: task.description.clone(),
-                task_type: "REVIEW".to_string(),
-                target_files: Vec::new(),
-                target_symbols: Vec::new(),
-                context_spans: Vec::new(),
-                context_pack: None,
-            },
-            recent_messages: Vec::new(),
-            max_output_tokens: 768,
-            temperature: Some(0.0),
-            stream: false,
-            cache_retention: CacheRetention::Extended,
-        };
-
-        let response = transport.execute(&request).await.map_err(|err| match err {
-            ProviderTransportError::CloudExecutionUnavailable(message) => {
-                AgentError::CloudExecutionUnavailable(message)
-            }
-            ProviderTransportError::CloudExecutionRequired(message) => {
-                AgentError::CloudExecutionRequired(message)
-            }
-            other => AgentError::ExecutionFailed(other.to_string()),
-        })?;
-
-        Ok(TaskResult {
-            success: true,
-            output: response.output_text,
-            error: None,
-        })
-    }
-
-    /// Execute a cloud-backed review through the async mainline.
-    pub async fn execute_review(&self, task: Task) -> Result<TaskResult> {
-        self.execute_async(task).await
     }
 }
 
@@ -331,23 +252,13 @@ impl Agent for ReviewerAgent {
     }
 
     fn execute(&mut self, task: Task) -> Result<TaskResult> {
-        if self.cloud_transport.is_none() {
-            return Ok(TaskResult {
-                success: true,
-                output: format!("Code reviewed for: {}", task.description),
-                error: None,
-            });
-        }
-
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            tokio::task::block_in_place(|| handle.block_on(self.execute_async(task)))
-        } else {
-            tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|err| AgentError::ExecutionFailed(err.to_string()))?
-                .block_on(self.execute_async(task))
-        }
+        // Phase 7+: ReviewerAgent no longer executes reviews directly.
+        // Use coordinator's execute_arbiter_review() with API client instead.
+        Ok(TaskResult {
+            success: true,
+            output: format!("Code reviewed for: {}", task.description),
+            error: None,
+        })
     }
 }
 

@@ -6,3 +6,6 @@ pub mod processor;
 pub mod queue;
 pub mod review_resolution;
 pub mod watcher;
+pub mod work_management_service;
+pub mod work_mirror;
+pub mod work_plan_compiler;

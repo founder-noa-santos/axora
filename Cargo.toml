@@ -14,11 +14,14 @@ members = [
     "crates/openakta-embeddings",
     "crates/openakta-agents",
     "crates/openakta-cache",
+    "crates/openakta-api-client",
     # Phase 2 crates
     "crates/openakta-docs",
     "crates/openakta-memory",
     "crates/openakta-research",
     "crates/openakta-evaluator",
+    # Benchmarks
+    "benchmarks",
 ]
 
 [workspace.package]
@@ -77,6 +80,8 @@ chrono = { version = "0.4", features = ["serde"] }
 dashmap = "5.5"
 parking_lot = "0.12"
 once_cell = "1.21"
+humantime = "2.1"
+humantime-serde = "1.1"
 
 # Testing
 tokio-test = "0.4"
@@ -95,6 +100,7 @@ openakta-agents = { path = "crates/openakta-agents" }
 openakta-memory = { path = "crates/openakta-memory" }
 openakta-research = { path = "crates/openakta-research" }
 openakta-evaluator = { path = "crates/openakta-evaluator" }
+openakta-api-client = { path = "crates/openakta-api-client" }
 regex = "1.12"
 openakta-embeddings = { path = "crates/openakta-embeddings" }
 openakta-mcp-wasi-tools = { path = "crates/openakta-mcp-wasi-tools" }
@@ -147,3 +153,7 @@ tiktoken-rs = "0.6"
 
 # Hugging Face tokenizers (MiniLM / BERT-style models)
 tokenizers = "0.19"
+
+# Phase 2: OpenAI-family transport
+async-openai = "0.28.0"
+futures = "0.3"

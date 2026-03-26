@@ -7,6 +7,12 @@
 //! - `WireProfile` drives request building and transport selection
 //! - `ProviderKind` (in `provider.rs`) is used only for telemetry/metrics
 //!
+//! ## Anthropic Removal Note
+//!
+//! Anthropic support has been intentionally removed from aktacode.
+//! Only OpenAI-compatible wire profiles remain.
+//! Future provider integrations (including Anthropic) must be implemented behind openakta-api.
+//!
 //! ## Example
 //! ```
 //! use openakta_agents::wire_profile::WireProfile;
@@ -20,15 +26,12 @@ use serde::{Deserialize, Serialize};
 /// Wire protocol profile - drives request building and transport selection.
 ///
 /// ## Design Principle
-/// - `AnthropicMessagesV1`: ONLY for Anthropic/Claude native API
-/// - `OpenAiChatCompletions`: For OpenAI AND all OpenAI-compatible providers
-///   (DeepSeek, Qwen, Moonshot, Gemini, Mistral, Ollama, etc.)
+/// - All providers use OpenAI Chat Completions format
+/// - Anthropic was removed (may re-enter via openakta-api)
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 #[derive(Default)]
 pub enum WireProfile {
-    /// Anthropic Messages API v1 - ONLY for Anthropic/Claude.
-    AnthropicMessagesV1,
     /// OpenAI Chat Completions API - for OpenAI AND all compatible providers.
     #[default]
     OpenAiChatCompletions,
@@ -37,13 +40,9 @@ pub enum WireProfile {
 impl WireProfile {
     /// Derive the telemetry kind from this wire profile.
     ///
-    /// - AnthropicMessagesV1 → ProviderKind::Anthropic
-    /// - OpenAiChatCompletions → ProviderKind::OpenAi (for OpenAI AND all compatible providers)
+    /// All providers map to ProviderKind::OpenAi.
     pub fn telemetry_kind(&self) -> crate::provider::ProviderKind {
-        match self {
-            WireProfile::AnthropicMessagesV1 => crate::provider::ProviderKind::Anthropic,
-            WireProfile::OpenAiChatCompletions => crate::provider::ProviderKind::OpenAi,
-        }
+        crate::provider::ProviderKind::OpenAi
     }
 
     /// Get the content-type header for this wire profile.
@@ -53,16 +52,16 @@ impl WireProfile {
 
     /// Check if this wire profile supports prompt caching.
     ///
-    /// Only Anthropic's native API supports prompt caching.
+    /// Note: Prompt caching was an Anthropic-specific feature.
+    /// OpenAI-compatible providers may have their own caching mechanisms.
     pub fn supports_caching(&self) -> bool {
-        matches!(self, WireProfile::AnthropicMessagesV1)
+        false
     }
 }
 
 impl std::fmt::Display for WireProfile {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WireProfile::AnthropicMessagesV1 => write!(f, "anthropic_messages_v1"),
             WireProfile::OpenAiChatCompletions => write!(f, "open_ai_chat_completions"),
         }
     }
@@ -74,24 +73,11 @@ mod tests {
     use crate::provider::ProviderKind;
 
     #[test]
-    fn anthropic_profile_maps_to_anthropic_telemetry() {
-        assert_eq!(
-            WireProfile::AnthropicMessagesV1.telemetry_kind(),
-            ProviderKind::Anthropic
-        );
-    }
-
-    #[test]
     fn openai_profile_maps_to_openai_telemetry() {
         assert_eq!(
             WireProfile::OpenAiChatCompletions.telemetry_kind(),
             ProviderKind::OpenAi
         );
-    }
-
-    #[test]
-    fn anthropic_supports_caching() {
-        assert!(WireProfile::AnthropicMessagesV1.supports_caching());
     }
 
     #[test]
@@ -101,10 +87,6 @@ mod tests {
 
     #[test]
     fn display_format() {
-        assert_eq!(
-            format!("{}", WireProfile::AnthropicMessagesV1),
-            "anthropic_messages_v1"
-        );
         assert_eq!(
             format!("{}", WireProfile::OpenAiChatCompletions),
             "open_ai_chat_completions"

@@ -10,6 +10,11 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use openakta_agents::blackboard_runtime::{BlackboardEntry, RuntimeBlackboard};
+use openakta_agents::{
+    read_session_events, ExecutionEventKind as RuntimeExecutionEventKind,
+    ExecutionTraceEvent as RuntimeExecutionTraceEvent, ExecutionTracePhase as RuntimeExecutionPhase,
+    ExecutionTraceRegistry,
+};
 use openakta_agents::hitl::MissionHitlGate;
 use openakta_proto::collective::v1::{
     collective_service_server::{CollectiveService, CollectiveServiceServer},
@@ -18,6 +23,12 @@ use openakta_proto::collective::v1::{
     RegisterAgentRequest, RegisterAgentResponse, SendMessageRequest, StreamMessagesRequest,
     SubmitHitlAnswerRequest, SubmitHitlAnswerResponse, SubmitTaskRequest, SubmitTaskResponse, Task,
     TaskStatus, UnregisterAgentRequest,
+};
+use openakta_proto::observability::v1::{
+    execution_observability_service_server::{
+        ExecutionObservabilityService, ExecutionObservabilityServiceServer,
+    },
+    ExecutionEvent, ExecutionEventKind, ExecutionPhase, StreamExecutionEventsRequest,
 };
 
 use crate::{CoreConfig, CoreError, Result};
@@ -28,6 +39,91 @@ static STREAM_MESSAGES_LAGGED_TOTAL: AtomicU64 = AtomicU64::new(0);
 /// Total lag events on the Collective `stream_messages` RPC (V-004 observability).
 pub fn stream_messages_lagged_total() -> u64 {
     STREAM_MESSAGES_LAGGED_TOTAL.load(Ordering::Relaxed)
+}
+
+/// gRPC service for canonical execution-event replay and live follow.
+pub struct ExecutionObservabilityGrpc {
+    trace_registry: Arc<ExecutionTraceRegistry>,
+}
+
+impl ExecutionObservabilityGrpc {
+    pub fn new(trace_registry: Arc<ExecutionTraceRegistry>) -> Self {
+        Self { trace_registry }
+    }
+
+    pub fn into_service(self) -> ExecutionObservabilityServiceServer<Self> {
+        ExecutionObservabilityServiceServer::new(self)
+    }
+
+    fn resolve_session_id(
+        &self,
+        request: &StreamExecutionEventsRequest,
+    ) -> std::result::Result<String, Status> {
+        let has_session = !request.session_id.trim().is_empty();
+        let has_mission = !request.mission_id.trim().is_empty();
+        if has_session == has_mission {
+            return Err(Status::invalid_argument(
+                "exactly one of session_id or mission_id is required",
+            ));
+        }
+        if has_session {
+            return Ok(request.session_id.clone());
+        }
+        self.trace_registry
+            .session_for_mission(request.mission_id.as_str())
+            .ok_or_else(|| Status::not_found("mission_id not found in execution logs"))
+    }
+}
+
+#[tonic::async_trait]
+impl ExecutionObservabilityService for ExecutionObservabilityGrpc {
+    type StreamExecutionEventsStream =
+        Pin<Box<dyn Stream<Item = std::result::Result<ExecutionEvent, Status>> + Send>>;
+
+    async fn stream_execution_events(
+        &self,
+        request: Request<StreamExecutionEventsRequest>,
+    ) -> std::result::Result<Response<Self::StreamExecutionEventsStream>, Status> {
+        let request = request.into_inner();
+        let session_id = self.resolve_session_id(&request)?;
+        let live_rx = self
+            .trace_registry
+            .service(session_id.as_str())
+            .map(|service| service.subscribe());
+        let history = read_session_events(
+            self.trace_registry.log_dir(),
+            session_id.as_str(),
+            request.from_sequence,
+        )
+        .map_err(|err| Status::internal(err.to_string()))?;
+
+        let stream = async_stream::stream! {
+            let mut last_sequence = request.from_sequence.saturating_sub(1);
+            for event in history {
+                last_sequence = last_sequence.max(event.sequence);
+                yield Ok(execution_event_to_proto(&event));
+            }
+
+            if let Some(mut rx) = live_rx {
+                loop {
+                    match rx.recv().await {
+                        Ok(event) => {
+                            if event.sequence > last_sequence {
+                                last_sequence = event.sequence;
+                                yield Ok(execution_event_to_proto(&event));
+                            }
+                        }
+                        Err(broadcast::error::RecvError::Lagged(_)) => {
+                            continue;
+                        }
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            }
+        };
+
+        Ok(Response::new(Box::pin(stream)))
+    }
 }
 
 /// Collective service implementation
@@ -426,11 +522,83 @@ fn validate_typed_message_request(req: &SendMessageRequest) -> std::result::Resu
     Ok(())
 }
 
+fn execution_event_to_proto(event: &RuntimeExecutionTraceEvent) -> ExecutionEvent {
+    ExecutionEvent {
+        event_id: event.event_id.clone(),
+        session_id: event.session_id.clone(),
+        sequence: event.sequence,
+        timestamp: Some(prost_types::Timestamp::from(
+            chrono::DateTime::parse_from_rfc3339(&event.timestamp)
+                .map(std::time::SystemTime::from)
+                .unwrap_or_else(|_| std::time::SystemTime::now()),
+        )),
+        action_id: event.action_id.clone(),
+        parent_action_id: event.parent_action_id.clone(),
+        event_kind: proto_event_kind(event.event_kind) as i32,
+        phase: proto_execution_phase(event.phase) as i32,
+        display_name: event.display_name.clone(),
+        mission_id: event.mission_id.clone(),
+        task_id: event.task_id.clone(),
+        turn_id: event.turn_id.clone(),
+        agent_id: event.agent_id.clone(),
+        provider_request_id: event.provider_request_id.clone(),
+        provider: event.provider.clone(),
+        model: event.model.clone(),
+        message_count: event.message_count,
+        tool_call_count: event.tool_call_count,
+        stop_reason: event.stop_reason.clone(),
+        usage_preview: event.usage_preview.clone(),
+        tool_call_id: event.tool_call_id.clone(),
+        tool_kind: event.tool_kind.clone(),
+        tool_name: event.tool_name.clone(),
+        read_only: event.read_only,
+        mutating: event.mutating,
+        requires_approval: event.requires_approval,
+        target_path: event.target_path.clone(),
+        target_symbol: event.target_symbol.clone(),
+        query: event.query.clone(),
+        args_preview: event.args_preview.clone(),
+        result_preview: event.result_preview.clone(),
+        error: event.error.clone(),
+        duration_ms: event.duration_ms,
+    }
+}
+
+fn proto_execution_phase(phase: RuntimeExecutionPhase) -> ExecutionPhase {
+    match phase {
+        RuntimeExecutionPhase::Requested => ExecutionPhase::Requested,
+        RuntimeExecutionPhase::Approved => ExecutionPhase::Approved,
+        RuntimeExecutionPhase::Started => ExecutionPhase::Started,
+        RuntimeExecutionPhase::Progress => ExecutionPhase::Progress,
+        RuntimeExecutionPhase::Completed => ExecutionPhase::Completed,
+        RuntimeExecutionPhase::Failed => ExecutionPhase::Failed,
+        RuntimeExecutionPhase::Denied => ExecutionPhase::Denied,
+    }
+}
+
+fn proto_event_kind(kind: RuntimeExecutionEventKind) -> ExecutionEventKind {
+    match kind {
+        RuntimeExecutionEventKind::Mission => ExecutionEventKind::Mission,
+        RuntimeExecutionEventKind::Task => ExecutionEventKind::Task,
+        RuntimeExecutionEventKind::ProviderRequest => ExecutionEventKind::ProviderRequest,
+        RuntimeExecutionEventKind::ToolCall => ExecutionEventKind::ToolCall,
+        RuntimeExecutionEventKind::Retrieval => ExecutionEventKind::Retrieval,
+        RuntimeExecutionEventKind::Approval => ExecutionEventKind::Approval,
+        RuntimeExecutionEventKind::AgentAssignment => ExecutionEventKind::AgentAssignment,
+        RuntimeExecutionEventKind::AgentResult => ExecutionEventKind::AgentResult,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use openakta_agents::hitl::HitlConfig;
+    use openakta_agents::{
+        ExecutionEventKind as RuntimeExecutionEventKind, ExecutionTraceEvent,
+        ExecutionTracePhase, ExecutionTraceRegistry,
+    };
     use openakta_proto::collective::v1::{AnswerAuthor, QuestionKind, QuestionOption};
+    use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn test_server_creation() {
@@ -616,5 +784,79 @@ mod tests {
             bob_waits.is_err(),
             "bob should not receive alice-scoped message"
         );
+    }
+
+    #[tokio::test]
+    async fn stream_execution_events_replays_history_and_follows_live_events() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let registry = Arc::new(ExecutionTraceRegistry::new(tempdir.path().to_path_buf()));
+        let service = registry.create_session("sess-1", false).unwrap();
+        registry.register_mission("sess-1", "mission-1");
+
+        let mut first = ExecutionTraceEvent::new(
+            "sess-1",
+            "mission-1",
+            "task-1",
+            "turn-1",
+            "agent-1",
+            RuntimeExecutionEventKind::Mission,
+            ExecutionTracePhase::Started,
+            "mission",
+        );
+        first.action_id = "mission-1".to_string();
+        service.emit(first).unwrap();
+
+        let mut second = ExecutionTraceEvent::new(
+            "sess-1",
+            "mission-1",
+            "task-1",
+            "turn-1",
+            "agent-1",
+            RuntimeExecutionEventKind::Task,
+            ExecutionTracePhase::Started,
+            "task",
+        );
+        second.action_id = "task-1".to_string();
+        service.emit(second).unwrap();
+
+        let grpc = ExecutionObservabilityGrpc::new(Arc::clone(&registry));
+        let response = grpc
+            .stream_execution_events(Request::new(StreamExecutionEventsRequest {
+                session_id: String::new(),
+                mission_id: "mission-1".into(),
+                from_sequence: 2,
+            }))
+            .await
+            .unwrap();
+        let mut stream = response.into_inner();
+
+        let historical = tokio::time::timeout(std::time::Duration::from_secs(1), stream.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(historical.sequence, 2);
+        assert_eq!(historical.phase, ExecutionPhase::Started as i32);
+
+        let mut third = ExecutionTraceEvent::new(
+            "sess-1",
+            "mission-1",
+            "task-1",
+            "turn-1",
+            "agent-1",
+            RuntimeExecutionEventKind::Task,
+            ExecutionTracePhase::Completed,
+            "task",
+        );
+        third.action_id = "task-1".to_string();
+        service.emit(third).unwrap();
+
+        let live = tokio::time::timeout(std::time::Duration::from_secs(1), stream.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(live.sequence, 3);
+        assert_eq!(live.phase, ExecutionPhase::Completed as i32);
     }
 }

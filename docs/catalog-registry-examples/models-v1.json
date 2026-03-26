@@ -96,56 +96,6 @@
       "cost_tier": "medium"
     },
     {
-      "id": "claude-3-5-sonnet-latest",
-      "label": "Claude 3.5 Sonnet",
-      "description": "Anthropic's balanced model for most tasks",
-      "status": "active",
-      "provider_id": "anthropic",
-      "modality": "multimodal",
-      "context_window_tokens": 200000,
-      "max_output_tokens": 8192,
-      "capabilities": {
-        "streaming": true,
-        "tool_calls": true,
-        "json_mode": true
-      },
-      "input_modalities": ["text", "image", "pdf"],
-      "output_modalities": ["text"],
-      "family": "claude-3.5",
-      "tool_calling": {
-        "parallel_calls": true,
-        "forced_tool_choice": true
-      },
-      "system_prompt_support": "native",
-      "catalog_visibility": "featured",
-      "cost_tier": "medium"
-    },
-    {
-      "id": "claude-3-opus-latest",
-      "label": "Claude 3 Opus",
-      "description": "Anthropic's most capable model for complex tasks",
-      "status": "active",
-      "provider_id": "anthropic",
-      "modality": "multimodal",
-      "context_window_tokens": 200000,
-      "max_output_tokens": 4096,
-      "capabilities": {
-        "streaming": true,
-        "tool_calls": true,
-        "json_mode": true
-      },
-      "input_modalities": ["text", "image", "pdf"],
-      "output_modalities": ["text"],
-      "family": "claude-3",
-      "tool_calling": {
-        "parallel_calls": true,
-        "forced_tool_choice": true
-      },
-      "system_prompt_support": "native",
-      "catalog_visibility": "standard",
-      "cost_tier": "high"
-    },
-    {
       "id": "deepseek-chat",
       "label": "DeepSeek Chat",
       "description": "DeepSeek's general-purpose chat model",

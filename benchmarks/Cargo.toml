@@ -1,0 +1,30 @@
+[package]
+name = "openakta-benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[[bench]]
+name = "api-overhead"
+harness = false
+
+[[bench]]
+name = "proto-conversion"
+harness = false
+
+[[bench]]
+name = "regression-tests"
+harness = false
+
+[dependencies]
+criterion = { version = "0.5", features = ["async_tokio", "html_reports"] }
+tokio = { version = "1.40.0", features = ["full", "rt-multi-thread"] }
+openakta-api-client = { path = "../crates/openakta-api-client" }
+openakta-agents = { path = "../crates/openakta-agents" }
+openakta-proto = { path = "../crates/openakta-proto" }
+prost = "0.12"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4"] }
+
+[dev-dependencies]
+tempfile = "3"

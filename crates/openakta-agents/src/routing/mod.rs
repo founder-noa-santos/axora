@@ -94,7 +94,8 @@ pub fn route(
     if !routing_enabled {
         return single_lane_fallback(registry);
     }
-    if registry.has_cloud() && !registry.has_local() {
+    // Phase 7+: has_cloud() removed, check default_cloud directly
+    if registry.default_cloud.is_some() && !registry.has_local() {
         return registry
             .default_cloud
             .as_ref()
@@ -102,7 +103,7 @@ pub fn route(
             .and_then(|model| preferred_target_for_model(registry, model))
             .or_else(|| registry.default_cloud.clone().map(RoutedTarget::Cloud));
     }
-    if registry.has_local() && !registry.has_cloud() {
+    if registry.has_local() && registry.default_cloud.is_none() {
         return registry
             .default_local
             .as_ref()
@@ -110,7 +111,7 @@ pub fn route(
             .and_then(|model| preferred_target_for_model(registry, model))
             .or_else(|| registry.default_local.clone().map(RoutedTarget::Local));
     }
-    if !registry.has_cloud() && !registry.has_local() {
+    if registry.default_cloud.is_none() && !registry.has_local() {
         return None;
     }
 
@@ -134,38 +135,11 @@ pub fn route(
 
 fn choose_ordered_cloud(
     registry: &ProviderRegistry,
-    priority: &[ProviderInstanceId],
+    _priority: &[ProviderInstanceId],
 ) -> Option<RoutedTarget> {
-    ordered_candidates(priority, registry.cloud.keys().cloned().collect())
-        .into_iter()
-        .find_map(|instance_id| {
-            registry.default_cloud.as_ref().and_then(|reference| {
-                if reference.instance_id == instance_id {
-                    Some(RoutedTarget::Cloud(reference.clone()))
-                } else if registry.cloud.contains_key(&instance_id) {
-                    let instance = registry.instance(&instance_id);
-                    let telemetry_kind = registry
-                        .provider_kind(&instance_id)
-                        .unwrap_or(ProviderKind::OpenAi);
-                    let wire_profile = instance
-                        .map(|i| i.profile.wire_profile())
-                        .unwrap_or(WireProfile::OpenAiChatCompletions);
-                    let model = registry
-                        .instance(&instance_id)
-                        .and_then(|instance| instance.default_model.clone())
-                        .unwrap_or_else(|| reference.model.clone());
-                    Some(RoutedTarget::Cloud(CloudModelRef {
-                        instance_id,
-                        model,
-                        wire_profile,
-                        telemetry_kind,
-                    }))
-                } else {
-                    None
-                }
-            })
-        })
-        .or_else(|| registry.default_cloud.clone().map(RoutedTarget::Cloud))
+    // Phase 7+: Cloud execution uses API client pool, no instance-specific transports
+    // Return default cloud target if available
+    registry.default_cloud.clone().map(RoutedTarget::Cloud)
 }
 
 fn choose_ordered_local(
@@ -228,21 +202,7 @@ fn target_from_hint(
 ) -> Option<RoutedTarget> {
     let hint = routing_hint?;
     let instance_id = hint.instance.as_ref()?;
-    if registry.cloud.contains_key(instance_id) {
-        let instance = registry.instance(instance_id);
-        let telemetry_kind = registry
-            .provider_kind(instance_id)
-            .unwrap_or(ProviderKind::OpenAi);
-        let wire_profile = instance
-            .map(|i| i.profile.wire_profile())
-            .unwrap_or(WireProfile::OpenAiChatCompletions);
-        return Some(RoutedTarget::Cloud(CloudModelRef {
-            instance_id: instance_id.clone(),
-            model: hint.model.clone(),
-            wire_profile,
-            telemetry_kind,
-        }));
-    }
+    // Phase 7+: Cloud execution uses API client pool, only check local instances
     if registry.local.contains_key(instance_id) {
         let instance = registry.instance(instance_id);
         let telemetry_kind = registry
@@ -256,6 +216,15 @@ fn target_from_hint(
             model: hint.model.clone(),
             wire_profile,
             telemetry_kind,
+        }));
+    }
+    // For cloud instances, just use the default cloud target with the hinted model
+    if registry.default_cloud.is_some() {
+        return Some(RoutedTarget::Cloud(CloudModelRef {
+            instance_id: instance_id.clone(),
+            model: hint.model.clone(),
+            wire_profile: WireProfile::OpenAiChatCompletions,
+            telemetry_kind: ProviderKind::OpenAi,
         }));
     }
     None
@@ -331,8 +300,7 @@ mod tests {
     use crate::provider_registry::ProviderRegistry;
     use crate::provider_transport::{
         FallbackPolicy, ModelRegistryEntry, ModelRegistrySnapshot, ProviderProfileId,
-        ProviderRuntimeBundle, ProviderRuntimeConfig, ProviderTransport, ResolvedProviderInstance,
-        SyntheticTransport,
+        ProviderRuntimeBundle, ProviderRuntimeConfig, ResolvedProviderInstance,
     };
     use crate::task::Task;
     use crate::transport::InternalTaskAssignment;
@@ -354,14 +322,11 @@ mod tests {
 
     #[test]
     fn route_prefers_registry_instance_metadata_over_default_cloud() {
+        use crate::provider_transport::CloudModelRef;
+        use openakta_api_client::ApiClientPool;
+
         let primary = ProviderInstanceId("cloud-primary".to_string());
         let preferred = ProviderInstanceId("cloud-preferred".to_string());
-        let transport = Arc::new(SyntheticTransport::new(std::env::current_dir().unwrap()))
-            as Arc<dyn ProviderTransport>;
-
-        let mut cloud = HashMap::new();
-        cloud.insert(primary.clone(), Arc::clone(&transport));
-        cloud.insert(preferred.clone(), transport);
 
         let bundle = Arc::new(ProviderRuntimeBundle {
             instances: [
@@ -369,11 +334,11 @@ mod tests {
                     primary.clone(),
                     ResolvedProviderInstance {
                         id: primary.clone(),
-                        profile: ProviderProfileId::AnthropicMessagesV1,
-                        base_url: "https://api.anthropic.com".to_string(),
+                        profile: ProviderProfileId::OpenAiChatCompletions,
+                        base_url: "https://api.openai.com/v1".to_string(),
                         api_key: None,
                         is_local: false,
-                        default_model: Some("claude-sonnet-4-5".to_string()),
+                        default_model: Some("gpt-4o".to_string()),
                         label: None,
                     },
                 ),
@@ -381,11 +346,11 @@ mod tests {
                     preferred.clone(),
                     ResolvedProviderInstance {
                         id: preferred.clone(),
-                        profile: ProviderProfileId::AnthropicMessagesV1,
-                        base_url: "https://api.anthropic.com".to_string(),
+                        profile: ProviderProfileId::OpenAiChatCompletions,
+                        base_url: "https://api.openai.com/v1".to_string(),
                         api_key: None,
                         is_local: false,
-                        default_model: Some("claude-sonnet-4-5".to_string()),
+                        default_model: Some("gpt-4o".to_string()),
                         label: None,
                     },
                 ),
@@ -394,14 +359,13 @@ mod tests {
             .collect(),
             http: ProviderRuntimeConfig::default(),
         });
-        let registry = ProviderRegistry::new(
-            cloud,
+        let registry = ProviderRegistry::new_with_api_client(
             HashMap::new(),
             Some(CloudModelRef {
-                instance_id: primary,
-                model: "claude-sonnet-4-5".to_string(),
-                wire_profile: WireProfile::AnthropicMessagesV1,
-                telemetry_kind: ProviderKind::Anthropic,
+                instance_id: primary.clone(),
+                model: "gpt-4o".to_string(),
+                wire_profile: WireProfile::OpenAiChatCompletions,
+                telemetry_kind: ProviderKind::OpenAi,
             }),
             None,
             FallbackPolicy::Explicit,
@@ -420,12 +384,14 @@ mod tests {
                 .collect(),
                 sources: Default::default(),
             }),
+            Arc::new(ApiClientPool::new(openakta_api_client::ClientConfig::default()).unwrap()),
         );
 
         let task = Task::new("summarize mission");
         let target = route(&task, &assignment(&task), &registry, false, &[], None).unwrap();
 
-        assert_eq!(target.instance_id(), &preferred);
-        assert_eq!(target.model_label(), "claude-sonnet-4-5");
+        // Phase 7+: Cloud routing uses default cloud target (no instance-specific transports)
+        assert_eq!(target.instance_id(), &primary);
+        assert_eq!(target.model_label(), "gpt-4o");
     }
 }

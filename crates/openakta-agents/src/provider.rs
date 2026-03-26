@@ -12,10 +12,16 @@ use serde_json::{json, Value};
 ///
 /// This enum identifies the provider for telemetry purposes only.
 /// For transport/wire protocol selection, use `WireProfile` instead.
+///
+/// ## Anthropic Removal Note
+///
+/// Anthropic support has been intentionally removed from aktacode.
+/// Future provider integrations (including Anthropic) must be implemented
+/// behind openakta-api, not directly in aktacode.
+///
+/// aktacode currently supports only OpenAI and OpenAI-compatible providers.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 pub enum ProviderKind {
-    /// Anthropic Messages API.
-    Anthropic,
     /// OpenAI API (including compatible providers).
     OpenAi,
     /// DeepSeek API (OpenAI-compatible).
@@ -32,7 +38,6 @@ impl ProviderKind {
     /// Get the display name for this provider.
     pub fn as_str(&self) -> &'static str {
         match self {
-            ProviderKind::Anthropic => "anthropic",
             ProviderKind::OpenAi => "openai",
             ProviderKind::DeepSeek => "deepseek",
             ProviderKind::Qwen => "qwen",
@@ -99,6 +104,55 @@ pub struct ChatMessage {
     pub role: String,
     /// Message text content.
     pub content: String,
+    /// Optional sender/tool name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// Tool call id for tool-result messages.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    /// Tool calls emitted by the assistant for loop continuation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<ModelToolCall>,
+}
+
+/// Structured tool schema exposed to the model.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModelToolSchema {
+    /// Tool name.
+    pub name: String,
+    /// Human-readable description.
+    pub description: String,
+    /// JSON schema parameters contract.
+    pub parameters: Value,
+    /// Whether provider-side strict schema validation is preferred.
+    #[serde(default)]
+    pub strict: bool,
+    /// Canonical tool kind label for runtime/UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_kind: Option<String>,
+    /// Whether the tool is read only.
+    #[serde(default)]
+    pub read_only: bool,
+    /// Whether the tool mutates workspace or state.
+    #[serde(default)]
+    pub mutating: bool,
+    /// Whether approval is required before execution.
+    #[serde(default)]
+    pub requires_approval: bool,
+    /// Preferred renderer for UI traces.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ui_renderer: Option<String>,
+}
+
+/// Structured model-emitted tool call.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelToolCall {
+    /// Provider-generated call id.
+    pub id: String,
+    /// Canonical tool name.
+    pub name: String,
+    /// Raw JSON argument payload as a string.
+    pub arguments_json: String,
 }
 
 /// Typed request sent to any provider adapter.
@@ -110,8 +164,8 @@ pub struct ModelRequest {
     pub model: String,
     /// System instructions.
     pub system_instructions: Vec<String>,
-    /// Tool schemas encoded as JSON schema objects.
-    pub tool_schemas: Vec<Value>,
+    /// Tool schemas exposed to the model.
+    pub tool_schemas: Vec<ModelToolSchema>,
     /// Invariant mission context eligible for caching.
     pub invariant_mission_context: Vec<Value>,
     /// Dynamic model-bound payload.
@@ -209,14 +263,28 @@ pub struct ModelResponse {
     pub id: Option<String>,
     /// Provider kind.
     pub provider: ProviderKind,
-    /// Text output.
+    /// Final assistant text content.
+    pub content: String,
+    /// Compatibility mirror of [`Self::content`] for older call sites.
     pub output_text: String,
+    /// Structured tool calls returned by the model.
+    #[serde(default)]
+    pub tool_calls: Vec<ModelToolCall>,
     /// Token usage.
     pub usage: ProviderUsage,
     /// Stop reason.
     pub stop_reason: Option<String>,
+    /// Provider request id/correlation id when available.
+    pub provider_request_id: Option<String>,
     /// Raw provider payload for auditing.
     pub raw: Value,
+}
+
+impl ModelResponse {
+    /// Return the final assistant text content.
+    pub fn assistant_text(&self) -> &str {
+        &self.content
+    }
 }
 
 /// Shared streamed response event.
@@ -413,18 +481,6 @@ pub trait ProviderClient {
     fn parse_response(&self, response: &Value) -> Result<ModelResponse>;
 }
 
-/// Anthropic provider adapter.
-pub struct AnthropicProvider {
-    prefix_cache: PrefixCache,
-}
-
-impl AnthropicProvider {
-    /// Create a new Anthropic adapter.
-    pub fn new(prefix_cache: PrefixCache) -> Self {
-        Self { prefix_cache }
-    }
-}
-
 /// OpenAI provider adapter.
 pub struct OpenAiProvider {
     prefix_cache: PrefixCache,
@@ -434,20 +490,6 @@ impl OpenAiProvider {
     /// Create a new OpenAI adapter.
     pub fn new(prefix_cache: PrefixCache) -> Self {
         Self { prefix_cache }
-    }
-}
-
-impl ProviderClient for AnthropicProvider {
-    fn kind(&self) -> ProviderKind {
-        ProviderKind::Anthropic
-    }
-
-    fn prepare_request(&mut self, request: &ModelRequest) -> Result<PreparedProviderRequest> {
-        prepare_request(request.provider, &mut self.prefix_cache, request)
-    }
-
-    fn parse_response(&self, response: &Value) -> Result<ModelResponse> {
-        parse_anthropic_response(response)
     }
 }
 
@@ -484,12 +526,8 @@ fn prepare_request(
         prefix_tokens,
     );
     let toon_payload = request.payload.to_toon()?;
-    let body = match wire_profile {
-        crate::wire_profile::WireProfile::AnthropicMessagesV1 => {
-            build_anthropic_body(request, &toon_payload, &prefix_lookup)
-        }
-        _ => build_openai_body(request, &toon_payload, &prefix_lookup),
-    };
+    // All providers now use OpenAI-compatible format
+    let body = build_openai_body(request, &toon_payload, &prefix_lookup);
 
     let cache_metrics = CacheMetrics {
         requests_eligible_for_caching: usize::from(prefix_lookup.eligible),
@@ -553,58 +591,6 @@ fn build_segments(request: &ModelRequest) -> Result<Vec<PromptSegment>> {
     Ok(segments)
 }
 
-fn build_anthropic_body(
-    request: &ModelRequest,
-    toon_payload: &str,
-    prefix_lookup: &PrefixCacheLookup,
-) -> Value {
-    let mut system_blocks = request
-        .system_instructions
-        .iter()
-        .map(|instruction| json!({"type": "text", "text": instruction}))
-        .collect::<Vec<_>>();
-    for invariant in &request.invariant_mission_context {
-        system_blocks.push(json!({
-            "type": "text",
-            "text": invariant.to_string()
-        }));
-    }
-    if prefix_lookup.eligible && !system_blocks.is_empty() {
-        if let Some(last) = system_blocks.last_mut() {
-            last["cache_control"] = anthropic_cache_control(request.cache_retention);
-        }
-    }
-
-    let mut messages = vec![json!({
-        "role": "user",
-        "content": [{"type": "text", "text": toon_payload}]
-    })];
-    for message in &request.recent_messages {
-        messages.push(json!({
-            "role": message.role,
-            "content": [{"type": "text", "text": message.content}]
-        }));
-    }
-
-    let mut tools = request.tool_schemas.clone();
-    if prefix_lookup.eligible && !tools.is_empty() {
-        let last = tools.len() - 1;
-        if let Some(tool) = tools.get_mut(last) {
-            tool["cache_control"] = anthropic_cache_control(request.cache_retention);
-        }
-    }
-
-    json!({
-        "model": request.model,
-        "max_tokens": request.max_output_tokens,
-        "temperature": request.temperature,
-        "stream": request.stream,
-        "system": system_blocks,
-        "tools": tools,
-        "messages": messages
-    })
-}
-
 fn build_openai_body(
     request: &ModelRequest,
     toon_payload: &str,
@@ -634,18 +620,34 @@ fn build_openai_body(
     }));
 
     for message in &request.recent_messages {
-        input.push(json!({
+        let mut item = json!({
             "role": message.role,
             "content": [{"type": "input_text", "text": message.content}]
-        }));
+        });
+        if let Some(name) = &message.name {
+            item["name"] = json!(name);
+        }
+        if let Some(tool_call_id) = &message.tool_call_id {
+            item["tool_call_id"] = json!(tool_call_id);
+        }
+        if !message.tool_calls.is_empty() {
+            item["tool_calls"] = json!(message.tool_calls);
+        }
+        input.push(item);
     }
+
+    let tools = request
+        .tool_schemas
+        .iter()
+        .map(|tool| serde_json::to_value(tool).unwrap_or_else(|_| Value::Null))
+        .collect::<Vec<_>>();
 
     let mut body = json!({
         "model": request.model,
         "input": input,
         "stream": request.stream,
         "max_output_tokens": request.max_output_tokens,
-        "tools": request.tool_schemas,
+        "tools": tools,
     });
 
     if prefix_lookup.eligible {
@@ -664,47 +666,6 @@ fn build_openai_body(
     body
 }
 
-fn parse_anthropic_response(response: &Value) -> Result<ModelResponse> {
-    let usage = response.get("usage").cloned().unwrap_or(Value::Null);
-    let input_tokens = number_field(&usage, "input_tokens");
-    let output_tokens = number_field(&usage, "output_tokens");
-    let cache_write_tokens = number_field(&usage, "cache_creation_input_tokens");
-    let cache_read_tokens = number_field(&usage, "cache_read_input_tokens");
-    let content = response
-        .get("content")
-        .and_then(Value::as_array)
-        .map(|blocks| {
-            blocks
-                .iter()
-                .filter_map(|block| block.get("text").and_then(Value::as_str))
-                .collect::<Vec<_>>()
-                .join("")
-        })
-        .unwrap_or_default();
-
-    Ok(ModelResponse {
-        id: response
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        provider: ProviderKind::Anthropic,
-        output_text: content,
-        usage: ProviderUsage {
-            input_tokens,
-            output_tokens,
-            total_tokens: input_tokens + output_tokens,
-            cache_write_tokens,
-            cache_read_tokens,
-            uncached_input_tokens: input_tokens.saturating_sub(cache_read_tokens),
-        },
-        stop_reason: response
-            .get("stop_reason")
-            .and_then(Value::as_str)
-            .map(str::to_string),
-        raw: response.clone(),
-    })
-}
-
 fn parse_openai_response(response: &Value) -> Result<ModelResponse> {
     let usage = response.get("usage").cloned().unwrap_or(Value::Null);
     let input_tokens =
@@ -721,7 +682,7 @@ fn parse_openai_response(response: &Value) -> Result<ModelResponse> {
         })
         .and_then(Value::as_u64)
         .unwrap_or(0) as usize;
-    let output_text = response
+    let content = response
         .get("output_text")
         .and_then(Value::as_str)
         .map(str::to_string)
@@ -738,6 +699,17 @@ fn parse_openai_response(response: &Value) -> Result<ModelResponse> {
                 .map(str::to_string)
         })
         .unwrap_or_default();
+    let tool_calls = parse_tool_calls(response);
+    let provider_request_id = response
+        .get("request_id")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .or_else(|| {
+            response
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
 
     Ok(ModelResponse {
         id: response
@@ -745,7 +717,9 @@ fn parse_openai_response(response: &Value) -> Result<ModelResponse> {
             .and_then(Value::as_str)
             .map(str::to_string),
         provider: ProviderKind::OpenAi,
-        output_text,
+        content: content.clone(),
+        output_text: content,
+        tool_calls,
         usage: ProviderUsage {
             input_tokens,
             output_tokens,
@@ -758,21 +732,75 @@ fn parse_openai_response(response: &Value) -> Result<ModelResponse> {
             .get("stop_reason")
             .and_then(Value::as_str)
             .map(str::to_string),
+        provider_request_id,
         raw: response.clone(),
+    })
+}
+
+fn parse_tool_calls(response: &Value) -> Vec<ModelToolCall> {
+    if let Some(tool_calls) = response.get("tool_calls").and_then(Value::as_array) {
+        return tool_calls
+            .iter()
+            .filter_map(parse_tool_call_value)
+            .collect();
+    }
+
+    response
+        .get("output")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter(|item| item.get("type").and_then(Value::as_str) == Some("function_call"))
+                .filter_map(parse_tool_call_value)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_tool_call_value(value: &Value) -> Option<ModelToolCall> {
+    let id = value
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let name = value
+        .get("name")
+        .or_else(|| value.get("tool_name"))
+        .or_else(|| {
+            value
+                .get("function")
+                .and_then(|function| function.get("name"))
+        })
+        .and_then(Value::as_str)?
+        .to_string();
+    let arguments_json = value
+        .get("arguments")
+        .or_else(|| value.get("arguments_json"))
+        .or_else(|| {
+            value
+                .get("function")
+                .and_then(|function| function.get("arguments"))
+        })
+        .map(|arguments| match arguments {
+            Value::String(raw) => raw.clone(),
+            other => other.to_string(),
+        })
+        .unwrap_or_else(|| "{}".to_string());
+
+    Some(ModelToolCall {
+        id: if id.is_empty() {
+            format!("call_{}", uuid::Uuid::new_v4())
+        } else {
+            id
+        },
+        name,
+        arguments_json,
     })
 }
 
 fn number_field(value: &Value, key: &str) -> usize {
     value.get(key).and_then(Value::as_u64).unwrap_or(0) as usize
-}
-
-fn anthropic_cache_control(cache_retention: CacheRetention) -> Value {
-    match cache_retention {
-        CacheRetention::ProviderDefault | CacheRetention::Short => {
-            json!({"type": "ephemeral"})
-        }
-        CacheRetention::Extended => json!({"type": "ephemeral", "ttl": "1h"}),
-    }
 }
 
 fn estimate_tokens(content: &str) -> usize {
@@ -820,12 +848,25 @@ mod tests {
             provider: wire_profile,
             model: "test-model".to_string(),
             system_instructions: vec!["Return unified diff only.".to_string()],
-            tool_schemas: vec![json!({"name": "apply_patch", "input_schema": {"type": "object"}})],
+            tool_schemas: vec![ModelToolSchema {
+                name: "apply_patch".to_string(),
+                description: "Apply a patch".to_string(),
+                parameters: json!({"type": "object"}),
+                strict: false,
+                tool_kind: Some("command".to_string()),
+                read_only: false,
+                mutating: true,
+                requires_approval: true,
+                ui_renderer: Some("tool_call".to_string()),
+            }],
             invariant_mission_context: vec![json!({"mission":"auth"})],
             payload: ModelBoundaryPayload::from_task_assignment(&sample_assignment(), None),
             recent_messages: vec![ChatMessage {
                 role: "user".to_string(),
                 content: "Focus only on login".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: Vec::new(),
             }],
             max_output_tokens: 512,
             temperature: Some(0.1),
@@ -841,23 +882,6 @@ mod tests {
         let decoded = ModelBoundaryPayload::from_toon(&toon).unwrap();
         assert_eq!(decoded.task_id, "task-1");
         assert_eq!(decoded.target_files, vec!["src/auth.rs".to_string()]);
-    }
-
-    #[test]
-    fn test_anthropic_request_marks_cache_breakpoint() {
-        let mut provider = AnthropicProvider::new(PrefixCache::new(16));
-        let prepared = provider
-            .prepare_request(&sample_request(
-                crate::wire_profile::WireProfile::AnthropicMessagesV1,
-            ))
-            .unwrap();
-        assert_eq!(
-            prepared.wire_profile,
-            crate::wire_profile::WireProfile::AnthropicMessagesV1
-        );
-        assert_eq!(prepared.cache_metrics.requests_eligible_for_caching, 1);
-        assert!(prepared.body["system"][1]["cache_control"].is_object());
-        assert_eq!(prepared.body["system"][1]["cache_control"]["ttl"], "1h");
     }
 
     #[test]
@@ -877,28 +901,15 @@ mod tests {
     }
 
     #[test]
-    fn test_anthropic_usage_parsing() {
-        let response = json!({
-            "id": "msg_1",
-            "content": [{"type": "text", "text": "--- a.rs\n+++ a.rs\n@@ -1,0 +1,1 @@\n+fn main() {}\n"}],
-            "stop_reason": "end_turn",
-            "usage": {
-                "input_tokens": 1200,
-                "output_tokens": 40,
-                "cache_creation_input_tokens": 800,
-                "cache_read_input_tokens": 0
-            }
-        });
-        let parsed = parse_anthropic_response(&response).unwrap();
-        assert_eq!(parsed.usage.cache_write_tokens, 800);
-        assert_eq!(parsed.usage.input_tokens, 1200);
-    }
-
-    #[test]
     fn test_openai_usage_parsing() {
         let response = json!({
             "id": "resp_1",
             "output_text": "--- a.rs\n+++ a.rs\n@@ -1,0 +1,1 @@\n+fn main() {}\n",
+            "tool_calls": [{
+                "id": "call_1",
+                "name": "read_file",
+                "arguments": "{\"path\":\"src/main.rs\"}"
+            }],
             "usage": {
                 "input_tokens": 1000,
                 "output_tokens": 30,
@@ -910,5 +921,7 @@ mod tests {
         let parsed = parse_openai_response(&response).unwrap();
         assert_eq!(parsed.usage.cache_read_tokens, 700);
         assert_eq!(parsed.usage.uncached_input_tokens, 300);
+        assert_eq!(parsed.tool_calls.len(), 1);
+        assert_eq!(parsed.tool_calls[0].name, "read_file");
     }
 }

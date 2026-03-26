@@ -68,11 +68,20 @@ struct BraveWeb {
 
 #[derive(Debug, Deserialize)]
 struct BraveWebResult {
-    #[serde(default, deserialize_with = "crate::serde_util::lenient_string_or_default")]
+    #[serde(
+        default,
+        deserialize_with = "crate::serde_util::lenient_string_or_default"
+    )]
     title: String,
-    #[serde(default, deserialize_with = "crate::serde_util::lenient_string_or_default")]
+    #[serde(
+        default,
+        deserialize_with = "crate::serde_util::lenient_string_or_default"
+    )]
     url: String,
-    #[serde(default, deserialize_with = "crate::serde_util::lenient_string_or_default")]
+    #[serde(
+        default,
+        deserialize_with = "crate::serde_util::lenient_string_or_default"
+    )]
     description: String,
 }
 
@@ -82,10 +91,7 @@ pub fn parse_brave_response_body(body: &str) -> Result<Vec<SearchResult>, Search
         provider: PROVIDER,
         message: e.to_string(),
     })?;
-    let results = parsed
-        .web
-        .and_then(|w| w.results)
-        .unwrap_or_default();
+    let results = parsed.web.and_then(|w| w.results).unwrap_or_default();
     Ok(results
         .into_iter()
         .filter_map(|row| {
@@ -132,13 +138,10 @@ impl SearchProvider for BraveClient {
             .map_err(|e| crate::http_util::map_reqwest(PROVIDER, e))?;
 
         let status = resp.status();
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| SearchError::Transport {
-                provider: PROVIDER,
-                message: e.to_string(),
-            })?;
+        let text = resp.text().await.map_err(|e| SearchError::Transport {
+            provider: PROVIDER,
+            message: e.to_string(),
+        })?;
 
         if !status.is_success() {
             return Err(SearchError::Http {
@@ -162,7 +165,13 @@ mod tests {
     #[test]
     fn parse_malformed_json_returns_parse_error() {
         let err = parse_brave_response_body("not json").unwrap_err();
-        assert!(matches!(err, SearchError::Parse { provider: "brave", .. }));
+        assert!(matches!(
+            err,
+            SearchError::Parse {
+                provider: "brave",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -186,14 +195,26 @@ mod tests {
     fn parse_web_not_object_errors() {
         let j = r#"{"web":"oops"}"#;
         let err = parse_brave_response_body(j).unwrap_err();
-        assert!(matches!(err, SearchError::Parse { provider: "brave", .. }));
+        assert!(matches!(
+            err,
+            SearchError::Parse {
+                provider: "brave",
+                ..
+            }
+        ));
     }
 
     #[test]
     fn parse_results_not_array_errors() {
         let j = r#"{"web":{"results":"bad"}}"#;
         let err = parse_brave_response_body(j).unwrap_err();
-        assert!(matches!(err, SearchError::Parse { provider: "brave", .. }));
+        assert!(matches!(
+            err,
+            SearchError::Parse {
+                provider: "brave",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -206,7 +227,8 @@ mod tests {
 
     #[test]
     fn parse_one_hit_maps_description_to_snippet() {
-        let j = r#"{"web":{"results":[{"title":"T","url":"https://x","description":"snippet text"}]}}"#;
+        let j =
+            r#"{"web":{"results":[{"title":"T","url":"https://x","description":"snippet text"}]}}"#;
         let v = parse_brave_response_body(j).unwrap();
         assert_eq!(v.len(), 1);
         assert_eq!(v[0].title, "T");
@@ -266,14 +288,14 @@ mod tests {
             .timeout(std::time::Duration::from_secs(5))
             .build()
             .expect("client");
-        let brave =
-            BraveClient::new_with_endpoint_for_tests(client, SecretString::new("k".into()), srv.uri());
+        let brave = BraveClient::new_with_endpoint_for_tests(
+            client,
+            SecretString::new("k".into()),
+            srv.uri(),
+        );
 
         let err = brave
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap_err();
 
@@ -303,8 +325,11 @@ mod tests {
             .timeout(std::time::Duration::from_secs(5))
             .build()
             .expect("client");
-        let brave =
-            BraveClient::new_with_endpoint_for_tests(client, SecretString::new("k".into()), srv.uri());
+        let brave = BraveClient::new_with_endpoint_for_tests(
+            client,
+            SecretString::new("k".into()),
+            srv.uri(),
+        );
 
         let err = brave
             .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
@@ -338,8 +363,11 @@ mod tests {
             .timeout(std::time::Duration::from_secs(5))
             .build()
             .expect("client");
-        let brave =
-            BraveClient::new_with_endpoint_for_tests(client, SecretString::new("k".into()), srv.uri());
+        let brave = BraveClient::new_with_endpoint_for_tests(
+            client,
+            SecretString::new("k".into()),
+            srv.uri(),
+        );
 
         let err = brave
             .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
@@ -372,8 +400,11 @@ mod tests {
             .timeout(std::time::Duration::from_secs(5))
             .build()
             .expect("client");
-        let brave =
-            BraveClient::new_with_endpoint_for_tests(client, SecretString::new("k".into()), srv.uri());
+        let brave = BraveClient::new_with_endpoint_for_tests(
+            client,
+            SecretString::new("k".into()),
+            srv.uri(),
+        );
 
         let out = brave
             .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())

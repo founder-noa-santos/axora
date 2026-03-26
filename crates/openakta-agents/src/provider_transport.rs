@@ -1,21 +1,15 @@
-//! Provider runtime transports for live and synthetic execution.
+//! Provider runtime transports for local execution.
 
-use crate::patch_protocol::resolve_workspace_relative_path;
-use crate::provider::{
-    AnthropicProvider, CacheMetrics, ModelRequest, ModelResponse, OpenAiProvider, ProviderClient,
-    ProviderKind, ProviderUsage,
-};
-use openakta_cache::PrefixCache;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, RETRY_AFTER};
+use crate::openai_family::{CompatibleProviderConfig, OpenAiFamilyConfig, OpenAiFamilyTransport};
+use crate::provider::{CacheMetrics, ModelRequest, ModelResponse, ProviderKind, ProviderUsage};
+use reqwest::header::{HeaderValue, CONTENT_TYPE};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
-use tokio::sync::Mutex;
 use tonic::async_trait;
 
 /// Provider runtime transport errors.
@@ -91,11 +85,14 @@ impl std::fmt::Display for ProviderInstanceId {
 }
 
 /// Provider wire-profile identifier.
+///
+/// ## Anthropic Removal Note
+///
+/// Anthropic support has been intentionally removed. Only OpenAI-compatible profiles remain.
+/// Future provider integrations (including Anthropic) must be implemented behind openakta-api.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum ProviderProfileId {
-    /// Anthropic Messages API v1.
-    AnthropicMessagesV1,
     /// OpenAI chat/responses-style API.
     OpenAiChatCompletions,
     /// OpenAI-compatible HTTP API.
@@ -105,18 +102,9 @@ pub enum ProviderProfileId {
 impl ProviderProfileId {
     /// Map the profile to the wire protocol profile for transport selection.
     ///
-    /// ## Mapping Rules
-    /// - `AnthropicMessagesV1` → `WireProfile::AnthropicMessagesV1` (Anthropic/Claude only)
-    /// - Everything else → `WireProfile::OpenAiChatCompletions` (OpenAI + all compatible providers)
+    /// All providers now use OpenAI Chat Completions format.
     pub fn wire_profile(self) -> crate::wire_profile::WireProfile {
-        match self {
-            ProviderProfileId::AnthropicMessagesV1 => {
-                crate::wire_profile::WireProfile::AnthropicMessagesV1
-            }
-            // All other providers (OpenAI, DeepSeek, Qwen, Moonshot, Gemini, etc.)
-            // use OpenAI Chat Completions format
-            _ => crate::wire_profile::WireProfile::OpenAiChatCompletions,
-        }
+        crate::wire_profile::WireProfile::OpenAiChatCompletions
     }
 
     /// Map the profile to the telemetry provider kind for metrics/logging.
@@ -323,6 +311,8 @@ pub struct CloudModelRef {
 pub enum LocalProviderKind {
     /// Ollama HTTP runtime.
     Ollama,
+    /// OpenAI-compatible HTTP API with API key auth.
+    OpenAiCompatible,
 }
 
 /// Runtime fallback policy for cloud failures.
@@ -345,8 +335,12 @@ pub struct LocalProviderConfig {
     pub provider: LocalProviderKind,
     /// Base URL for the local runtime.
     pub base_url: String,
+    /// API key for authenticated local-compatible providers.
+    pub api_key: Option<String>,
     /// Default model identifier.
     pub default_model: String,
+    /// Provider name for capability defaults and telemetry.
+    pub provider_name: String,
     /// Task classes allowed to run locally.
     pub enabled_for: Vec<String>,
 }
@@ -356,7 +350,9 @@ impl Default for LocalProviderConfig {
         Self {
             provider: LocalProviderKind::Ollama,
             base_url: "http://127.0.0.1:11434".to_string(),
+            api_key: None,
             default_model: "qwen2.5-coder:7b".to_string(),
+            provider_name: "ollama".to_string(),
             enabled_for: vec![
                 "syntax_fix".to_string(),
                 "docstring".to_string(),
@@ -423,173 +419,6 @@ pub trait LocalProviderTransport: Send + Sync {
     fn kind(&self) -> LocalProviderKind;
 }
 
-/// Synthetic transport for tests and explicit development fallback.
-pub struct SyntheticTransport {
-    workspace_root: PathBuf,
-    anthropic_provider: Mutex<AnthropicProvider>,
-    openai_provider: Mutex<OpenAiProvider>,
-}
-
-impl SyntheticTransport {
-    /// Create a new synthetic transport rooted at the workspace.
-    pub fn new(workspace_root: impl Into<PathBuf>) -> Self {
-        Self {
-            workspace_root: workspace_root.into(),
-            anthropic_provider: Mutex::new(AnthropicProvider::new(PrefixCache::new(128))),
-            openai_provider: Mutex::new(OpenAiProvider::new(PrefixCache::new(128))),
-        }
-    }
-}
-
-#[async_trait]
-impl ProviderTransport for SyntheticTransport {
-    async fn execute(
-        &self,
-        request: &ModelRequest,
-    ) -> std::result::Result<ModelResponse, ProviderTransportError> {
-        match request.provider {
-            crate::wire_profile::WireProfile::AnthropicMessagesV1 => {
-                let mut provider = self.anthropic_provider.lock().await;
-                let prepared = provider
-                    .prepare_request(request)
-                    .map_err(|err| ProviderTransportError::Build(err.to_string()))?;
-                let response = synthetic_provider_response(
-                    request,
-                    &prepared.cache_metrics,
-                    &self.workspace_root,
-                );
-                provider
-                    .parse_response(&response)
-                    .map_err(|err| ProviderTransportError::Parse(err.to_string()))
-            }
-            _ => {
-                let mut provider = self.openai_provider.lock().await;
-                let prepared = provider
-                    .prepare_request(request)
-                    .map_err(|err| ProviderTransportError::Build(err.to_string()))?;
-                let response = synthetic_provider_response(
-                    request,
-                    &prepared.cache_metrics,
-                    &self.workspace_root,
-                );
-                provider
-                    .parse_response(&response)
-                    .map_err(|err| ProviderTransportError::Parse(err.to_string()))
-            }
-        }
-    }
-
-    fn mode(&self) -> &'static str {
-        "synthetic"
-    }
-}
-
-/// Live HTTP transport for cloud-hosted providers.
-pub struct LiveHttpTransport {
-    instance: ResolvedProviderInstance,
-    http: ProviderRuntimeConfig,
-    client: reqwest::Client,
-    anthropic_provider: Mutex<AnthropicProvider>,
-    openai_provider: Mutex<OpenAiProvider>,
-}
-
-impl LiveHttpTransport {
-    /// Create a new live transport.
-    pub fn new(
-        instance: ResolvedProviderInstance,
-        http: ProviderRuntimeConfig,
-    ) -> std::result::Result<Self, ProviderTransportError> {
-        let client = reqwest::Client::builder()
-            .timeout(http.timeout)
-            .build()
-            .map_err(|err| ProviderTransportError::Http(err.to_string()))?;
-        Ok(Self {
-            instance,
-            http,
-            client,
-            anthropic_provider: Mutex::new(AnthropicProvider::new(PrefixCache::new(128))),
-            openai_provider: Mutex::new(OpenAiProvider::new(PrefixCache::new(128))),
-        })
-    }
-}
-
-#[async_trait]
-impl ProviderTransport for LiveHttpTransport {
-    async fn execute(
-        &self,
-        request: &ModelRequest,
-    ) -> std::result::Result<ModelResponse, ProviderTransportError> {
-        match self.instance.profile {
-            ProviderProfileId::AnthropicMessagesV1 => {
-                let Some(api_key) = self.instance.api_key.as_ref() else {
-                    return Err(ProviderTransportError::MissingCredentials(
-                        ProviderKind::Anthropic,
-                    ));
-                };
-                let mut provider = self.anthropic_provider.lock().await;
-                let prepared = provider
-                    .prepare_request(request)
-                    .map_err(|err| ProviderTransportError::Build(err.to_string()))?;
-                let url = format!(
-                    "{}/v1/messages",
-                    self.instance.base_url.trim_end_matches('/')
-                );
-                let mut headers = HeaderMap::new();
-                headers.insert("x-api-key", header_value(api_key.expose_secret())?);
-                headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
-                headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-                let response = send_with_retries(
-                    &self.client,
-                    &url,
-                    headers,
-                    &prepared.body,
-                    self.http.max_retries,
-                )
-                .await?;
-                provider
-                    .parse_response(&response)
-                    .map_err(|err| ProviderTransportError::Parse(err.to_string()))
-            }
-            ProviderProfileId::OpenAiChatCompletions | ProviderProfileId::OpenAiCompatible => {
-                let Some(api_key) = self.instance.api_key.as_ref() else {
-                    return Err(ProviderTransportError::MissingCredentials(
-                        ProviderKind::OpenAi,
-                    ));
-                };
-                let mut provider = self.openai_provider.lock().await;
-                let prepared = provider
-                    .prepare_request(request)
-                    .map_err(|err| ProviderTransportError::Build(err.to_string()))?;
-                let url = format!(
-                    "{}/v1/responses",
-                    self.instance.base_url.trim_end_matches('/')
-                );
-                let mut headers = HeaderMap::new();
-                headers.insert(
-                    AUTHORIZATION,
-                    header_value(&format!("Bearer {}", api_key.expose_secret()))?,
-                );
-                headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-                let response = send_with_retries(
-                    &self.client,
-                    &url,
-                    headers,
-                    &prepared.body,
-                    self.http.max_retries,
-                )
-                .await?;
-                provider
-                    .parse_response(&response)
-                    .map_err(|err| ProviderTransportError::Parse(err.to_string()))
-            }
-        }
-    }
-
-    fn mode(&self) -> &'static str {
-        "live"
-    }
-}
-
 /// Local Ollama transport.
 pub struct OllamaTransport {
     config: LocalProviderConfig,
@@ -649,20 +478,59 @@ impl LocalProviderTransport for OllamaTransport {
     }
 }
 
-/// Build a transport for a resolved provider instance.
-pub fn transport_for_instance(
-    instance: &ResolvedProviderInstance,
-    http: &ProviderRuntimeConfig,
-) -> std::result::Result<Box<dyn ProviderTransport>, ProviderTransportError> {
-    if instance.api_key.is_none() {
-        return Err(ProviderTransportError::MissingCredentials(
-            instance.provider_kind(),
-        ));
+/// Local transport backed by an OpenAI-compatible endpoint.
+pub struct OpenAiCompatibleTransport {
+    config: LocalProviderConfig,
+    inner: OpenAiFamilyTransport,
+}
+
+impl OpenAiCompatibleTransport {
+    /// Create a new OpenAI-compatible local transport.
+    pub fn new(
+        config: LocalProviderConfig,
+        runtime: ProviderRuntimeConfig,
+    ) -> std::result::Result<Self, ProviderTransportError> {
+        let api_key = config
+            .api_key
+            .clone()
+            .ok_or(ProviderTransportError::MissingCredentials(
+                ProviderKind::OpenAi,
+            ))?;
+        let inner = OpenAiFamilyTransport::new(
+            OpenAiFamilyConfig::Compatible(CompatibleProviderConfig {
+                api_key: SecretString::new(api_key),
+                base_url: config.base_url.clone(),
+                provider_name: config.provider_name.clone(),
+            }),
+            runtime,
+        )
+        .map_err(|err| ProviderTransportError::Build(err.to_string()))?;
+        Ok(Self { config, inner })
     }
-    Ok(Box::new(LiveHttpTransport::new(
-        instance.clone(),
-        http.clone(),
-    )?))
+}
+
+#[async_trait]
+impl LocalProviderTransport for OpenAiCompatibleTransport {
+    async fn execute_local(
+        &self,
+        request: &ModelRequest,
+        model: &str,
+    ) -> std::result::Result<ModelResponse, ProviderTransportError> {
+        let mut request = request.clone();
+        request.model = model.to_string();
+        self.inner
+            .execute(&request)
+            .await
+            .map_err(|err| ProviderTransportError::Http(err.to_string()))
+    }
+
+    fn mode(&self) -> &'static str {
+        "local-compatible"
+    }
+
+    fn kind(&self) -> LocalProviderKind {
+        self.config.provider
+    }
 }
 
 /// Build the default local transport stack for the configured provider.
@@ -672,94 +540,69 @@ pub fn default_local_transport(
 ) -> std::result::Result<Box<dyn LocalProviderTransport>, ProviderTransportError> {
     match config.provider {
         LocalProviderKind::Ollama => Ok(Box::new(OllamaTransport::new(config.clone(), timeout)?)),
+        LocalProviderKind::OpenAiCompatible => Ok(Box::new(OpenAiCompatibleTransport::new(
+            config.clone(),
+            ProviderRuntimeConfig {
+                timeout,
+                ..ProviderRuntimeConfig::default()
+            },
+        )?)),
     }
 }
 
-fn header_value(value: &str) -> std::result::Result<HeaderValue, ProviderTransportError> {
-    HeaderValue::from_str(value).map_err(|err| ProviderTransportError::Http(err.to_string()))
-}
+/// Build the runtime local-provider config from a resolved instance.
+pub fn local_provider_config_from_instance(
+    instance: &ResolvedProviderInstance,
+    enabled_for: Vec<String>,
+) -> LocalProviderConfig {
+    let api_key = instance
+        .api_key
+        .as_ref()
+        .map(|secret| secret.expose_secret().to_string());
+    let provider = if api_key.is_some() {
+        LocalProviderKind::OpenAiCompatible
+    } else {
+        LocalProviderKind::Ollama
+    };
 
-async fn send_with_retries(
-    client: &reqwest::Client,
-    url: &str,
-    headers: HeaderMap,
-    body: &Value,
-    max_retries: u32,
-) -> std::result::Result<Value, ProviderTransportError> {
-    let mut attempt = 0u32;
-    loop {
-        let response = client
-            .post(url)
-            .headers(headers.clone())
-            .json(body)
-            .send()
-            .await;
-        match response {
-            Ok(response) => {
-                let status = response.status();
-                let retry_after_ms = response
-                    .headers()
-                    .get(RETRY_AFTER)
-                    .and_then(parse_retry_after_millis);
-                let body = response
-                    .json::<Value>()
-                    .await
-                    .map_err(|err| ProviderTransportError::Http(err.to_string()))?;
-                if status.is_success() {
-                    return Ok(body);
-                }
-                if (status.is_server_error() || status.as_u16() == 429) && attempt < max_retries {
-                    attempt += 1;
-                    tokio::time::sleep(backoff_for_attempt(attempt, retry_after_ms)).await;
-                    continue;
-                }
-                return Err(ProviderTransportError::Http(format!(
-                    "provider returned {status}: {body}"
-                )));
-            }
-            Err(err) if attempt < max_retries => {
-                attempt += 1;
-                tokio::time::sleep(backoff_for_attempt(attempt, None)).await;
-                if is_cloud_unavailable(&err) && attempt >= max_retries {
-                    return Err(ProviderTransportError::CloudExecutionUnavailable(
-                        err.to_string(),
-                    ));
-                }
-                continue;
-            }
-            Err(err) if is_cloud_unavailable(&err) => {
-                return Err(ProviderTransportError::CloudExecutionUnavailable(
-                    err.to_string(),
-                ));
-            }
-            Err(err) => return Err(ProviderTransportError::Http(err.to_string())),
-        }
+    LocalProviderConfig {
+        provider,
+        base_url: instance.base_url.clone(),
+        api_key,
+        default_model: instance
+            .default_model
+            .clone()
+            .unwrap_or_else(|| "qwen2.5-coder:7b".to_string()),
+        provider_name: infer_provider_name(instance),
+        enabled_for,
     }
 }
 
-fn is_cloud_unavailable(err: &reqwest::Error) -> bool {
-    err.is_connect() || err.is_timeout() || err.to_string().to_ascii_lowercase().contains("dns")
+fn infer_provider_name(instance: &ResolvedProviderInstance) -> String {
+    let label = instance
+        .label
+        .as_deref()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let base_url = instance.base_url.to_ascii_lowercase();
+
+    if label.contains("openrouter") || base_url.contains("openrouter.ai") {
+        "openrouter".to_string()
+    } else if label.contains("deepseek") || base_url.contains("deepseek") {
+        "deepseek".to_string()
+    } else if label.contains("moonshot") || base_url.contains("moonshot") {
+        "moonshot".to_string()
+    } else if label.contains("qwen") || base_url.contains("dashscope") {
+        "qwen".to_string()
+    } else if instance.api_key.is_some() {
+        "openai-compatible".to_string()
+    } else {
+        "ollama".to_string()
+    }
 }
 
 fn classify_local_http_error(err: reqwest::Error) -> ProviderTransportError {
     ProviderTransportError::Http(err.to_string())
-}
-
-fn parse_retry_after_millis(value: &HeaderValue) -> Option<u64> {
-    value
-        .to_str()
-        .ok()
-        .and_then(|value| value.trim().parse::<u64>().ok())
-        .map(|seconds| seconds.saturating_mul(1000))
-}
-
-fn backoff_for_attempt(attempt: u32, retry_after_ms: Option<u64>) -> Duration {
-    if let Some(retry_after_ms) = retry_after_ms {
-        return Duration::from_millis(retry_after_ms);
-    }
-
-    let base = 200u64.saturating_mul(2u64.saturating_pow(attempt.saturating_sub(1)));
-    Duration::from_millis(base.min(2_000))
 }
 
 fn build_ollama_body(request: &ModelRequest, model: &str) -> Value {
@@ -781,20 +624,37 @@ fn build_ollama_body(request: &ModelRequest, model: &str) -> Value {
         }));
     }
 
-    messages.push(json!({
-        "role": "user",
-        "content": request.payload.to_toon().unwrap_or_else(|_| request.payload.description.clone()),
-    }));
-
-    for message in &request.recent_messages {
+    if request.payload.task_type == "Ask" {
+        if request.recent_messages.is_empty() {
+            messages.push(json!({
+                "role": "user",
+                "content": request.payload.description,
+            }));
+        } else {
+            for message in &request.recent_messages {
+                messages.push(json!({
+                    "role": message.role,
+                    "content": message.content,
+                }));
+            }
+        }
+    } else {
         messages.push(json!({
-            "role": message.role,
-            "content": message.content,
+            "role": "user",
+            "content": request.payload.to_toon().unwrap_or_else(|_| request.payload.description.clone()),
         }));
+
+        for message in &request.recent_messages {
+            messages.push(json!({
+                "role": message.role,
+                "content": message.content,
+            }));
+        }
     }
 
     json!({
         "model": model,
+        "think": false,
         "stream": false,
         "messages": messages,
         "options": {
@@ -824,7 +684,9 @@ fn parse_ollama_response(
             .map(str::to_string),
         // Local Ollama is OpenAI-compatible enough for the shared response model.
         provider: ProviderKind::OpenAi,
+        content: output_text.clone(),
         output_text,
+        tool_calls: Vec::new(),
         usage: ProviderUsage {
             input_tokens: prompt_tokens,
             output_tokens: completion_tokens,
@@ -844,98 +706,13 @@ fn parse_ollama_response(
                     .filter(|done| *done)
                     .map(|_| "stop".to_string())
             }),
+        provider_request_id: None,
         raw: response.clone(),
     })
 }
 
 fn number_field(value: &Value, key: &str) -> usize {
     value.get(key).and_then(Value::as_u64).unwrap_or(0) as usize
-}
-
-fn synthetic_provider_response(
-    request: &ModelRequest,
-    cache_metrics: &CacheMetrics,
-    workspace_root: &Path,
-) -> Value {
-    let output_text = if request
-        .payload
-        .task_type
-        .to_ascii_lowercase()
-        .contains("codemodification")
-        || request
-            .payload
-            .task_type
-            .to_ascii_lowercase()
-            .contains("code_modification")
-    {
-        synthetic_patch_output(
-            workspace_root,
-            request.payload.target_files.first().map(|s| s.as_str()),
-        )
-        .unwrap_or_else(|err| {
-            let file = request
-                .payload
-                .target_files
-                .first()
-                .cloned()
-                .unwrap_or_else(|| "UNKNOWN".to_string());
-            format!("<<<<<<< SEARCH {file}\n{err}\n=======\n{err}\n>>>>>>> REPLACE")
-        })
-    } else {
-        format!("Completed task: {}", request.payload.description)
-    };
-
-    let output_tokens = estimate_tokens(&output_text) as u64;
-    let uncached_input = cache_metrics.uncached_input_tokens as u64;
-    let cache_write = cache_metrics.cache_write_tokens as u64;
-    let cache_read = cache_metrics.cache_read_tokens as u64;
-
-    match request.provider {
-        crate::wire_profile::WireProfile::AnthropicMessagesV1 => json!({
-            "id": format!("anthropic-{}", request.payload.task_id),
-            "content": [{"type": "text", "text": output_text}],
-            "stop_reason": "end_turn",
-            "usage": {
-                "input_tokens": uncached_input,
-                "output_tokens": output_tokens,
-                "cache_creation_input_tokens": cache_write,
-                "cache_read_input_tokens": cache_read
-            }
-        }),
-        _ => json!({
-            "id": format!("openai-{}", request.payload.task_id),
-            "output_text": output_text,
-            "stop_reason": "stop",
-            "usage": {
-                "input_tokens": uncached_input + cache_write + cache_read,
-                "output_tokens": output_tokens,
-                "input_tokens_details": {
-                    "cached_tokens": cache_read
-                }
-            }
-        }),
-    }
-}
-
-fn synthetic_patch_output(
-    workspace_root: &Path,
-    target_file: Option<&str>,
-) -> std::result::Result<String, String> {
-    let target_file = target_file.ok_or_else(|| "missing target file".to_string())?;
-    let path = resolve_workspace_relative_path(workspace_root, target_file)
-        .map_err(|e| e.to_string())?;
-    let content = fs::read_to_string(&path)
-        .map_err(|err| format!("failed reading {}: {err}", path.display()))?;
-    if content.is_empty() {
-        return Err("refusing to build a no-op patch for an empty file".to_string());
-    }
-    Ok(format!(
-        "<<<<<<< SEARCH {target_file}\n{content}\n=======\n{content}\n>>>>>>> REPLACE"
-    ))
-}
-
-fn estimate_tokens(content: &str) -> usize {
-    content.len() / 4
 }
 
 #[cfg(test)]
@@ -966,25 +743,15 @@ mod tests {
             recent_messages: vec![ChatMessage {
                 role: "user".to_string(),
                 content: "Focus only on login".to_string(),
+                name: None,
+                tool_call_id: None,
+                tool_calls: Vec::new(),
             }],
             max_output_tokens: 512,
             temperature: Some(0.1),
             stream: false,
             cache_retention: CacheRetention::Extended,
         }
-    }
-
-    #[tokio::test]
-    async fn synthetic_transport_returns_provider_parsed_response() {
-        let transport = SyntheticTransport::new("/Users/noasantos/Fluri/openakta");
-        let response = transport
-            .execute(&sample_request(
-                crate::wire_profile::WireProfile::AnthropicMessagesV1,
-            ))
-            .await
-            .unwrap();
-        assert_eq!(response.provider, ProviderKind::Anthropic);
-        assert!(!response.output_text.is_empty());
     }
 
     #[test]

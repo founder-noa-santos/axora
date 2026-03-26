@@ -245,8 +245,7 @@ impl ResearchStorage {
                 let c = row?;
                 let doc = blob_to_embedding(&c.blob)?;
                 let d_norm = l2_norm(&doc);
-                let mut score =
-                    cosine_similarity_with_norms(query_embedding, q_norm, &doc, d_norm);
+                let mut score = cosine_similarity_with_norms(query_embedding, q_norm, &doc, d_norm);
                 if !score.is_finite() {
                     score = 0.0;
                 }
@@ -487,9 +486,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ResearchStorage::open(dir.path().join("db.sqlite")).unwrap();
         let q = unit_axis(RESEARCH_EMBED_DIM, 0);
-        let out = store
-            .search_historical_research("/ws", &q, 5)
-            .unwrap();
+        let out = store.search_historical_research("/ws", &q, 5).unwrap();
         assert!(out.is_empty());
     }
 
@@ -536,6 +533,9 @@ mod tests {
         let query = embedder.embed_text(&canon).unwrap();
         let out = store.search_historical_research("/ws", &query, 2).unwrap();
         assert_eq!(out.len(), 2);
-        assert_eq!(out[0].url, first.url, "exact query vector must match stored row first");
+        assert_eq!(
+            out[0].url, first.url,
+            "exact query vector must match stored row first"
+        );
     }
 }

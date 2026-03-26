@@ -48,6 +48,8 @@ pub struct CrossEncoderConfig {
 
 impl Default for CrossEncoderConfig {
     fn default() -> Self {
+        // Prefer explicit env; otherwise resolve relative to cwd (CLI may override via
+        // `OpenaktaReranker::for_workspace` with the real workspace root).
         let model_root = std::env::var("OPENAKTA_CROSS_ENCODER_MODEL_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from(".openakta/models/cross-encoder"));
@@ -144,6 +146,60 @@ impl CrossEncoderScorer for CandleCrossEncoder {
 impl Default for CandleCrossEncoder {
     fn default() -> Self {
         Self::new().expect("cross-encoder must initialize")
+    }
+}
+
+/// Neutral scores when no cross-encoder checkpoint is available (keeps retrieval usable).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct HeuristicCrossEncoder;
+
+#[async_trait::async_trait]
+impl CrossEncoderScorer for HeuristicCrossEncoder {
+    async fn score_pairs(&self, _query: &str, docs: &[RerankDocument]) -> Result<Vec<f32>> {
+        Ok(vec![1.0f32; docs.len()])
+    }
+}
+
+/// Local Candle cross-encoder when weights exist; otherwise [`HeuristicCrossEncoder`].
+pub enum OpenaktaReranker {
+    /// BERT cross-encoder (`tokenizer.json`, `config.json`, `model.safetensors`).
+    Candle(CandleCrossEncoder),
+    /// Fallback: uniform scores so MemGAS + knapsack still run without model files.
+    Heuristic(HeuristicCrossEncoder),
+}
+
+impl OpenaktaReranker {
+    /// Resolve `OPENAKTA_CROSS_ENCODER_MODEL_ROOT` or `<workspace>/.openakta/models/cross-encoder`.
+    ///
+    /// If loading fails (missing files), logs a warning and uses heuristic scoring.
+    pub fn for_workspace(workspace_root: &Path) -> Self {
+        let mut cfg = CrossEncoderConfig::default();
+        if std::env::var("OPENAKTA_CROSS_ENCODER_MODEL_ROOT").is_err() {
+            cfg.model_root = workspace_root.join(".openakta/models/cross-encoder");
+        }
+        let model_root = cfg.model_root.clone();
+        match CandleCrossEncoder::with_config(cfg) {
+            Ok(c) => Self::Candle(c),
+            Err(err) => {
+                tracing::warn!(
+                    target: "openakta_rag",
+                    model_root = %model_root.display(),
+                    error = %err,
+                    "cross-encoder checkpoint not loaded; using neutral rerank scores (install tokenizer.json, config.json, model.safetensors or set OPENAKTA_CROSS_ENCODER_MODEL_ROOT)"
+                );
+                Self::Heuristic(HeuristicCrossEncoder)
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CrossEncoderScorer for OpenaktaReranker {
+    async fn score_pairs(&self, query: &str, docs: &[RerankDocument]) -> Result<Vec<f32>> {
+        match self {
+            Self::Candle(c) => c.score_pairs(query, docs).await,
+            Self::Heuristic(h) => h.score_pairs(query, docs).await,
+        }
     }
 }
 

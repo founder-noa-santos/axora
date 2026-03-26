@@ -128,10 +128,7 @@ mod tests {
             Arc::new(OkProvider(vec![hit.clone()])),
         ]);
         let out = router
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap();
         assert_eq!(out.len(), 1);
@@ -150,10 +147,7 @@ mod tests {
             Arc::new(OkProvider(vec![hit])),
         ]);
         let out = router
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap();
         assert_eq!(out[0].title, "r");
@@ -171,10 +165,7 @@ mod tests {
             Arc::new(OkProvider(vec![hit])),
         ]);
         let out = router
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap();
         assert_eq!(out[0].title, "five");
@@ -191,10 +182,7 @@ mod tests {
             }])),
         ]);
         let out = router
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap();
         assert_eq!(out[0].title, "p");
@@ -223,10 +211,7 @@ mod tests {
     async fn stops_on_fatal() {
         let router = SearchRouter::new(vec![Arc::new(FailFatal), Arc::new(OkProvider(vec![]))]);
         let err = router
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap_err();
         assert!(!err.is_retryable());
@@ -234,15 +219,9 @@ mod tests {
 
     #[tokio::test]
     async fn all_providers_retryable_exhausted() {
-        let router = SearchRouter::new(vec![
-            Arc::new(FailHttp(429)),
-            Arc::new(FailHttp(500)),
-        ]);
+        let router = SearchRouter::new(vec![Arc::new(FailHttp(429)), Arc::new(FailHttp(500))]);
         let err = router
-            .search(
-                &SearchQuery { q: "q".into() },
-                &SearchOptions::default(),
-            )
+            .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
             .await
             .unwrap_err();
         match err {
@@ -258,10 +237,7 @@ mod tests {
         let router = SearchRouter::empty();
         assert!(matches!(
             router
-                .search(
-                    &SearchQuery { q: "q".into() },
-                    &SearchOptions::default(),
-                )
+                .search(&SearchQuery { q: "q".into() }, &SearchOptions::default(),)
                 .await,
             Err(SearchError::NoProvidersInChain)
         ));

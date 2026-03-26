@@ -3,10 +3,12 @@
 #![allow(clippy::items_after_test_module)]
 
 use openakta_agents::{
-    default_local_transport, transport_for_instance, BlackboardV2, CloudModelRef, Coordinator,
-    CoordinatorConfig, FallbackPolicy, HitlConfig, LocalModelRef, MissionHitlGate, MissionResult,
-    ModelRegistrySnapshot, ProviderInstanceId, ProviderRegistry, ProviderRuntimeBundle,
-    RuntimeBlackboard,
+    default_local_transport, local_provider_config_from_instance, BlackboardV2, CloudModelRef,
+    Coordinator, CoordinatorConfig, ExecutionTraceEvent, ExecutionTraceRegistry,
+    FallbackPolicy, HitlConfig, LocalModelRef, MessageExecutionMode, MessageSurface, MissionGate,
+    MissionGateRequest, MissionHitlGate, MissionResult, ModelRegistrySnapshot,
+    ProviderInstanceConfig, ProviderInstanceId, ProviderProfileId, ProviderRegistry,
+    ProviderRuntimeBundle, ResponsePreference, RuntimeBlackboard, SecretRef, Task,
 };
 use openakta_mcp_server::{McpService, McpServiceConfig};
 use openakta_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalServiceServer;
@@ -14,6 +16,7 @@ use openakta_proto::mcp::v1::tool_service_server::ToolServiceServer;
 use openakta_storage::{Database, DatabaseConfig};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -28,7 +31,7 @@ use std::collections::HashMap;
 use tracing::info;
 
 /// Runtime bootstrap options for CLI entrypoints.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct RuntimeBootstrapOptions {
     /// Workspace root containing the codebase to operate on.
     pub workspace_root: std::path::PathBuf,
@@ -50,6 +53,10 @@ pub struct RuntimeBootstrapOptions {
     pub local_validation_retry_budget: Option<u32>,
     /// Whether to start background memory/doc services.
     pub start_background_services: bool,
+    /// Whether hosted API-backed execution is allowed for this runtime.
+    pub remote_enabled: bool,
+    /// Auth provider used by hosted API clients.
+    pub auth_provider: Option<std::sync::Arc<dyn openakta_api_client::AuthProvider>>,
 }
 
 impl Default for RuntimeBootstrapOptions {
@@ -66,14 +73,41 @@ impl Default for RuntimeBootstrapOptions {
             routing_enabled: None,
             local_validation_retry_budget: None,
             start_background_services: true,
+            remote_enabled: true,
+            auth_provider: None,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageRequest {
+    pub message: String,
+    pub workspace_root: std::path::PathBuf,
+    pub surface: MessageSurface,
+    pub response_preference: ResponsePreference,
+    pub allow_code_context: bool,
+    pub side_effects_allowed: bool,
+    pub remote_enabled: bool,
+    pub workspace_context_override: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MessageResult {
+    pub mission_id: String,
+    pub success: bool,
+    pub output: String,
+    pub mode: MessageExecutionMode,
+    pub tasks_completed: usize,
+    pub tasks_failed: usize,
+    pub duration: Duration,
+    pub trace_events: Vec<ExecutionTraceEvent>,
 }
 
 /// Running batteries-included OPENAKTA runtime.
 pub struct RuntimeBootstrap {
     config: CoreConfig,
     blackboard: Arc<BlackboardV2>,
+    trace_registry: Arc<ExecutionTraceRegistry>,
     /// Shared HITL gate (MCP `request_user_input` + coordinator lifecycle).
     pub hitl_gate: Arc<MissionHitlGate>,
     _mcp_task: JoinHandle<Result<(), tonic::transport::Error>>,
@@ -88,6 +122,12 @@ impl RuntimeBootstrap {
         apply_runtime_overrides(&mut config, &options);
         config.workspace_root = options.workspace_root.clone();
         config.ensure_runtime_layout()?;
+
+        if !options.remote_enabled && config.providers.default_local_instance.is_none() {
+            anyhow::bail!(
+                "--no-auth requires a configured default local provider instance in openakta.toml"
+            );
+        }
 
         if config.providers.instances.is_empty() {
             anyhow::bail!(
@@ -123,9 +163,11 @@ impl RuntimeBootstrap {
         };
 
         let (message_bus, hitl_bus_rx) = tokio::sync::broadcast::channel(1024);
+        let trace_registry = Arc::new(ExecutionTraceRegistry::new(config.execution_log_dir()));
         let hitl_gate = Arc::new(MissionHitlGate::new(
             HitlConfig {
                 checkpoint_dir: config.workspace_root.join(".openakta/checkpoints"),
+                execution_trace_registry: Some(Arc::clone(&trace_registry)),
                 ..Default::default()
             },
             Some((message_bus.clone(), hitl_bus_rx)),
@@ -138,10 +180,72 @@ impl RuntimeBootstrap {
         Ok(Self {
             config,
             blackboard,
+            trace_registry,
             hitl_gate,
             _mcp_task: mcp_task,
             _memory_handles: memory_handles,
             _doc_sync_handle: doc_sync_handle,
+        })
+    }
+
+    /// Bootstrap the runtime and handle a user message through the unified intake layer.
+    pub async fn handle_message(
+        mut options: RuntimeBootstrapOptions,
+        request: MessageRequest,
+    ) -> anyhow::Result<MessageResult> {
+        options.workspace_root = request.workspace_root.clone();
+        options.remote_enabled = request.remote_enabled;
+
+        let decision = MissionGate::analyze(&MissionGateRequest {
+            message: &request.message,
+            workspace_root: &request.workspace_root,
+            surface: request.surface,
+            response_preference: request.response_preference,
+            allow_code_context: request.allow_code_context,
+            side_effects_allowed: request.side_effects_allowed,
+            workspace_context_override: request.workspace_context_override.clone(),
+        })?;
+
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let (runtime, mut coordinator) =
+            Self::build_runtime_and_coordinator(options, &session_id).await?;
+
+        let mission_result = match decision.mode {
+            MessageExecutionMode::DirectReply => {
+                coordinator
+                    .execute_direct_reply(
+                        &request.message,
+                        &decision.target_hints,
+                        decision.retrieval_plan.workspace_context.clone(),
+                    )
+                    .await
+            }
+            MessageExecutionMode::DirectAction | MessageExecutionMode::SingleAgent => {
+                coordinator
+                    .execute_single_task(
+                        Task::new(&request.message).with_task_type(decision.task_type.clone()),
+                        &decision.target_hints,
+                    )
+                    .await
+            }
+            MessageExecutionMode::MultiStep | MessageExecutionMode::Delegated => {
+                coordinator
+                    .execute_plan(&request.message, decision.decomposition_budget.clone())
+                    .await
+            }
+        }
+        .map_err(anyhow::Error::msg)?;
+
+        let _runtime = runtime;
+        Ok(MessageResult {
+            mission_id: mission_result.mission_id,
+            success: mission_result.success,
+            output: mission_result.output,
+            mode: decision.mode,
+            tasks_completed: mission_result.tasks_completed,
+            tasks_failed: mission_result.tasks_failed,
+            duration: mission_result.duration,
+            trace_events: mission_result.trace_events,
         })
     }
 
@@ -150,7 +254,68 @@ impl RuntimeBootstrap {
         options: RuntimeBootstrapOptions,
         mission: &str,
     ) -> anyhow::Result<MissionResult> {
+        let result = Self::handle_message(
+            options.clone(),
+            MessageRequest {
+                message: mission.to_string(),
+                workspace_root: options.workspace_root.clone(),
+                surface: MessageSurface::CliDo,
+                response_preference: ResponsePreference::PreferMission,
+                allow_code_context: true,
+                side_effects_allowed: true,
+                remote_enabled: options.remote_enabled,
+                workspace_context_override: None,
+            },
+        )
+        .await?;
+
+        Ok(MissionResult {
+            mission_id: result.mission_id,
+            success: result.success,
+            output: result.output,
+            tasks_completed: result.tasks_completed,
+            tasks_failed: result.tasks_failed,
+            duration: result.duration,
+            trace_events: result.trace_events,
+        })
+    }
+
+    pub async fn ask_local(
+        options: RuntimeBootstrapOptions,
+        prompt: &str,
+        workspace_context: Option<String>,
+    ) -> anyhow::Result<String> {
+        let result = Self::handle_message(
+            options.clone(),
+            MessageRequest {
+                message: prompt.to_string(),
+                workspace_root: options.workspace_root.clone(),
+                surface: MessageSurface::CliAsk,
+                response_preference: ResponsePreference::PreferDirectReply,
+                allow_code_context: workspace_context.is_some(),
+                side_effects_allowed: false,
+                remote_enabled: options.remote_enabled,
+                workspace_context_override: workspace_context,
+            },
+        )
+        .await?;
+        Ok(result.output)
+    }
+
+    async fn build_runtime_and_coordinator(
+        options: RuntimeBootstrapOptions,
+        session_id: &str,
+    ) -> anyhow::Result<(Self, Coordinator)> {
         let runtime = Self::new(options.clone()).await?;
+        let trace_service = runtime
+            .trace_registry
+            .create_session(session_id.to_string(), true)?;
+        let local_only = !options.remote_enabled;
+        let local_task_timeout = runtime
+            .config
+            .provider_runtime
+            .timeout
+            .max(Duration::from_secs(90));
         let secrets = resolve_secrets(&runtime.config.workspace_root, &runtime.config.providers)?;
         let provider_bundle = Arc::new(build_provider_bundle(&runtime.config, &secrets)?);
         let model_registry = Arc::new(build_model_registry_snapshot(&runtime.config).await?);
@@ -158,9 +323,11 @@ impl RuntimeBootstrap {
             &runtime.config,
             Arc::clone(&provider_bundle),
             Arc::clone(&model_registry),
+            options.auth_provider.clone(),
         )?);
         let mut coordinator = Coordinator::new(
             CoordinatorConfig {
+                max_workers: if local_only { 1 } else { 5 },
                 default_cloud: default_cloud_ref(&runtime.config, provider_bundle.as_ref()),
                 default_local: default_local_ref(&runtime.config, provider_bundle.as_ref()),
                 model_instance_priority: runtime.config.providers.model_instance_priority.clone(),
@@ -178,10 +345,18 @@ impl RuntimeBootstrap {
                     "small_edit".to_string(),
                 ],
                 workspace_root: runtime.config.workspace_root.clone(),
+                task_timeout: if local_only {
+                    local_task_timeout
+                } else {
+                    Duration::from_secs(5)
+                },
                 hitl_gate: Some(Arc::clone(&runtime.hitl_gate)),
+                mcp_endpoint: std::env::var("OPENAKTA_MCP_ENDPOINT").ok(),
                 context_use_ratio: runtime.config.provider_context_use_ratio,
                 context_margin_tokens: runtime.config.provider_context_margin_tokens,
                 retrieval_share: runtime.config.provider_retrieval_share,
+                execution_tracer: Some(trace_service),
+                execution_trace_registry: Some(Arc::clone(&runtime.trace_registry)),
                 ..Default::default()
             },
             Arc::clone(&runtime.blackboard),
@@ -193,20 +368,23 @@ impl RuntimeBootstrap {
             provider_registry,
         )
         .map_err(anyhow::Error::msg)?;
-
-        coordinator
-            .execute_mission(mission)
-            .await
-            .map_err(anyhow::Error::msg)
+        Ok((runtime, coordinator))
     }
 }
 
 fn resolve_workspace_config(workspace_root: &std::path::Path) -> anyhow::Result<CoreConfig> {
     let config_path = workspace_root.join("openakta.toml");
     let defaults = CoreConfig::for_workspace(workspace_root.to_path_buf());
-    let project = load_project_config(&config_path)?;
     let workspace = load_workspace_overlay()?;
-    merge_config_layers(defaults, workspace, project)
+    if config_path.exists() {
+        let project = load_project_config(&config_path)?;
+        merge_config_layers(defaults, workspace, project)
+    } else {
+        match workspace {
+            Some(workspace) => merge_config_layers(defaults.clone(), Some(workspace), defaults),
+            None => Ok(defaults),
+        }
+    }
 }
 
 fn apply_runtime_overrides(config: &mut CoreConfig, options: &RuntimeBootstrapOptions) {
@@ -220,13 +398,32 @@ fn apply_runtime_overrides(config: &mut CoreConfig, options: &RuntimeBootstrapOp
     }
     if let Some(instance_id) = options.local_instance.clone() {
         config.providers.default_local_instance = Some(instance_id.clone());
-        if let Some(instance) = config.providers.instances.get_mut(&instance_id) {
-            if let Some(model) = &options.local_model {
-                instance.default_model = Some(model.clone());
-            }
-            if let Some(url) = &options.local_base_url {
-                instance.base_url = url.clone();
-            }
+        let default_base_url = "http://127.0.0.1:11434".to_string();
+        let inferred_secret = infer_override_secret(options.local_base_url.as_deref());
+        let instance = config
+            .providers
+            .instances
+            .entry(instance_id.clone())
+            .or_insert_with(|| ProviderInstanceConfig {
+                profile: ProviderProfileId::OpenAiCompatible,
+                base_url: options
+                    .local_base_url
+                    .clone()
+                    .unwrap_or_else(|| default_base_url.clone()),
+                secret: inferred_secret.clone(),
+                is_local: true,
+                default_model: options.local_model.clone(),
+                label: None,
+            });
+        instance.is_local = true;
+        if let Some(model) = &options.local_model {
+            instance.default_model = Some(model.clone());
+        }
+        if let Some(url) = &options.local_base_url {
+            instance.base_url = url.clone();
+        }
+        if instance.secret == SecretRef::default() {
+            instance.secret = inferred_secret;
         }
     }
     if let Some(policy) = options.fallback_policy {
@@ -238,31 +435,61 @@ fn apply_runtime_overrides(config: &mut CoreConfig, options: &RuntimeBootstrapOp
     if let Some(retry_budget) = options.local_validation_retry_budget {
         config.local_validation_retry_budget = retry_budget;
     }
+    if !options.remote_enabled {
+        config.providers.default_cloud_instance = None;
+        config.routing_enabled = false;
+        config.fallback_policy = FallbackPolicy::Never;
+    }
+}
+
+fn infer_override_secret(base_url: Option<&str>) -> SecretRef {
+    let Some(base_url) = base_url else {
+        return SecretRef::default();
+    };
+
+    if base_url.contains("openrouter.ai") {
+        if let Ok(api_key) = std::env::var("OPENROUTER_API_KEY") {
+            if !api_key.trim().is_empty() {
+                return SecretRef {
+                    api_key: Some(api_key),
+                    api_key_file: None,
+                };
+            }
+        }
+
+        if let Ok(current_dir) = std::env::current_dir() {
+            let candidate = current_dir.join(".openakta/secrets/openrouter.key");
+            if candidate.exists() {
+                return SecretRef {
+                    api_key: None,
+                    api_key_file: Some(candidate),
+                };
+            }
+        }
+    }
+
+    SecretRef::default()
 }
 
 fn build_provider_registry(
     config: &CoreConfig,
     bundle: Arc<ProviderRuntimeBundle>,
     model_registry: Arc<ModelRegistrySnapshot>,
+    auth_provider: Option<Arc<dyn openakta_api_client::AuthProvider>>,
 ) -> anyhow::Result<ProviderRegistry> {
-    let mut cloud = HashMap::new();
     let mut local = HashMap::new();
+    // Phase 5+: Build local transports only (cloud execution uses API client)
     for (instance_id, instance) in &bundle.instances {
         if instance.is_local {
-            let local_config = openakta_agents::LocalProviderConfig {
-                provider: openakta_agents::LocalProviderKind::Ollama,
-                base_url: instance.base_url.clone(),
-                default_model: instance
-                    .default_model
-                    .clone()
-                    .unwrap_or_else(|| "qwen2.5-coder:7b".to_string()),
-                enabled_for: vec![
+            let local_config = local_provider_config_from_instance(
+                instance,
+                vec![
                     "syntax_fix".to_string(),
                     "docstring".to_string(),
                     "autocomplete".to_string(),
                     "small_edit".to_string(),
                 ],
-            };
+            );
             local.insert(
                 instance_id.clone(),
                 Arc::from(default_local_transport(
@@ -270,22 +497,23 @@ fn build_provider_registry(
                     config.provider_runtime.timeout,
                 )?),
             );
-        } else {
-            cloud.insert(
-                instance_id.clone(),
-                Arc::from(transport_for_instance(instance, &config.provider_runtime)?),
-            );
         }
+        // Phase 5+: Cloud instances no longer create direct transports
+        // Cloud execution now uses API client pool instead
     }
 
-    Ok(ProviderRegistry::new(
-        cloud,
+    // Phase 5+: Use new constructor with API client pool
+    Ok(ProviderRegistry::new_with_api_client(
         local,
         default_cloud_ref(config, bundle.as_ref()),
         default_local_ref(config, bundle.as_ref()),
         config.fallback_policy,
         bundle,
         model_registry,
+        Arc::new(openakta_api_client::ApiClientPool::with_auth_provider(
+            openakta_api_client::ClientConfig::default(),
+            auth_provider,
+        )?),
     ))
 }
 

@@ -340,9 +340,7 @@ impl IncrementalAstParser {
                 let released_bytes = retained_cost(entry);
                 if entry.tree.take().is_some() {
                     entry.retained_source = None;
-                    self.retained_bytes = self
-                        .retained_bytes
-                        .saturating_sub(released_bytes);
+                    self.retained_bytes = self.retained_bytes.saturating_sub(released_bytes);
                 }
             }
         }
@@ -398,12 +396,9 @@ fn extract_symbols(
                         continue;
                     }
                     extract_symbols(child, file_path, source, true, out);
-                    if let Some(symbol) = make_default_export_alias_symbol(
-                        child,
-                        node,
-                        file_path,
-                        source,
-                    ) {
+                    if let Some(symbol) =
+                        make_default_export_alias_symbol(child, node, file_path, source)
+                    {
                         out.push(symbol);
                     }
                 }
@@ -542,7 +537,11 @@ fn apply_export_clause_symbols(
                     continue;
                 }
 
-                if let Some(existing) = symbols.iter().find(|symbol| symbol.name == local_name).cloned() {
+                if let Some(existing) = symbols
+                    .iter()
+                    .find(|symbol| symbol.name == local_name)
+                    .cloned()
+                {
                     symbols.push(clone_symbol_as_export(existing, exported_name));
                 } else {
                     symbols.push(make_reexport_symbol(
@@ -632,7 +631,10 @@ fn is_plain_wildcard_export(text: &str) -> bool {
 }
 
 fn mark_existing_symbol_exported(symbols: &mut Vec<AstSymbol>, symbol_name: &str) {
-    for symbol in symbols.iter_mut().filter(|symbol| symbol.name == symbol_name) {
+    for symbol in symbols
+        .iter_mut()
+        .filter(|symbol| symbol.name == symbol_name)
+    {
         if symbol.exported {
             continue;
         }
@@ -1250,9 +1252,7 @@ export * from "./shared";
             symbol.name == "Page" && symbol.kind == AstSymbolKind::Function && symbol.exported
         }));
         assert!(snapshot.symbols.iter().any(|symbol| {
-            symbol.name == "default"
-                && symbol.kind == AstSymbolKind::Function
-                && symbol.exported
+            symbol.name == "default" && symbol.kind == AstSymbolKind::Function && symbol.exported
         }));
         assert!(snapshot.symbols.iter().any(|symbol| {
             symbol.name == "GET" && symbol.kind == AstSymbolKind::Function && symbol.exported
@@ -1296,16 +1296,17 @@ export default class Planner<TState extends Record<string, string>> {
             .find(|symbol| symbol.name == "Planner.resolvePlan")
             .expect("method symbol");
         assert_eq!(method_symbol.kind, AstSymbolKind::Function);
-        assert_eq!(method_symbol.signature.parameters, vec!["accountId", "options"]);
+        assert_eq!(
+            method_symbol.signature.parameters,
+            vec!["accountId", "options"]
+        );
         assert_eq!(
             method_symbol.signature.return_type.as_deref(),
             Some("Promise<Map<string, TState>>")
         );
 
         assert!(snapshot.symbols.iter().any(|symbol| {
-            symbol.name == "default"
-                && symbol.kind == AstSymbolKind::Class
-                && symbol.exported
+            symbol.name == "default" && symbol.kind == AstSymbolKind::Class && symbol.exported
         }));
     }
 

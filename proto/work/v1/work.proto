@@ -1,0 +1,218 @@
+syntax = "proto3";
+
+package work.v1;
+
+service WorkManagementService {
+  rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
+  rpc GetBoard(GetBoardRequest) returns (GetBoardResponse);
+  rpc GetPlanVersion(GetPlanVersionRequest) returns (GetPlanVersionResponse);
+  rpc SubmitCommand(SubmitCommandRequest) returns (SubmitCommandResponse);
+  rpc GetClarificationQueue(GetClarificationQueueRequest) returns (GetClarificationQueueResponse);
+  rpc ResolveClarifications(ResolveClarificationsRequest) returns (ResolveClarificationsResponse);
+  rpc StartExecution(StartExecutionRequest) returns (StartExecutionResponse);
+  rpc ListEvidence(ListEvidenceRequest) returns (ListEvidenceResponse);
+}
+
+message Workspace {
+  string id = 1;
+  string tenant_id = 2;
+  string slug = 3;
+  string name = 4;
+  string created_by = 5;
+  string created_at = 6;
+}
+
+message PlanningCycle {
+  string id = 1;
+  string workspace_id = 2;
+  string cadence_mode = 3;
+  string planning_mode = 4;
+  string start_at = 5;
+  string end_at = 6;
+  string status = 7;
+  int32 global_wip_limit = 8;
+  int32 replanning_interval_secs = 9;
+  string created_at = 10;
+}
+
+message CyclePhase {
+  string id = 1;
+  string cycle_id = 2;
+  string phase_key = 3;
+  int32 ordinal = 4;
+  bool strict_barrier = 5;
+  int32 phase_wip_limit = 6;
+  string exit_criteria_json = 7;
+  string created_at = 8;
+}
+
+message WorkItem {
+  string id = 1;
+  string workspace_id = 2;
+  string cycle_id = 3;
+  string parent_id = 4;
+  string item_type = 5;
+  string execution_profile = 6;
+  string title = 7;
+  string description_md = 8;
+  string tracker_state = 9;
+  string run_state = 10;
+  int32 priority = 11;
+  string assignee_user_id = 12;
+  bool external_master = 13;
+  int32 wave_rank = 14;
+  string wave_label = 15;
+  string updated_at = 16;
+  string created_at = 17;
+}
+
+message DependencyEdge {
+  string id = 1;
+  string workspace_id = 2;
+  string from_item_id = 3;
+  string to_item_id = 4;
+  string edge_type = 5;
+  string strength = 6;
+  string created_at = 7;
+}
+
+message ClarificationItem {
+  string id = 1;
+  string workspace_id = 2;
+  string cycle_id = 3;
+  string work_item_id = 4;
+  string mission_id = 5;
+  string task_id = 6;
+  string question_kind = 7;
+  string prompt_text = 8;
+  string schema_json = 9;
+  string options_json = 10;
+  string dedupe_fingerprint = 11;
+  string status = 12;
+  string raised_by_agent_id = 13;
+  string created_at = 14;
+  string answered_at = 15;
+}
+
+message PlanVersion {
+  string id = 1;
+  string workspace_id = 2;
+  string cycle_id = 3;
+  int64 base_seq = 4;
+  string plan_hash = 5;
+  string snapshot_json = 6;
+  string status = 7;
+  string created_by = 8;
+  string approved_by = 9;
+  string created_at = 10;
+  string approved_at = 11;
+}
+
+message EvidenceLink {
+  string id = 1;
+  string workspace_id = 2;
+  string subject_type = 3;
+  string subject_id = 4;
+  string artifact_kind = 5;
+  string locator_json = 6;
+  string content_hash = 7;
+  string storage_scope = 8;
+  string preview_redacted = 9;
+  string created_at = 10;
+}
+
+message ListWorkItemsRequest {
+  string workspace_id = 1;
+}
+
+message ListWorkItemsResponse {
+  repeated WorkItem items = 1;
+  int64 checkpoint_seq = 2;
+}
+
+message GetBoardRequest {
+  string workspace_id = 1;
+}
+
+message GetBoardResponse {
+  Workspace workspace = 1;
+  repeated PlanningCycle cycles = 2;
+  repeated CyclePhase phases = 3;
+  repeated WorkItem items = 4;
+  repeated DependencyEdge dependencies = 5;
+  int64 checkpoint_seq = 6;
+  string etag = 7;
+}
+
+message GetPlanVersionRequest {
+  string workspace_id = 1;
+  string plan_version_id = 2;
+}
+
+message GetPlanVersionResponse {
+  PlanVersion plan_version = 1;
+}
+
+message SubmitCommandRequest {
+  string workspace_id = 1;
+  string client_command_id = 2;
+  int64 base_seq = 3;
+  string command_type = 4;
+  string payload_json = 5;
+  string actor_context_json = 6;
+}
+
+message SubmitCommandResponse {
+  string status = 1;
+  int64 resulting_seq = 2;
+  repeated string event_ids = 3;
+  string read_model_etag = 4;
+  string conflict_snapshot_json = 5;
+}
+
+message GetClarificationQueueRequest {
+  string workspace_id = 1;
+}
+
+message GetClarificationQueueResponse {
+  repeated ClarificationItem items = 1;
+  int64 checkpoint_seq = 2;
+}
+
+message ClarificationAnswer {
+  string clarification_item_id = 1;
+  string answer_json = 2;
+}
+
+message ResolveClarificationsRequest {
+  string workspace_id = 1;
+  string session_id = 2;
+  repeated ClarificationAnswer answers = 3;
+}
+
+message ResolveClarificationsResponse {
+  int32 resolved_count = 1;
+}
+
+message StartExecutionRequest {
+  string workspace_id = 1;
+  repeated string work_item_ids = 2;
+  string cycle_id = 3;
+  bool dry_run = 4;
+}
+
+message StartExecutionResponse {
+  bool started = 1;
+  string mission_id = 2;
+  string status = 3;
+  string compiled_plan_json = 4;
+  string error = 5;
+}
+
+message ListEvidenceRequest {
+  string workspace_id = 1;
+}
+
+message ListEvidenceResponse {
+  repeated EvidenceLink items = 1;
+}

@@ -159,10 +159,7 @@ fn try_new_propagates_first_validation_failure() {
             context_sufficiency: ContextSufficiency::Sufficient,
         },
     );
-    assert!(matches!(
-        r,
-        Err(EvaluatorInputError::InvalidEvaluationId)
-    ));
+    assert!(matches!(r, Err(EvaluatorInputError::InvalidEvaluationId)));
 }
 
 // --- Floating-point scoring ---
@@ -251,16 +248,44 @@ fn matrix_request_info_takes_precedence_over_reject_signals() {
 #[test]
 fn matrix_reject_invalid_confidence_nan_or_out_of_range() {
     let base = IssueCounts::default();
-    let m_nan = matrix(0.9, f64::NAN, RiskLevel::Low, base, 0, ContextSufficiency::Sufficient);
+    let m_nan = matrix(
+        0.9,
+        f64::NAN,
+        RiskLevel::Low,
+        base,
+        0,
+        ContextSufficiency::Sufficient,
+    );
     assert_eq!(evaluate_full(&m_nan), Decision::Reject);
 
-    let m_inf = matrix(0.9, f64::INFINITY, RiskLevel::Low, base, 0, ContextSufficiency::Sufficient);
+    let m_inf = matrix(
+        0.9,
+        f64::INFINITY,
+        RiskLevel::Low,
+        base,
+        0,
+        ContextSufficiency::Sufficient,
+    );
     assert_eq!(evaluate_full(&m_inf), Decision::Reject);
 
-    let m_high = matrix(0.9, 1.01, RiskLevel::Low, base, 0, ContextSufficiency::Sufficient);
+    let m_high = matrix(
+        0.9,
+        1.01,
+        RiskLevel::Low,
+        base,
+        0,
+        ContextSufficiency::Sufficient,
+    );
     assert_eq!(evaluate_full(&m_high), Decision::Reject);
 
-    let m_neg = matrix(0.9, -0.01, RiskLevel::Low, base, 0, ContextSufficiency::Sufficient);
+    let m_neg = matrix(
+        0.9,
+        -0.01,
+        RiskLevel::Low,
+        base,
+        0,
+        ContextSufficiency::Sufficient,
+    );
     assert_eq!(evaluate_full(&m_neg), Decision::Reject);
 }
 
@@ -515,4 +540,3 @@ fn serde_rejects_unknown_field_on_evaluator_input() {
     }"#;
     assert_rejects_unknown_enum::<EvaluatorInput>(j);
 }
-

@@ -69,7 +69,7 @@ The prior risks around synthetic provider execution and missing memory architect
 
 The following are **no longer risks**:
 
-- ✅ **Vector backend choice:** sqlite-vec is default, SqliteLinear is fallback
+- ✅ **Vector backend choice:** sqlite-vec is default,  is fallback
 - ✅ **Cloud tier architecture:** Qdrant Cloud (Azure Marketplace) is official path
 - ✅ **Embedding models:** Candle local, Cohere cloud
 - ✅ **Auth model:** Clerk.dev with GitHub/Google
@@ -86,7 +86,7 @@ The following are **no longer risks**:
 
 ## Implementation Evidence
 
-- `crates/openakta-memory/src/vector_backend.rs` — sqlite-vec, SqliteLinear, External stub
+- `crates/openakta-memory/src/vector_backend.rs` — sqlite-vec, , External stub
 - `crates/openakta-core/src/config.rs` — `SemanticVectorBackend` enum
 - `business-core/06-billing-monetization-and-plan-enforcement.md` — Cloud tier architecture
 - `business-core/09-integrations-and-external-dependencies.md` — Local/cloud dependencies

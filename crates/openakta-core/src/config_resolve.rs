@@ -91,17 +91,28 @@ pub async fn build_model_registry_snapshot(
     core: &CoreConfig,
 ) -> anyhow::Result<ModelRegistrySnapshot> {
     let builtin = openakta_agents::model_registry::builtin_catalog();
+    tracing::info!("Loaded {} builtin models", builtin.len());
+
     let remote = if let Some(remote) = &core.remote_registry {
+        tracing::info!("Fetching remote registry from: {}", remote.url);
         let timeout = Duration::from_secs(remote.http_timeout_secs.unwrap_or(5) as u64);
         let body = openakta_agents::model_registry::fetch_remote(&remote.url, timeout).await?;
-        openakta_agents::model_registry::parse_remote_json(&body)?
+        let remote_models = openakta_agents::model_registry::parse_remote_json(&body)?;
+        tracing::info!("Loaded {} remote models from registry", remote_models.len());
+        remote_models
     } else {
+        tracing::warn!("No remote registry configured");
         HashMap::new()
     };
+
     let toml = apply_toml_extensions(&core.registry_models);
-    Ok(openakta_agents::model_registry::merge_layers(
-        builtin, remote, toml,
-    ))
+    if !toml.is_empty() {
+        tracing::info!("Loaded {} TOML model extensions", toml.len());
+    }
+
+    let merged = openakta_agents::model_registry::merge_layers(builtin, remote, toml);
+    tracing::info!("Total models in registry: {}", merged.models.len());
+    Ok(merged)
 }
 
 fn resolve_secret_ref(
@@ -114,7 +125,7 @@ fn resolve_secret_ref(
         } else {
             project_root.join(path)
         };
-        
+
         if !resolved.exists() {
             anyhow::bail!(
                 "API key file not found at: {}\n\n\
@@ -127,7 +138,7 @@ fn resolve_secret_ref(
                 resolved.display()
             );
         }
-        
+
         let value = std::fs::read_to_string(&resolved)
             .with_context(|| format!("failed to read api key file {}", resolved.display()))?;
         return Ok(Some(SecretString::new(value.trim().to_string())));
@@ -222,11 +233,11 @@ mod tests {
         config.providers.instances.insert(
             ProviderInstanceId("cloud".to_string()),
             ProviderInstanceConfig {
-                profile: ProviderProfileId::AnthropicMessagesV1,
-                base_url: "https://api.anthropic.com".to_string(),
+                profile: ProviderProfileId::OpenAiChatCompletions,
+                base_url: "https://api.openai.com/v1".to_string(),
                 secret: SecretRef::default(),
                 is_local: false,
-                default_model: Some("claude-sonnet-4-5".to_string()),
+                default_model: Some("gpt-4o".to_string()),
                 label: None,
             },
         );

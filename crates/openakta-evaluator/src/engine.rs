@@ -1,8 +1,7 @@
 //! Weighted quality score and deterministic decision matrix (strict evaluation order).
 
 use crate::types::{
-    ArtifactEvaluationMatrix, ContextSufficiency, Decision, DimensionScores, IssueCounts,
-    RiskLevel,
+    ArtifactEvaluationMatrix, ContextSufficiency, Decision, DimensionScores, IssueCounts, RiskLevel,
 };
 
 /// Minimum confidence required for [`Decision::Accept`] when all other accept preconditions hold.

@@ -39,7 +39,9 @@ pub use semantic_store::{
     SemanticError, SemanticMemory, SemanticMetadata,
 };
 pub use skill_seeder::{builtin_skill_root, SkillSeedReport};
+#[allow(deprecated)]
+pub use vector_backend::init_sqlite_vec_static;
 pub use vector_backend::{
-    PruneCandidate, SqliteLinearVectorStore, SqliteVecStore, VectorHit, VectorResult, VectorStore,
-    VectorStoreError,
+    ensure_sqlite_vec_ready, PruneCandidate, SqliteVecInitError, SqliteVecStore, VectorHit,
+    VectorResult, VectorStore, VectorStoreError,
 };

@@ -2,9 +2,7 @@
 
 use std::sync::Arc;
 
-use openakta_research::{
-    SearchOptions, SearchQuery, SearchRouter, SerperClient, TavilyClient,
-};
+use openakta_research::{SearchOptions, SearchQuery, SearchRouter, SerperClient, TavilyClient};
 use secrecy::SecretString;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -34,7 +32,8 @@ async fn serper_429_then_tavily_200_returns_tavily_hits() {
         .expect("client");
     let key = SecretString::new("test-key".into());
 
-    let serper = SerperClient::new_with_endpoint_for_tests(client.clone(), key.clone(), serper_srv.uri());
+    let serper =
+        SerperClient::new_with_endpoint_for_tests(client.clone(), key.clone(), serper_srv.uri());
     let tavily = TavilyClient::new_with_endpoint_for_tests(client, key, tavily_srv.uri());
 
     let router = SearchRouter::new(vec![Arc::new(serper), Arc::new(tavily)]);
@@ -83,14 +82,15 @@ async fn serper_500_then_tavily_200() {
             key.clone(),
             serper_srv.uri(),
         )),
-        Arc::new(TavilyClient::new_with_endpoint_for_tests(client, key, tavily_srv.uri())),
+        Arc::new(TavilyClient::new_with_endpoint_for_tests(
+            client,
+            key,
+            tavily_srv.uri(),
+        )),
     ]);
 
     let out = router
-        .search(
-            &SearchQuery { q: "q".into() },
-            &SearchOptions::default(),
-        )
+        .search(&SearchQuery { q: "q".into() }, &SearchOptions::default())
         .await
         .expect("fallback");
 

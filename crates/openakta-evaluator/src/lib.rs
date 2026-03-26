@@ -18,9 +18,9 @@ pub use engine::{
 };
 pub use pipeline::evaluate_verdict;
 pub use types::{
-    Artifact, ArtifactType, ArtifactEvaluationMatrix, ContextSufficiency, Contradiction,
-    ContradictionType, Decision, DimensionScores, EvaluationContext, EvaluationType, EvaluatorInput,
-    EvaluatorOutput, IssueCounts, RiskLevel, UserIntent,
+    Artifact, ArtifactEvaluationMatrix, ArtifactType, ContextSufficiency, Contradiction,
+    ContradictionType, Decision, DimensionScores, EvaluationContext, EvaluationType,
+    EvaluatorInput, EvaluatorOutput, IssueCounts, RiskLevel, UserIntent,
 };
 pub use validation::{validate_evaluator_input, EvaluatorInputError};
 

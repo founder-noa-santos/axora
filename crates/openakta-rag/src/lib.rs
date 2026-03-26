@@ -20,7 +20,9 @@ pub use final_stage::{
     KnapsackBudgetedSelector, MemgasClassifier, MemgasResult, RerankedCandidate, RetrievalDocument,
     SelectionResult, UnifiedFinalStage, UnifiedFinalStageResult,
 };
-pub use reranker::{CandleCrossEncoder, CrossEncoderScorer, RerankDocument};
+pub use reranker::{
+    CandleCrossEncoder, CrossEncoderScorer, HeuristicCrossEncoder, OpenaktaReranker, RerankDocument,
+};
 pub use retriever::{FusedRank, RankedHit, ReciprocalRankFusion};
 pub use structural_code::{
     StructuralCodeRetrievalConfig, StructuralCodeRetrievalRequest, StructuralCodeRetrievalResult,

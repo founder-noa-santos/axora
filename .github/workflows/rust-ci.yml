@@ -105,3 +105,50 @@ jobs:
           prefix-key: slow-tests
       - name: ignored tests only
         run: cargo test --workspace --all-features --locked -- --ignored
+
+  # Packaged artifact validation: verify sqlite-vec works in clean environment
+  # This ensures end users don't need to manually install sqlite-vec
+  packaged-artifact-validation:
+    name: packaged artifact validation (sqlite-vec)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      
+      - name: Build release artifacts
+        run: cargo build --release -p openakta-cli -p openakta-daemon --locked
+      
+      - name: Verify no external sqlite-vec dependency (linkage audit)
+        shell: bash
+        run: |
+          echo "=== Checking for external sqlite-vec dependencies ==="
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            echo "Running otool -L on openakta-cli..."
+            otool -L target/release/openakta | grep -i "sqlite_vec" && exit 1 || true
+            otool -L target/release/openakta-daemon | grep -i "sqlite_vec" && exit 1 || true
+            echo "✓ No external sqlite_vec dylib found (static linking confirmed)"
+          else
+            echo "Running ldd on openakta-cli..."
+            ldd target/release/openakta | grep -i "sqlite_vec" && exit 1 || true
+            ldd target/release/openakta-daemon | grep -i "sqlite_vec" && exit 1 || true
+            echo "✓ No external sqlite_vec so found (static linking confirmed)"
+          fi
+      
+      - name: Clean environment smoke test
+        shell: bash
+        run: |
+          echo "=== Running sqlite-vec smoke test in clean environment ==="
+          # Ensure no user-installed sqlite-vec libs are present
+          rm -rf ~/.local/lib/sqlite_vec* 2>/dev/null || true
+          
+          # Run the canonical init test via cargo test
+          cargo test -p openakta-memory test_ensure_sqlite_vec_ready_two_tier_verification --release -- --nocapture
+          
+          echo "✓ Packaged artifacts pass sqlite-vec verification"

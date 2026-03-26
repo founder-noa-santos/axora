@@ -27,7 +27,7 @@ This folder is the **primary narrative** for OPENAKTA architecture: how the syst
 
 | Deprecated direction | Current direction |
 |---------------------|-------------------|
-| Local-only LLM hosting as default | Cloud APIs (Anthropic, OpenAI, etc.) where configured |
+| Local-only LLM hosting as default | Cloud APIs (OpenAI-family) where configured |
 | Cloud-managed vector SaaS as default | Local-friendly stores where implemented |
 | Purely conversational “swarms” | Deterministic orchestration + graph workflows |
 

@@ -128,7 +128,6 @@ pub struct ApiCompatibility {
 #[serde(rename_all = "snake_case")]
 pub enum CompatibilityFamily {
     OpenAi,
-    Anthropic,
     Google,
     Custom,
 }
