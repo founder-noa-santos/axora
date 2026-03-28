@@ -11,10 +11,7 @@ use openakta_agents::{
     CoordinatorConfig, ExecutionTraceRegistry, ExecutionTraceService, LocalModelRef,
     ModelRegistrySnapshot, ProviderRegistry, ProviderRuntimeBundle, RuntimeBlackboard,
 };
-use openakta_api_client::{
-    ApiClientPool, ApiError, ClientConfig, CommandEnvelope, EnvAuthProvider, EvidenceLinkView,
-    ReadModelResponse,
-};
+use openakta_api_client::{ApiClientPool, ClientConfig, EnvAuthProvider};
 use openakta_core::config_resolve::{
     build_model_registry_snapshot, build_provider_bundle, resolve_secrets,
 };
@@ -38,6 +35,10 @@ use openakta_proto::work::v1::{
     SubmitCommandResponse, VerificationCard, VerificationExpectation, VerificationFinding,
     VerificationRun, WorkItem, Workspace,
 };
+use openakta_workflow::{
+    ClosureEngineError, CommandEnvelope, CommandResponse, EvidenceLinkView, MolError,
+    ReadModelResponse, WorkEvent,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
@@ -46,13 +47,15 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::background::execution_card_json::proto_execution_card_from_json;
+use crate::background::local_workflow::{
+    aggregate_type_for_event_type, apply_command, ApplyCommandError,
+};
 use crate::background::work_mirror::{StoredReadModel, WorkMirror};
 use crate::background::work_plan_compiler::{compile_work_plan, CompiledWorkPlan};
 
 #[derive(Clone)]
 pub struct WorkManagementGrpc {
     mirror: WorkMirror,
-    api_client_pool: &'static ApiClientPool,
     config: CoreConfig,
     trace_registry: Arc<ExecutionTraceRegistry>,
     hitl_gate: Arc<MissionHitlGate>,
@@ -67,7 +70,6 @@ impl WorkManagementGrpc {
 
     pub fn open(
         mirror: WorkMirror,
-        api_client_pool: &'static ApiClientPool,
         config: CoreConfig,
         trace_registry: Arc<ExecutionTraceRegistry>,
         hitl_gate: Arc<MissionHitlGate>,
@@ -75,7 +77,6 @@ impl WorkManagementGrpc {
     ) -> Self {
         Self {
             mirror,
-            api_client_pool,
             config,
             trace_registry,
             hitl_gate,
@@ -83,40 +84,157 @@ impl WorkManagementGrpc {
         }
     }
 
-    pub(crate) async fn synced_read_model(
+    pub(crate) async fn authoritative_read_model(
         &self,
         workspace_id: Uuid,
     ) -> Result<StoredReadModel, Status> {
-        match self
-            .api_client_pool
-            .completion_client
-            .get_work_read_model(workspace_id)
-            .await
+        self.mirror
+            .read_model(workspace_id)
+            .map_err(|mirror_err| Status::internal(mirror_err.to_string()))?
+            .ok_or_else(|| Status::not_found("workspace not found"))
+    }
+
+    async fn apply_local_command(
+        &self,
+        workspace_id: Uuid,
+        command: &CommandEnvelope,
+    ) -> Result<CommandResponse, Status> {
+        if let Some(previous) = self
+            .mirror
+            .command_response(command.client_command_id)
+            .map_err(|err| Status::internal(err.to_string()))?
         {
-            Ok(read_model) => {
-                let etag = hash_read_model(&read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                self.mirror
-                    .upsert_read_model(workspace_id, &etag, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                self.mirror
-                    .upsert_verification_index(workspace_id, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                self.mirror
-                    .refresh_persona_memory_index(workspace_id, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                Ok(StoredReadModel {
-                    checkpoint_seq: read_model.checkpoint_seq,
-                    model: read_model,
-                    etag,
-                })
+            if previous.status == "accepted" {
+                let mut duplicate = previous;
+                duplicate.status = "duplicate".to_string();
+                return Ok(duplicate);
             }
-            Err(err) => self
-                .mirror
-                .read_model(workspace_id)
-                .map_err(|mirror_err| Status::internal(mirror_err.to_string()))?
-                .ok_or_else(|| Status::unavailable(err.to_string())),
+            return Ok(previous);
         }
+
+        self.mirror
+            .record_pending_command(workspace_id, command)
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        let current = self
+            .mirror
+            .read_model(workspace_id)
+            .map_err(|err| Status::internal(err.to_string()))?;
+        let current_seq = current
+            .as_ref()
+            .map(|snapshot| snapshot.checkpoint_seq)
+            .unwrap_or(0);
+
+        if command.command_type != "create_workspace" && current.is_none() {
+            self.mirror
+                .mark_command_failed(command.client_command_id, "workspace not found")
+                .map_err(|err| Status::internal(err.to_string()))?;
+            return Err(Status::not_found("workspace not found"));
+        }
+
+        if command.base_seq != current_seq {
+            let response = CommandResponse {
+                status: "conflict".to_string(),
+                resulting_seq: current_seq,
+                event_ids: Vec::new(),
+                read_model_etag: current
+                    .as_ref()
+                    .map(|snapshot| snapshot.etag.clone())
+                    .unwrap_or_default(),
+                conflict_snapshot: current
+                    .as_ref()
+                    .map(|snapshot| serde_json::to_value(&snapshot.model))
+                    .transpose()
+                    .map_err(|err| Status::internal(err.to_string()))?,
+            };
+            self.mirror
+                .store_command_response(workspace_id, command.client_command_id, &response)
+                .map_err(|err| Status::internal(err.to_string()))?;
+            self.mirror
+                .mark_command_failed(
+                    command.client_command_id,
+                    &format!(
+                        "base_seq conflict: expected {current_seq}, got {}",
+                        command.base_seq
+                    ),
+                )
+                .map_err(|err| Status::internal(err.to_string()))?;
+            return Ok(response);
+        }
+
+        let applied = match apply_command(
+            current.map(|snapshot| snapshot.model),
+            workspace_id,
+            command,
+            self.config.mol,
+        ) {
+            Ok(applied) => applied,
+            Err(err) => {
+                self.mirror
+                    .mark_command_failed(command.client_command_id, &err.to_string())
+                    .map_err(|store_err| Status::internal(store_err.to_string()))?;
+                return Err(status_from_apply_error(err));
+            }
+        };
+
+        let resulting_seq = current_seq + 1;
+        let mut read_model = applied.read_model;
+        read_model.checkpoint_seq = resulting_seq;
+        let read_model_etag =
+            hash_read_model(&read_model).map_err(|err| Status::internal(err.to_string()))?;
+        self.mirror
+            .upsert_read_model(workspace_id, &read_model_etag, &read_model)
+            .map_err(|err| Status::internal(err.to_string()))?;
+        self.mirror
+            .upsert_verification_index(workspace_id, &read_model)
+            .map_err(|err| Status::internal(err.to_string()))?;
+        self.mirror
+            .refresh_persona_memory_index(workspace_id, &read_model)
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        let event_id = Uuid::new_v4();
+        let event_payload = json!({
+            "command_type": command.command_type,
+            "result": applied.result_json,
+            "actor_context": command.actor_context,
+        });
+        let payload_bytes =
+            serde_json::to_vec(&event_payload).map_err(|err| Status::internal(err.to_string()))?;
+        let event = WorkEvent {
+            workspace_id,
+            event_seq: resulting_seq,
+            event_id,
+            aggregate_type: aggregate_type_for_event_type(&applied.event_type).to_string(),
+            aggregate_id: applied.aggregate_id,
+            event_type: applied.event_type,
+            actor_user_id: actor_user_id(command.actor_context.as_ref()),
+            actor_kind: actor_kind(command.actor_context.as_ref()),
+            client_command_id: command.client_command_id,
+            causation_id: None,
+            correlation_id: None,
+            payload_json: event_payload,
+            content_hash: hash_bytes(&payload_bytes),
+            occurred_at: Utc::now(),
+            privacy_class: "content".to_string(),
+        };
+        self.mirror
+            .append_work_event(&event)
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        let response = CommandResponse {
+            status: "accepted".to_string(),
+            resulting_seq,
+            event_ids: vec![event_id],
+            read_model_etag: read_model_etag.clone(),
+            conflict_snapshot: None,
+        };
+        self.mirror
+            .store_command_response(workspace_id, command.client_command_id, &response)
+            .map_err(|err| Status::internal(err.to_string()))?;
+        self.mirror
+            .mark_command_applied(command.client_command_id)
+            .map_err(|err| Status::internal(err.to_string()))?;
+        Ok(response)
     }
 
     async fn execute_compiled_plan(
@@ -317,7 +435,7 @@ impl WorkManagementGrpc {
     ) -> Result<()> {
         for _ in 0..3 {
             let snapshot = self
-                .synced_read_model(workspace_id)
+                .authoritative_read_model(workspace_id)
                 .await
                 .map_err(|status| anyhow!(status.to_string()))?;
             let command = CommandEnvelope {
@@ -332,29 +450,11 @@ impl WorkManagementGrpc {
             };
 
             let response = self
-                .api_client_pool
-                .completion_client
-                .submit_work_command(workspace_id, &command)
-                .await?;
+                .apply_local_command(workspace_id, &command)
+                .await
+                .map_err(|status| anyhow!(status.to_string()))?;
             match response.status.as_str() {
-                "accepted" | "duplicate" => {
-                    let refreshed = self
-                        .api_client_pool
-                        .completion_client
-                        .get_work_read_model(workspace_id)
-                        .await?;
-                    let etag = hash_read_model(&refreshed)?;
-                    self.mirror
-                        .upsert_read_model(workspace_id, &etag, &refreshed)
-                        .context("refresh mirrored read model after system command")?;
-                    self.mirror
-                        .upsert_verification_index(workspace_id, &refreshed)
-                        .context("refresh local verification index after system command")?;
-                    self.mirror
-                        .refresh_persona_memory_index(workspace_id, &refreshed)
-                        .context("refresh local persona memory index after system command")?;
-                    return Ok(());
-                }
+                "accepted" | "duplicate" => return Ok(()),
                 "conflict" => continue,
                 other => {
                     return Err(anyhow!(
@@ -393,7 +493,7 @@ impl WorkManagementGrpc {
     }
 
     /// After a successful mission run: `closure_pending`, claims, gates, verification drain, then
-    /// a best-effort `closed` transition when the API closure engine (ABC1) accepts it.
+    /// a best-effort `closed` transition when the local closure engine (ABC1) accepts it.
     /// Open findings may block unless `MOL_CLOSURE_ALLOW_OPEN_FINDINGS=true` (see `MolFeatureFlags`).
     async fn record_execution_success(
         &self,
@@ -404,7 +504,7 @@ impl WorkManagementGrpc {
             return Ok(());
         };
         let snapshot = self
-            .synced_read_model(workspace_id)
+            .authoritative_read_model(workspace_id)
             .await
             .map_err(|status| anyhow!(status.to_string()))?;
 
@@ -586,9 +686,9 @@ impl WorkManagementGrpc {
         Ok(())
     }
 
-    /// Best-effort `closed` after gates/verification. The API returns structured `CLOSURE_*` codes
-    /// when the closure engine rejects the transition (ABC1/ABC2); those are expected until the
-    /// story is fully ready — treat as success so mission success still completes.
+    /// Best-effort `closed` after gates/verification. Local workflow validation returns structured
+    /// `CLOSURE_*` codes when the closure engine rejects the transition (ABC1/ABC2); those are
+    /// expected until the story is fully ready, so mission success still completes.
     async fn submit_close_story_preparation_if_eligible(
         &self,
         workspace_id: Uuid,
@@ -652,7 +752,7 @@ impl WorkManagementService for WorkManagementGrpc {
         request: Request<ListWorkItemsRequest>,
     ) -> Result<Response<ListWorkItemsResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(ListWorkItemsResponse {
             items: snapshot
                 .model
@@ -669,7 +769,7 @@ impl WorkManagementService for WorkManagementGrpc {
         request: Request<GetBoardRequest>,
     ) -> Result<Response<GetBoardResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(GetBoardResponse {
             workspace: Some(proto_workspace(&snapshot.model.workspace)),
             cycles: snapshot.model.cycles.iter().map(proto_cycle).collect(),
@@ -697,7 +797,7 @@ impl WorkManagementService for WorkManagementGrpc {
     ) -> Result<Response<GetPlanVersionResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let plan_version_id = parse_uuid(&request.get_ref().plan_version_id, "plan_version_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let plan_version = snapshot
             .model
             .plan_versions
@@ -715,7 +815,7 @@ impl WorkManagementService for WorkManagementGrpc {
     ) -> Result<Response<GetStoryIntakeResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let story_id = parse_uuid(&request.get_ref().story_id, "story_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let story = snapshot
             .model
             .story_intakes
@@ -732,7 +832,7 @@ impl WorkManagementService for WorkManagementGrpc {
         request: Request<ListPreparedStoriesRequest>,
     ) -> Result<Response<ListPreparedStoriesResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(ListPreparedStoriesResponse {
             items: snapshot
                 .model
@@ -751,7 +851,7 @@ impl WorkManagementService for WorkManagementGrpc {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let prepared_story_id =
             parse_uuid(&request.get_ref().prepared_story_id, "prepared_story_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let prepared_story = snapshot
             .model
             .story_preparations
@@ -770,7 +870,7 @@ impl WorkManagementService for WorkManagementGrpc {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let story_id = parse_optional_uuid(&request.get_ref().story_id)?;
         let prepared_story_id = parse_optional_uuid(&request.get_ref().prepared_story_id)?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let scoped_req_ids = scoped_requirement_ids(&snapshot.model, story_id, prepared_story_id);
         let prepared_ids_for_story = story_scoped_prepared_story_ids(&snapshot.model, story_id);
         Ok(Response::new(GetRequirementGraphResponse {
@@ -779,7 +879,8 @@ impl WorkManagementService for WorkManagementGrpc {
                 .requirements
                 .iter()
                 .filter(|requirement| {
-                    filter_story_scoped(
+                    requirement_matches_scope(
+                        &snapshot.model,
                         requirement.story_id,
                         requirement.prepared_story_id,
                         story_id,
@@ -836,7 +937,7 @@ impl WorkManagementService for WorkManagementGrpc {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let story_id = parse_optional_uuid(&request.get_ref().story_id)?;
         let prepared_story_id = parse_optional_uuid(&request.get_ref().prepared_story_id)?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(ListVerificationRunsResponse {
             items: snapshot
                 .model
@@ -864,7 +965,7 @@ impl WorkManagementService for WorkManagementGrpc {
             &request.get_ref().verification_run_id,
             "verification_run_id",
         )?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(ListVerificationFindingsResponse {
             items: snapshot
                 .model
@@ -883,7 +984,7 @@ impl WorkManagementService for WorkManagementGrpc {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let story_id = parse_optional_uuid(&request.get_ref().story_id)?;
         let prepared_story_id = parse_optional_uuid(&request.get_ref().prepared_story_id)?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let scoped_req_ids = scoped_requirement_ids(&snapshot.model, story_id, prepared_story_id);
         let scoped_run_ids =
             scoped_verification_run_ids(&snapshot.model, story_id, prepared_story_id);
@@ -899,7 +1000,8 @@ impl WorkManagementService for WorkManagementGrpc {
                     .requirements
                     .iter()
                     .filter(|requirement| {
-                        filter_story_scoped(
+                        requirement_matches_scope(
+                            &snapshot.model,
                             requirement.story_id,
                             requirement.prepared_story_id,
                             story_id,
@@ -956,7 +1058,7 @@ impl WorkManagementService for WorkManagementGrpc {
         request: Request<ListPersonaAssignmentsRequest>,
     ) -> Result<Response<ListPersonaAssignmentsResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(ListPersonaAssignmentsResponse {
             items: snapshot.model.personas.iter().map(proto_persona).collect(),
             assignments: snapshot
@@ -975,7 +1077,7 @@ impl WorkManagementService for WorkManagementGrpc {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
         let story_id = parse_optional_uuid(&request.get_ref().story_id)?;
         let prepared_story_id = parse_optional_uuid(&request.get_ref().prepared_story_id)?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let decision = snapshot
             .model
             .execution_profile_decisions
@@ -1016,58 +1118,21 @@ impl WorkManagementService for WorkManagementGrpc {
             actor_context,
         };
 
-        self.mirror
-            .record_pending_command(workspace_id, &command)
-            .map_err(|err| Status::internal(err.to_string()))?;
-
-        let response = self
-            .api_client_pool
-            .completion_client
-            .submit_work_command(workspace_id, &command)
-            .await
-            .map_err(|err| Status::unavailable(err.to_string()));
-
-        match response {
-            Ok(response) => {
-                let read_model = self
-                    .api_client_pool
-                    .completion_client
-                    .get_work_read_model(workspace_id)
-                    .await
-                    .map_err(|err| Status::unavailable(err.to_string()))?;
-                let etag = if response.read_model_etag.is_empty() {
-                    hash_read_model(&read_model).map_err(|err| Status::internal(err.to_string()))?
-                } else {
-                    response.read_model_etag.clone()
-                };
-                self.mirror
-                    .upsert_read_model(workspace_id, &etag, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                self.mirror
-                    .mark_command_applied(client_command_id)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                Ok(Response::new(SubmitCommandResponse {
-                    status: response.status,
-                    resulting_seq: response.resulting_seq,
-                    event_ids: response
-                        .event_ids
-                        .into_iter()
-                        .map(|id| id.to_string())
-                        .collect(),
-                    read_model_etag: etag,
-                    conflict_snapshot_json: response
-                        .conflict_snapshot
-                        .map(|value| value.to_string())
-                        .unwrap_or_default(),
-                }))
-            }
-            Err(status) => {
-                self.mirror
-                    .mark_command_failed(client_command_id, status.message())
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                Err(status)
-            }
-        }
+        let response = self.apply_local_command(workspace_id, &command).await?;
+        Ok(Response::new(SubmitCommandResponse {
+            status: response.status,
+            resulting_seq: response.resulting_seq,
+            event_ids: response
+                .event_ids
+                .into_iter()
+                .map(|id| id.to_string())
+                .collect(),
+            read_model_etag: response.read_model_etag,
+            conflict_snapshot_json: response
+                .conflict_snapshot
+                .map(|value| value.to_string())
+                .unwrap_or_default(),
+        }))
     }
 
     async fn get_clarification_queue(
@@ -1075,7 +1140,7 @@ impl WorkManagementService for WorkManagementGrpc {
         request: Request<GetClarificationQueueRequest>,
     ) -> Result<Response<GetClarificationQueueResponse>, Status> {
         let workspace_id = parse_uuid(&request.get_ref().workspace_id, "workspace_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         Ok(Response::new(GetClarificationQueueResponse {
             items: snapshot
                 .model
@@ -1125,7 +1190,7 @@ impl WorkManagementService for WorkManagementGrpc {
             })
             .collect::<Result<Vec<_>, Status>>()?;
 
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
 
         let command = CommandEnvelope {
             client_command_id: Uuid::new_v4(),
@@ -1138,54 +1203,15 @@ impl WorkManagementService for WorkManagementGrpc {
             actor_context: None,
         };
 
-        match self
-            .api_client_pool
-            .completion_client
-            .submit_work_command(workspace_id, &command)
-            .await
-        {
-            Ok(response) => {
-                let read_model = self
-                    .api_client_pool
-                    .completion_client
-                    .get_work_read_model(workspace_id)
-                    .await
-                    .map_err(|err| Status::unavailable(err.to_string()))?;
-                let etag = if response.read_model_etag.is_empty() {
-                    hash_read_model(&read_model).map_err(|err| Status::internal(err.to_string()))?
-                } else {
-                    response.read_model_etag.clone()
-                };
-                self.mirror
-                    .upsert_read_model(workspace_id, &etag, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                self.mirror
-                    .upsert_verification_index(workspace_id, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                self.mirror
-                    .refresh_persona_memory_index(workspace_id, &read_model)
-                    .map_err(|err| Status::internal(err.to_string()))?;
-                Ok(Response::new(ResolveClarificationsResponse {
-                    resolved_count: answers.len() as i32,
-                }))
-            }
-            Err(err) => {
-                if clarification_mirror_fallback_allowed(&err) {
-                    warn!(
-                        error = %err,
-                        "resolve_clarifications: hosted API unavailable; applying answers to local mirror only (not canonical until API sync)"
-                    );
-                    let resolved_count = self
-                        .mirror
-                        .resolve_clarifications(workspace_id, &session_id_str, &answers)
-                        .map_err(|e| Status::internal(e.to_string()))?;
-                    Ok(Response::new(ResolveClarificationsResponse {
-                        resolved_count: resolved_count as i32,
-                    }))
-                } else {
-                    Err(map_clarification_api_error(err))
-                }
-            }
+        let response = self.apply_local_command(workspace_id, &command).await?;
+        match response.status.as_str() {
+            "accepted" | "duplicate" => Ok(Response::new(ResolveClarificationsResponse {
+                resolved_count: answers.len() as i32,
+            })),
+            "conflict" => Err(Status::aborted("clarification command conflict")),
+            other => Err(Status::internal(format!(
+                "unexpected clarification command status: {other}"
+            ))),
         }
     }
 
@@ -1195,7 +1221,7 @@ impl WorkManagementService for WorkManagementGrpc {
     ) -> Result<Response<StartExecutionResponse>, Status> {
         let request = request.into_inner();
         let workspace_id = parse_uuid(&request.workspace_id, "workspace_id")?;
-        let snapshot = self.synced_read_model(workspace_id).await?;
+        let snapshot = self.authoritative_read_model(workspace_id).await?;
         let selected_work_item_ids = request
             .work_item_ids
             .iter()
@@ -1434,6 +1460,65 @@ fn parse_optional_json_field(
 fn hash_read_model(read_model: &ReadModelResponse) -> Result<String> {
     let bytes = serde_json::to_vec(read_model)?;
     Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+fn status_from_apply_error(err: ApplyCommandError) -> Status {
+    match err {
+        ApplyCommandError::WorkspaceNotFound => Status::not_found("workspace not found"),
+        ApplyCommandError::NotFound(kind) => Status::not_found(format!("{kind} not found")),
+        ApplyCommandError::BadRequest(message) => Status::invalid_argument(message),
+        ApplyCommandError::Mol(err) => status_from_mol_error(err),
+        ApplyCommandError::Closure(err) => status_from_closure_error(err),
+    }
+}
+
+fn status_from_mol_error(err: MolError) -> Status {
+    let code = match &err {
+        MolError::UnknownStoryIntakeStatus(_) => "INVALID_STORY_INTAKE_STATUS",
+        MolError::UnknownStoryPreparationStatus(_) => "INVALID_STORY_PREPARATION_STATUS",
+        MolError::IllegalStoryPreparationTransition { .. } => {
+            "INVALID_STORY_PREPARATION_TRANSITION"
+        }
+        MolError::IllegalStoryIntakeTransition { .. } => "INVALID_STORY_INTAKE_TRANSITION",
+        MolError::IllegalStoryIntakeCapture { .. } => "INVALID_STORY_INTAKE_CAPTURE",
+        MolError::LegacyFenceViolation { .. } => "LEGACY_FENCE_VIOLATION",
+        MolError::UnknownPersona { .. } => "UNKNOWN_PERSONA",
+        MolError::PersonaSubjectMismatch { .. } => "PERSONA_SUBJECT_MISMATCH",
+        _ => "MOL_ERROR",
+    };
+    Status::invalid_argument(format!("{code}: {err}"))
+}
+
+fn status_from_closure_error(err: ClosureEngineError) -> Status {
+    let code = match &err {
+        ClosureEngineError::EmptyClosureBasis => "CLOSURE_EMPTY_BASIS",
+        ClosureEngineError::GateNotSatisfied { .. } => "CLOSURE_GATE_NOT_SATISFIED",
+        ClosureEngineError::ClaimMissingOrPending { .. } => "CLOSURE_CLAIM_MISSING",
+        ClosureEngineError::VerificationRunIncomplete { .. } => {
+            "CLOSURE_BLOCKED_VERIFICATION_INCOMPLETE"
+        }
+        ClosureEngineError::FindingOpen { .. } => "CLOSURE_BLOCKED_OPEN_FINDINGS",
+        ClosureEngineError::HandoffIncomplete { .. } => "CLOSURE_HANDOFF_INCOMPLETE",
+        ClosureEngineError::AcceptanceNotSatisfied { .. } => "CLOSURE_ACCEPTANCE_NOT_SATISFIED",
+        _ => "CLOSURE_ENGINE_ERROR",
+    };
+    Status::failed_precondition(format!("{code}: {err}"))
+}
+
+fn actor_user_id(actor_context: Option<&Value>) -> Uuid {
+    actor_context
+        .and_then(|ctx| ctx.get("user_id").or_else(|| ctx.get("actor_user_id")))
+        .and_then(Value::as_str)
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .unwrap_or_else(Uuid::nil)
+}
+
+fn actor_kind(actor_context: Option<&Value>) -> String {
+    actor_context
+        .and_then(|ctx| ctx.get("actor_kind"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+        .unwrap_or_else(|| "unknown".to_string())
 }
 
 fn proto_workspace(workspace: &openakta_api_client::WorkspaceView) -> Workspace {
@@ -2043,10 +2128,47 @@ fn scoped_requirement_ids(
         .requirements
         .iter()
         .filter(|r| {
-            filter_story_scoped(r.story_id, r.prepared_story_id, story_id, prepared_story_id)
+            requirement_matches_scope(
+                model,
+                r.story_id,
+                r.prepared_story_id,
+                story_id,
+                prepared_story_id,
+            )
         })
         .map(|r| r.id)
         .collect()
+}
+
+fn prepared_story_scope_story_id(
+    model: &ReadModelResponse,
+    prepared_story_id: Option<Uuid>,
+) -> Option<Uuid> {
+    let prepared_story_id = prepared_story_id?;
+    model
+        .story_preparations
+        .iter()
+        .find(|story| story.id == prepared_story_id)
+        .map(|story| story.story_id)
+}
+
+fn requirement_matches_scope(
+    model: &ReadModelResponse,
+    item_story_id: Option<Uuid>,
+    item_prepared_story_id: Option<Uuid>,
+    story_id: Option<Uuid>,
+    prepared_story_id: Option<Uuid>,
+) -> bool {
+    let story_ok = story_id.is_none() || item_story_id == story_id;
+    if let Some(prepared_story_id) = prepared_story_id {
+        let prepared_story_story_id = prepared_story_scope_story_id(model, Some(prepared_story_id));
+        return story_ok
+            && (item_prepared_story_id == Some(prepared_story_id)
+                || (item_prepared_story_id.is_none()
+                    && prepared_story_story_id.is_some()
+                    && item_story_id == prepared_story_story_id));
+    }
+    story_ok
 }
 
 fn story_scoped_prepared_story_ids(
@@ -2148,26 +2270,388 @@ fn proto_evidence(item: &EvidenceLinkView) -> EvidenceLink {
     }
 }
 
-/// When the hosted API cannot be reached, [`WorkManagementGrpc::resolve_clarifications`] falls back
-/// to [`WorkMirror::resolve_clarifications`] (local-only). All other API failures surface to the
-/// client so base-seq conflicts and validation errors are not silently mirrored.
-fn clarification_mirror_fallback_allowed(err: &ApiError) -> bool {
-    matches!(
-        err,
-        ApiError::Unavailable(_)
-            | ApiError::ConnectionRefused(_)
-            | ApiError::Timeout(_)
-            | ApiError::CircuitOpen
-    )
-}
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
 
-fn map_clarification_api_error(err: ApiError) -> Status {
-    match err {
-        ApiError::InvalidRequest(msg) => Status::invalid_argument(msg),
-        ApiError::Unauthenticated(msg) | ApiError::AuthFailed(msg) => Status::unauthenticated(msg),
-        ApiError::Unavailable(msg) => Status::unavailable(msg),
-        ApiError::Timeout(msg) => Status::deadline_exceeded(msg),
-        ApiError::RateLimited(msg) => Status::resource_exhausted(msg),
-        other => Status::failed_precondition(other.to_string()),
+    use super::{
+        apply_command, hash_read_model, requirement_matches_scope, scoped_requirement_ids,
+        WorkManagementGrpc,
+    };
+    use chrono::Utc;
+    use openakta_agents::hitl::{HitlConfig, MissionHitlGate};
+    use openakta_agents::ExecutionTraceRegistry;
+    use openakta_core::CoreConfig;
+    use openakta_workflow::{
+        ClarificationItemView, ClosureClaimView, ClosureGateView, DecisionRecordView,
+        DependencyEdgeView, ExecutionProfileDecisionView, HandoffContractView,
+        KnowledgeArtifactView, MemoryPromotionEventView, PersonaAssignmentView, PersonaView,
+        PlanVersionView, ReadModelResponse, RequirementCoverageView, RequirementEdgeView,
+        RequirementView, StoryIntakeView, StoryPreparationView, VerificationFindingView,
+        VerificationRunView, WorkItemView, WorkspaceView,
+    };
+    use serde_json::json;
+    use tempfile::TempDir;
+    use tonic::Code;
+    use uuid::Uuid;
+
+    use crate::background::work_mirror::WorkMirror;
+
+    #[test]
+    fn prepared_story_scope_includes_story_level_requirements() {
+        let read_model = sample_read_model();
+        let prepared_story_id = read_model.story_preparations[0].id;
+        let story_id = read_model.story_preparations[0].story_id;
+        let direct_requirement_id = read_model.requirements[0].id;
+        let story_requirement_id = read_model.requirements[1].id;
+        let other_requirement_id = read_model.requirements[2].id;
+
+        let scoped = scoped_requirement_ids(&read_model, None, Some(prepared_story_id));
+        assert!(scoped.contains(&direct_requirement_id));
+        assert!(scoped.contains(&story_requirement_id));
+        assert!(!scoped.contains(&other_requirement_id));
+
+        assert!(requirement_matches_scope(
+            &read_model,
+            Some(story_id),
+            None,
+            None,
+            Some(prepared_story_id),
+        ));
+    }
+
+    #[tokio::test]
+    async fn duplicate_commands_reuse_the_local_result() {
+        let (_tempdir, service) = test_service();
+        let workspace_id = Uuid::new_v4();
+        let command_id = Uuid::new_v4();
+        let command = command(
+            command_id,
+            0,
+            "create_workspace",
+            json!({
+                "slug": format!("workspace-{}", workspace_id.as_simple()),
+                "name": "Workspace",
+            }),
+        );
+
+        let first = service
+            .apply_local_command(workspace_id, &command)
+            .await
+            .expect("first command accepted");
+        let duplicate = service
+            .apply_local_command(workspace_id, &command)
+            .await
+            .expect("duplicate command returns cached response");
+
+        assert_eq!(first.status, "accepted");
+        assert_eq!(duplicate.status, "duplicate");
+        assert_eq!(duplicate.resulting_seq, first.resulting_seq);
+        assert_eq!(duplicate.read_model_etag, first.read_model_etag);
+        assert_eq!(duplicate.event_ids, first.event_ids);
+    }
+
+    #[tokio::test]
+    async fn stale_base_seq_conflicts_are_persisted_locally() {
+        let (_tempdir, service) = test_service();
+        let workspace_id = Uuid::new_v4();
+        let create = command(
+            Uuid::new_v4(),
+            0,
+            "create_workspace",
+            json!({
+                "slug": format!("workspace-{}", workspace_id.as_simple()),
+                "name": "Workspace",
+            }),
+        );
+        service
+            .apply_local_command(workspace_id, &create)
+            .await
+            .expect("workspace created");
+
+        let stale_id = Uuid::new_v4();
+        let stale = command(
+            stale_id,
+            0,
+            "create_planning_cycle",
+            json!({
+                "cadence_mode": "weekly",
+                "planning_mode": "manual",
+                "status": "active",
+                "phases": [],
+            }),
+        );
+
+        let conflict = service
+            .apply_local_command(workspace_id, &stale)
+            .await
+            .expect("conflict response");
+        let replay = service
+            .apply_local_command(workspace_id, &stale)
+            .await
+            .expect("replayed conflict response");
+
+        assert_eq!(conflict.status, "conflict");
+        assert_eq!(conflict.resulting_seq, 1);
+        assert_eq!(replay.status, "conflict");
+        assert_eq!(replay.resulting_seq, conflict.resulting_seq);
+        assert_eq!(
+            service
+                .mirror
+                .command_response(stale_id)
+                .expect("stored response")
+                .expect("conflict persisted")
+                .status,
+            "conflict"
+        );
+    }
+
+    #[test]
+    fn clarification_answers_are_applied_locally() {
+        let mut read_model = sample_read_model();
+        let workspace_id = read_model.workspace.id;
+        let session_id = Uuid::new_v4();
+        let clarification_id = Uuid::new_v4();
+        read_model.clarifications.push(ClarificationItemView {
+            id: clarification_id,
+            workspace_id,
+            cycle_id: None,
+            work_item_id: None,
+            story_id: Some(read_model.story_intakes[0].id),
+            requirement_id: None,
+            mission_id: Some("mission-123".to_string()),
+            task_id: Some("task-456".to_string()),
+            question_kind: "choice".to_string(),
+            prompt_text: "Which path?".to_string(),
+            schema_json: None,
+            options_json: Some(json!(["a", "b"])),
+            dedupe_fingerprint: "fingerprint".to_string(),
+            status: "pending".to_string(),
+            raised_by_agent_id: Some("planner".to_string()),
+            created_at: Utc::now(),
+            answered_at: None,
+        });
+
+        let applied = apply_command(
+            Some(read_model),
+            workspace_id,
+            &command(
+                Uuid::new_v4(),
+                1,
+                "record_clarification_answers",
+                json!({
+                    "session_id": session_id,
+                    "answers": [{
+                        "clarification_item_id": clarification_id,
+                        "answer_json": { "selection": "a" },
+                    }],
+                }),
+            ),
+            openakta_workflow::MolFeatureFlags::default(),
+        )
+        .expect("clarification answers applied");
+
+        let clarification = applied
+            .read_model
+            .clarifications
+            .iter()
+            .find(|item| item.id == clarification_id)
+            .expect("clarification row present");
+        assert_eq!(clarification.status, "answered");
+        assert!(clarification.answered_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn close_transition_uses_local_closure_rules() {
+        let (_tempdir, service) = test_service();
+        let mut read_model = sample_read_model();
+        let workspace_id = read_model.workspace.id;
+        let prepared_story_id = read_model.story_preparations[0].id;
+        read_model.story_preparations[0].status = "closure_pending".to_string();
+
+        let etag = hash_read_model(&read_model).expect("etag");
+        service
+            .mirror
+            .upsert_read_model(workspace_id, &etag, &read_model)
+            .expect("read model seeded");
+
+        let err = service
+            .apply_local_command(
+                workspace_id,
+                &command(
+                    Uuid::new_v4(),
+                    read_model.checkpoint_seq,
+                    "transition_story_preparation",
+                    json!({
+                        "prepared_story_id": prepared_story_id,
+                        "status": "closed",
+                    }),
+                ),
+            )
+            .await
+            .expect_err("closure should be rejected");
+
+        assert_eq!(err.code(), Code::FailedPrecondition);
+        assert!(err.message().contains("CLOSURE_EMPTY_BASIS"));
+    }
+
+    fn test_service() -> (TempDir, WorkManagementGrpc) {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let workspace_root = tempdir.path().join("workspace");
+        std::fs::create_dir_all(&workspace_root).expect("workspace dir");
+        let mirror = WorkMirror::open(tempdir.path().join("work-management.db")).expect("mirror");
+        let config = CoreConfig::for_workspace(&workspace_root);
+        let trace_registry = Arc::new(ExecutionTraceRegistry::new(tempdir.path().join("traces")));
+        let hitl_gate = Arc::new(MissionHitlGate::new(
+            HitlConfig {
+                checkpoint_dir: tempdir.path().join("checkpoints"),
+                ..Default::default()
+            },
+            None,
+        ));
+        let service =
+            WorkManagementGrpc::open(mirror, config, trace_registry, hitl_gate, workspace_root);
+        (tempdir, service)
+    }
+
+    fn command(
+        client_command_id: Uuid,
+        base_seq: i64,
+        command_type: &str,
+        payload: serde_json::Value,
+    ) -> super::CommandEnvelope {
+        super::CommandEnvelope {
+            client_command_id,
+            base_seq,
+            command_type: command_type.to_string(),
+            payload,
+            actor_context: None,
+        }
+    }
+
+    fn sample_read_model() -> ReadModelResponse {
+        let workspace_id = Uuid::parse_str("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa").unwrap();
+        let story_id = Uuid::parse_str("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb").unwrap();
+        let other_story_id = Uuid::parse_str("12121212-3434-5656-7878-909090909090").unwrap();
+        let prepared_story_id = Uuid::parse_str("cccccccc-cccc-cccc-cccc-cccccccccccc").unwrap();
+        let now = Utc::now();
+
+        ReadModelResponse {
+            workspace: WorkspaceView {
+                id: workspace_id,
+                tenant_id: "tenant".to_string(),
+                slug: "workspace".to_string(),
+                name: "Workspace".to_string(),
+                created_by: Uuid::nil(),
+                created_at: now,
+            },
+            cycles: Vec::new(),
+            phases: Vec::new(),
+            work_items: Vec::<WorkItemView>::new(),
+            dependencies: Vec::<DependencyEdgeView>::new(),
+            clarifications: Vec::<ClarificationItemView>::new(),
+            decisions: Vec::<DecisionRecordView>::new(),
+            plan_versions: Vec::<PlanVersionView>::new(),
+            story_intakes: vec![StoryIntakeView {
+                id: story_id,
+                workspace_id,
+                external_ref: None,
+                title: "Story".to_string(),
+                raw_request_md: "Build it".to_string(),
+                source_kind: "manual".to_string(),
+                status: "ready".to_string(),
+                urgency: "normal".to_string(),
+                priority_band: "p2".to_string(),
+                affected_surfaces_json: None,
+                created_by: Uuid::nil(),
+                created_at: now,
+                updated_at: now,
+            }],
+            story_preparations: vec![StoryPreparationView {
+                id: prepared_story_id,
+                workspace_id,
+                story_id,
+                status: "ready".to_string(),
+                mission_card_json: json!({"story_summary": "Prepared story"}),
+                execution_card_json: None,
+                dependency_summary_json: None,
+                readiness_blockers_json: Some(json!([])),
+                primary_execution_profile: "Balanced".to_string(),
+                created_by: Uuid::nil(),
+                created_at: now,
+                updated_at: now,
+                ready_at: Some(now),
+            }],
+            requirements: vec![
+                RequirementView {
+                    id: Uuid::parse_str("11111111-1111-1111-1111-111111111111").unwrap(),
+                    workspace_id,
+                    story_id: Some(story_id),
+                    prepared_story_id: Some(prepared_story_id),
+                    plan_version_id: None,
+                    parent_requirement_id: None,
+                    title: "Prepared requirement".to_string(),
+                    statement: "Must be true".to_string(),
+                    kind: "functional".to_string(),
+                    criticality: "must".to_string(),
+                    source: "story".to_string(),
+                    ambiguity_state: "clear".to_string(),
+                    owner_persona_id: None,
+                    status: "active".to_string(),
+                    created_at: now,
+                    updated_at: now,
+                },
+                RequirementView {
+                    id: Uuid::parse_str("22222222-2222-2222-2222-222222222222").unwrap(),
+                    workspace_id,
+                    story_id: Some(story_id),
+                    prepared_story_id: None,
+                    plan_version_id: None,
+                    parent_requirement_id: None,
+                    title: "Story requirement".to_string(),
+                    statement: "Also must be true".to_string(),
+                    kind: "functional".to_string(),
+                    criticality: "must".to_string(),
+                    source: "story".to_string(),
+                    ambiguity_state: "clear".to_string(),
+                    owner_persona_id: None,
+                    status: "active".to_string(),
+                    created_at: now,
+                    updated_at: now,
+                },
+                RequirementView {
+                    id: Uuid::parse_str("33333333-3333-3333-3333-333333333333").unwrap(),
+                    workspace_id,
+                    story_id: Some(other_story_id),
+                    prepared_story_id: None,
+                    plan_version_id: None,
+                    parent_requirement_id: None,
+                    title: "Other story requirement".to_string(),
+                    statement: "Should not leak".to_string(),
+                    kind: "functional".to_string(),
+                    criticality: "must".to_string(),
+                    source: "story".to_string(),
+                    ambiguity_state: "clear".to_string(),
+                    owner_persona_id: None,
+                    status: "active".to_string(),
+                    created_at: now,
+                    updated_at: now,
+                },
+            ],
+            requirement_edges: Vec::<RequirementEdgeView>::new(),
+            acceptance_checks: Vec::new(),
+            requirement_coverage: Vec::<RequirementCoverageView>::new(),
+            handoff_contracts: Vec::<HandoffContractView>::new(),
+            execution_profile_decisions: Vec::<ExecutionProfileDecisionView>::new(),
+            verification_runs: Vec::<VerificationRunView>::new(),
+            verification_findings: Vec::<VerificationFindingView>::new(),
+            closure_claims: Vec::<ClosureClaimView>::new(),
+            closure_gates: Vec::<ClosureGateView>::new(),
+            personas: Vec::<PersonaView>::new(),
+            persona_assignments: Vec::<PersonaAssignmentView>::new(),
+            knowledge_artifacts: Vec::<KnowledgeArtifactView>::new(),
+            memory_promotion_events: Vec::<MemoryPromotionEventView>::new(),
+            checkpoint_seq: 1,
+        }
     }
 }

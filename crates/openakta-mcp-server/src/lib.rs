@@ -11,12 +11,13 @@ use mass_refactor::{
 };
 use openakta_agents::hitl::MissionHitlGate;
 use openakta_cache::UnifiedDiff;
-use openakta_embeddings::CodeEmbeddingConfig;
+use openakta_embeddings::{CodeEmbeddingConfig, JinaCodeEmbedder};
 use openakta_indexing::{
-    Chunker, CollectionSpec, Language, ParserRegistry, SCIPIndex, VectorBackendKind,
+    Chunker, CollectionSpec, Language, ParserRegistry, TantivyCodeIndex, VectorBackendKind,
 };
 use openakta_memory::{SkillRetrievalConfig, SkillRetrievalPipeline};
 use openakta_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalService;
+use openakta_proto::mcp::v1::retrieval_service_server::RetrievalService;
 use openakta_proto::mcp::v1::tool_service_server::ToolService;
 use openakta_proto::mcp::v1::{
     AuditEvent, CandidateScore, CapabilityPolicy, ListToolsRequest, ListToolsResponse,
@@ -24,9 +25,7 @@ use openakta_proto::mcp::v1::{
     RetrieveSkillsRequest, RetrieveSkillsResponse, RetrievedCodeContext, RetrievedSkill,
     StreamAuditRequest, ToolCallRequest, ToolCallResult, ToolDefinition,
 };
-use openakta_rag::{
-    StructuralCodeRetrievalConfig, StructuralCodeRetrievalRequest, StructuralCodeRetriever,
-};
+use openakta_rag::{CodeRetrievalPipeline, CodeRetrievalQuery, RetrievalDiagnosticsData};
 use parking_lot::RwLock;
 use prost_types::{value::Kind, ListValue, Struct, Timestamp, Value};
 use std::collections::HashMap;
@@ -89,6 +88,10 @@ pub struct McpServiceConfig {
     pub code_collection: CollectionSpec,
     /// Code embedding configuration.
     pub code_embedding: CodeEmbeddingConfig,
+    /// Tantivy BM25 index directory for code retrieval.
+    pub code_bm25_dir: PathBuf,
+    /// Persisted Merkle state for incremental code indexing.
+    pub code_index_state_path: PathBuf,
     /// Default code retrieval budget.
     pub code_retrieval_budget_tokens: usize,
     /// Skill retrieval configuration.
@@ -117,6 +120,8 @@ impl Default for McpServiceConfig {
             dense_store_path: PathBuf::from(".openakta/vectors.db"),
             code_collection: CollectionSpec::code_default(),
             code_embedding: CodeEmbeddingConfig::default(),
+            code_bm25_dir: PathBuf::from(".openakta/code-bm25"),
+            code_index_state_path: PathBuf::from(".openakta/code-index-state.json"),
             code_retrieval_budget_tokens: 2_000,
             skill_config: SkillRetrievalConfig::default(),
             hitl_gate: None,
@@ -227,6 +232,7 @@ pub struct ToolExecutionContext<'a> {
     scope: PathBuf,
     config: &'a McpServiceConfig,
     executor: &'a ExecutorRouter,
+    retrieval_router: &'a RetrievalRouter,
 }
 
 /// Native, in-process MCP tool contract.
@@ -360,13 +366,44 @@ struct RetrievalRouter {
     code: Arc<dyn CodeRetrieverService>,
 }
 
-struct LazyStructuralCodeRetriever {
-    config: McpServiceConfig,
-}
-
 struct LazyPipelineSkillRetriever {
     config: SkillRetrievalConfig,
     pipeline: tokio::sync::OnceCell<Arc<SkillRetrievalPipeline>>,
+}
+
+struct RuntimePipelineSkillRetriever {
+    pipeline: Arc<SkillRetrievalPipeline>,
+}
+
+struct LazyPipelineCodeRetriever {
+    config: McpServiceConfig,
+    pipeline: tokio::sync::OnceCell<Arc<CodeRetrievalPipeline>>,
+}
+
+struct RuntimePipelineCodeRetriever {
+    pipeline: Arc<CodeRetrievalPipeline>,
+}
+
+async fn build_code_dense_collection(
+    config: &McpServiceConfig,
+) -> Result<Arc<dyn openakta_indexing::DenseVectorCollection>, McpError> {
+    match config.dense_backend {
+        VectorBackendKind::Qdrant => Ok(Arc::new(
+            openakta_indexing::QdrantVectorCollection::new(
+                &config.dense_qdrant_url,
+                config.code_collection.clone(),
+            )
+            .await
+            .map_err(|err| McpError::ToolExecution(err.to_string()))?,
+        )),
+        VectorBackendKind::SqliteJson => Ok(Arc::new(
+            openakta_indexing::SqliteJsonVectorCollection::new(
+                &config.dense_store_path,
+                config.code_collection.clone(),
+            )
+            .map_err(|err| McpError::ToolExecution(err.to_string()))?,
+        )),
+    }
 }
 
 impl LazyPipelineSkillRetriever {
@@ -404,87 +441,120 @@ impl SkillRetrieverService for LazyPipelineSkillRetriever {
     }
 }
 
-impl LazyStructuralCodeRetriever {
+#[tonic::async_trait]
+impl SkillRetrieverService for RuntimePipelineSkillRetriever {
+    async fn retrieve_skills(
+        &self,
+        request: RetrieveSkillsRequest,
+    ) -> Result<RetrieveSkillsResponse, McpError> {
+        self.pipeline
+            .retrieve(&request)
+            .await
+            .map_err(|err| McpError::ToolExecution(err.to_string()))
+    }
+}
+
+impl LazyPipelineCodeRetriever {
     fn new(config: McpServiceConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            pipeline: tokio::sync::OnceCell::new(),
+        }
+    }
+
+    async fn pipeline(&self) -> Result<Arc<CodeRetrievalPipeline>, McpError> {
+        self.pipeline
+            .get_or_try_init(|| async {
+                let dense_collection = build_code_dense_collection(&self.config).await?;
+                let sparse_index = Arc::new(
+                    TantivyCodeIndex::new(&self.config.code_bm25_dir)
+                        .map_err(|err| McpError::ToolExecution(err.to_string()))?,
+                );
+                let embedder = Arc::new(
+                    JinaCodeEmbedder::new(self.config.code_embedding.clone())
+                        .map_err(|err| McpError::ToolExecution(err.to_string()))?,
+                );
+                CodeRetrievalPipeline::new(
+                    self.config.workspace_root.clone(),
+                    self.config.code_index_state_path.clone(),
+                    dense_collection,
+                    sparse_index,
+                    embedder,
+                    openakta_rag::OpenaktaReranker::for_workspace(&self.config.workspace_root),
+                )
+                .map(Arc::new)
+                .map_err(|err| McpError::ToolExecution(err.to_string()))
+            })
+            .await
+            .map(Arc::clone)
     }
 }
 
 #[tonic::async_trait]
-impl CodeRetrieverService for LazyStructuralCodeRetriever {
+impl CodeRetrieverService for RuntimePipelineCodeRetriever {
     async fn retrieve_code(
         &self,
         request: RetrieveCodeContextRequest,
     ) -> Result<RetrieveCodeContextResponse, McpError> {
         let budget = if request.token_budget == 0 {
+            2_000
+        } else {
+            request.token_budget as usize
+        };
+        let candidate_limit = request.candidate_limit.max(request.dense_limit).max(32) as usize;
+        let result = self
+            .pipeline
+            .retrieve(&CodeRetrievalQuery {
+                workspace_root: PathBuf::from(&request.workspace_root),
+                query: request.query.clone(),
+                focal_files: request.focal_files.clone(),
+                focal_symbols: request.focal_symbols.clone(),
+                dense_limit: request.dense_limit.max(32) as usize,
+                sparse_limit: candidate_limit,
+                candidate_limit,
+                token_budget: budget,
+            })
+            .await
+            .map_err(|err| McpError::ToolExecution(err.to_string()))?;
+        Ok(code_response_from_result(
+            request.request_id,
+            &result,
+            request.include_diagnostics,
+        ))
+    }
+}
+
+#[tonic::async_trait]
+impl CodeRetrieverService for LazyPipelineCodeRetriever {
+    async fn retrieve_code(
+        &self,
+        request: RetrieveCodeContextRequest,
+    ) -> Result<RetrieveCodeContextResponse, McpError> {
+        let pipeline = self.pipeline().await?;
+        let budget = if request.token_budget == 0 {
             self.config.code_retrieval_budget_tokens
         } else {
             request.token_budget as usize
         };
-        if request.focal_files.is_empty() && request.focal_symbols.is_empty() {
-            return Err(McpError::ToolExecution(
-                "graph_retrieve_code requires focal_files or focal_symbols".to_string(),
-            ));
-        }
-        let workspace_root = PathBuf::from(&request.workspace_root);
-        let scip = parse_structural_scip(
-            &workspace_root,
-            &request.focal_files,
-            &request.focal_symbols,
-        )?;
-        let documents = load_structural_documents(&workspace_root, &scip);
-        let retriever = StructuralCodeRetriever::from_scip(
-            &scip,
-            documents,
-            StructuralCodeRetrievalConfig {
-                token_budget: budget,
-                max_documents: request.dense_limit.max(1) as usize,
-            },
-        )
-        .map_err(|err| McpError::ToolExecution(err.to_string()))?;
-        let result = retriever
-            .retrieve(&StructuralCodeRetrievalRequest {
-                task_id: request.task_id.clone(),
+        let candidate_limit = request.candidate_limit.max(request.dense_limit).max(32) as usize;
+        let result = pipeline
+            .retrieve(&CodeRetrievalQuery {
+                workspace_root: PathBuf::from(&request.workspace_root),
                 query: request.query.clone(),
-                focal_file: request.focal_files.first().cloned(),
-                focal_symbol: request.focal_symbols.first().cloned(),
+                focal_files: request.focal_files.clone(),
+                focal_symbols: request.focal_symbols.clone(),
+                dense_limit: request.dense_limit.max(32) as usize,
+                sparse_limit: candidate_limit,
+                candidate_limit,
+                token_budget: budget,
             })
+            .await
             .map_err(|err| McpError::ToolExecution(err.to_string()))?;
-
-        Ok(RetrieveCodeContextResponse {
-            request_id: request.request_id,
-            documents: result
-                .documents
-                .iter()
-                .map(|document| RetrievedCodeContext {
-                    chunk_id: format!("structural:{}", document.file_path),
-                    file_path: document.file_path.clone(),
-                    symbol_path: document.symbols.first().cloned().unwrap_or_default(),
-                    content: document.content.clone(),
-                    token_cost: document.token_count as u32,
-                    dense_score: 0.0,
-                    accept_posterior: if document.direct_dependency { 1.0 } else { 0.5 },
-                    cross_score: 0.0,
-                })
-                .collect(),
-            diagnostics: if request.include_diagnostics {
-                Some(RetrievalDiagnostics {
-                    dense_hits: 0,
-                    bm25_hits: 0,
-                    fused_candidates: result.documents.len() as u32,
-                    accept_count: result.documents.len() as u32,
-                    reject_count: result.diagnostics.len() as u32,
-                    selected_count: result.documents.len() as u32,
-                    used_tokens: result.tokens_used as u32,
-                    memgas_converged: true,
-                    memgas_degenerate: false,
-                    scores: Vec::new(),
-                    generated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
-                })
-            } else {
-                None
-            },
-        })
+        Ok(code_response_from_result(
+            request.request_id,
+            &result,
+            request.include_diagnostics,
+        ))
     }
 }
 
@@ -520,10 +590,32 @@ impl McpService {
             )),
             retrieval_router: Arc::new(RetrievalRouter {
                 skill: Arc::new(LazyPipelineSkillRetriever::new(config.skill_config.clone())),
-                code: Arc::new(LazyStructuralCodeRetriever::new(config.clone())),
+                code: Arc::new(LazyPipelineCodeRetriever::new(config.clone())),
             }),
             config,
         }
+    }
+
+    /// Create an MCP service that reuses already constructed runtime retrieval services.
+    pub fn with_runtime_retrievers(
+        config: McpServiceConfig,
+        skill_pipeline: Arc<SkillRetrievalPipeline>,
+        code_pipeline: Arc<CodeRetrievalPipeline>,
+    ) -> Self {
+        let registry = EmbeddedToolRegistry::builtin_with_hitl(
+            config.hitl_gate.clone(),
+            config.mass_refactor_executor.clone(),
+        );
+        Self::with_retrievers(
+            config,
+            registry,
+            Arc::new(RuntimePipelineSkillRetriever {
+                pipeline: skill_pipeline,
+            }),
+            Arc::new(RuntimePipelineCodeRetriever {
+                pipeline: code_pipeline,
+            }),
+        )
     }
 
     /// **Tests only** — same as [`Self::with_config`] but forces the insecure direct-host executor
@@ -555,13 +647,12 @@ impl McpService {
             )),
             retrieval_router: Arc::new(RetrievalRouter {
                 skill: Arc::new(LazyPipelineSkillRetriever::new(config.skill_config.clone())),
-                code: Arc::new(LazyStructuralCodeRetriever::new(config.clone())),
+                code: Arc::new(LazyPipelineCodeRetriever::new(config.clone())),
             }),
             config,
         }
     }
 
-    #[cfg(test)]
     fn with_retrievers(
         config: McpServiceConfig,
         registry: EmbeddedToolRegistry,
@@ -719,6 +810,7 @@ impl ToolService for McpService {
                 scope: scope.clone(),
                 config: &self.config,
                 executor: &self.executor,
+                retrieval_router: &self.retrieval_router,
             })
             .await
             .map_err(|err| Status::internal(err.to_string()))?;
@@ -762,6 +854,31 @@ impl ToolService for McpService {
 
 #[tonic::async_trait]
 impl GraphRetrievalService for McpService {
+    async fn retrieve_skills(
+        &self,
+        request: Request<RetrieveSkillsRequest>,
+    ) -> Result<Response<RetrieveSkillsResponse>, Status> {
+        let response = self
+            .retrieve_skills_internal(request.into_inner())
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+        Ok(Response::new(response))
+    }
+
+    async fn retrieve_code_context(
+        &self,
+        request: Request<RetrieveCodeContextRequest>,
+    ) -> Result<Response<RetrieveCodeContextResponse>, Status> {
+        let response = self
+            .retrieve_code_internal(request.into_inner())
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+        Ok(Response::new(response))
+    }
+}
+
+#[tonic::async_trait]
+impl RetrievalService for McpService {
     async fn retrieve_skills(
         &self,
         request: Request<RetrieveSkillsRequest>,
@@ -1378,25 +1495,10 @@ impl EmbeddedTool for GraphRetrieveSkillsTool {
             .map(|value| value == "true")
             .unwrap_or(true);
 
-        let service = McpService::with_config(McpServiceConfig {
-            workspace_root: ctx.workspace_root.to_path_buf(),
-            allowed_commands: ctx.config.allowed_commands.clone(),
-            default_max_execution_seconds: ctx.config.default_max_execution_seconds,
-            execution_mode: ctx.config.execution_mode,
-            container_executor: ctx.config.container_executor.clone(),
-            wasi_executor: ctx.config.wasi_executor.clone(),
-            mass_refactor_executor: ctx.config.mass_refactor_executor.clone(),
-            dense_backend: ctx.config.dense_backend,
-            dense_qdrant_url: ctx.config.dense_qdrant_url.clone(),
-            dense_store_path: ctx.config.dense_store_path.clone(),
-            code_collection: ctx.config.code_collection.clone(),
-            code_embedding: ctx.config.code_embedding.clone(),
-            code_retrieval_budget_tokens: ctx.config.code_retrieval_budget_tokens,
-            skill_config: ctx.config.skill_config.clone(),
-            hitl_gate: None,
-        });
-        let response = service
-            .retrieve_skills_internal(RetrieveSkillsRequest {
+        let response = ctx
+            .retrieval_router
+            .skill
+            .retrieve_skills(RetrieveSkillsRequest {
                 request_id: ctx.request.request_id.clone(),
                 agent_id: ctx.request.agent_id.clone(),
                 role,
@@ -1461,9 +1563,10 @@ impl EmbeddedTool for GraphRetrieveCodeTool {
             .map(|value| value == "true")
             .unwrap_or(true);
 
-        let service = McpService::with_config(ctx.config.clone());
-        let response = service
-            .retrieve_code_internal(RetrieveCodeContextRequest {
+        let response = ctx
+            .retrieval_router
+            .code
+            .retrieve_code(RetrieveCodeContextRequest {
                 request_id: ctx.request.request_id.clone(),
                 agent_id: ctx.request.agent_id.clone(),
                 role,
@@ -1475,6 +1578,7 @@ impl EmbeddedTool for GraphRetrieveCodeTool {
                 token_budget,
                 dense_limit,
                 include_diagnostics,
+                candidate_limit: dense_limit,
             })
             .await?;
 
@@ -1708,6 +1812,7 @@ fn retrieve_code_struct(response: &RetrieveCodeContextResponse) -> Struct {
                                     number_value(document.accept_posterior as f64),
                                 ),
                                 ("cross_score", number_value(document.cross_score as f64)),
+                                ("fusion_score", number_value(document.fusion_score as f64)),
                             ]))),
                         })
                         .collect(),
@@ -1732,7 +1837,7 @@ fn retrieved_skill_struct(skill: &RetrievedSkill) -> Struct {
         ("source_path", string_value(skill.source_path.clone())),
         ("content", string_value(skill.content.clone())),
         ("token_cost", number_value(skill.token_cost as f64)),
-        ("rrf_score", number_value(skill.rrf_score as f64)),
+        ("fusion_score", number_value(skill.fusion_score as f64)),
         (
             "accept_posterior",
             number_value(skill.accept_posterior as f64),
@@ -1743,8 +1848,33 @@ fn retrieved_skill_struct(skill: &RetrievedSkill) -> Struct {
 
 fn retrieval_diagnostics_struct(diagnostics: &RetrievalDiagnostics) -> Struct {
     struct_from_map([
-        ("dense_hits", number_value(diagnostics.dense_hits as f64)),
-        ("bm25_hits", number_value(diagnostics.bm25_hits as f64)),
+        (
+            "contract",
+            Value {
+                kind: diagnostics
+                    .contract
+                    .as_ref()
+                    .map(|contract| Kind::StructValue(retrieval_contract_struct(contract))),
+            },
+        ),
+        (
+            "channel_stats",
+            Value {
+                kind: Some(Kind::ListValue(ListValue {
+                    values: diagnostics
+                        .channel_stats
+                        .iter()
+                        .map(|stat| Value {
+                            kind: Some(Kind::StructValue(struct_from_map([
+                                ("channel", string_value(stat.channel.clone())),
+                                ("hits", number_value(stat.hits as f64)),
+                                ("participated", bool_value(stat.participated)),
+                            ]))),
+                        })
+                        .collect(),
+                })),
+            },
+        ),
         (
             "fused_candidates",
             number_value(diagnostics.fused_candidates as f64),
@@ -1768,11 +1898,11 @@ fn retrieval_diagnostics_struct(diagnostics: &RetrievalDiagnostics) -> Struct {
             bool_value(diagnostics.memgas_degenerate),
         ),
         (
-            "scores",
+            "candidate_scores",
             Value {
                 kind: Some(Kind::ListValue(ListValue {
                     values: diagnostics
-                        .scores
+                        .candidate_scores
                         .iter()
                         .map(|score| Value {
                             kind: Some(Kind::StructValue(candidate_score_struct(score))),
@@ -1781,17 +1911,53 @@ fn retrieval_diagnostics_struct(diagnostics: &RetrievalDiagnostics) -> Struct {
                 })),
             },
         ),
+        (
+            "stage_stats",
+            Value {
+                kind: Some(Kind::ListValue(ListValue {
+                    values: diagnostics
+                        .stage_stats
+                        .iter()
+                        .map(|stage| Value {
+                            kind: Some(Kind::StructValue(struct_from_map([
+                                ("stage", string_value(stage.stage.clone())),
+                                ("latency_ms", number_value(stage.latency_ms as f64)),
+                                ("input_count", number_value(stage.input_count as f64)),
+                                ("output_count", number_value(stage.output_count as f64)),
+                                ("degraded", bool_value(stage.degraded)),
+                            ]))),
+                        })
+                        .collect(),
+                })),
+            },
+        ),
+        ("degraded_mode", bool_value(diagnostics.degraded_mode)),
     ])
 }
 
 fn candidate_score_struct(score: &CandidateScore) -> Struct {
     struct_from_map([
-        ("skill_id", string_value(score.skill_id.clone())),
-        ("dense_rank", number_value(score.dense_rank as f64)),
-        ("dense_score", number_value(score.dense_score as f64)),
-        ("bm25_rank", number_value(score.bm25_rank as f64)),
-        ("bm25_score", number_value(score.bm25_score as f64)),
-        ("rrf_score", number_value(score.rrf_score as f64)),
+        ("document_id", string_value(score.document_id.clone())),
+        ("title", string_value(score.title.clone())),
+        (
+            "channel_scores",
+            Value {
+                kind: Some(Kind::ListValue(ListValue {
+                    values: score
+                        .channel_scores
+                        .iter()
+                        .map(|channel| Value {
+                            kind: Some(Kind::StructValue(struct_from_map([
+                                ("channel", string_value(channel.channel.clone())),
+                                ("rank", number_value(channel.rank as f64)),
+                                ("score", number_value(channel.score as f64)),
+                            ]))),
+                        })
+                        .collect(),
+                })),
+            },
+        ),
+        ("fusion_score", number_value(score.fusion_score as f64)),
         (
             "accept_posterior",
             number_value(score.accept_posterior as f64),
@@ -1800,6 +1966,148 @@ fn candidate_score_struct(score: &CandidateScore) -> Struct {
         ("token_cost", number_value(score.token_cost as f64)),
         ("selected", bool_value(score.selected)),
     ])
+}
+
+fn retrieval_contract_struct(contract: &openakta_proto::mcp::v1::RetrievalContract) -> Struct {
+    struct_from_map([
+        (
+            "contract_version",
+            string_value(contract.contract_version.clone()),
+        ),
+        (
+            "embedding_schema_version",
+            string_value(contract.embedding_schema_version.clone()),
+        ),
+        (
+            "chunk_schema_version",
+            string_value(contract.chunk_schema_version.clone()),
+        ),
+        (
+            "payload_schema_version",
+            string_value(contract.payload_schema_version.clone()),
+        ),
+        (
+            "candidate_channels",
+            string_list_value(contract.candidate_channels.clone()),
+        ),
+        (
+            "fusion_policy",
+            string_value(contract.fusion_policy.clone()),
+        ),
+        (
+            "rerank_policy",
+            string_value(contract.rerank_policy.clone()),
+        ),
+        (
+            "selection_policy",
+            string_value(contract.selection_policy.clone()),
+        ),
+        (
+            "diagnostics_schema_version",
+            string_value(contract.diagnostics_schema_version.clone()),
+        ),
+    ])
+}
+
+fn code_response_from_result(
+    request_id: String,
+    result: &openakta_rag::CodeRetrievalResult,
+    include_diagnostics: bool,
+) -> RetrieveCodeContextResponse {
+    RetrieveCodeContextResponse {
+        request_id,
+        documents: result
+            .final_result
+            .selection
+            .selected_documents
+            .iter()
+            .map(|candidate| RetrievedCodeContext {
+                chunk_id: candidate.accepted.candidate.document.chunk_id.clone(),
+                file_path: candidate.accepted.candidate.document.file_path.clone(),
+                symbol_path: candidate
+                    .accepted
+                    .candidate
+                    .document
+                    .symbol_path
+                    .clone()
+                    .unwrap_or_default(),
+                content: candidate.accepted.candidate.document.body_markdown.clone(),
+                token_cost: candidate.token_cost as u32,
+                dense_score: candidate.accepted.candidate.dense_score.unwrap_or_default(),
+                accept_posterior: candidate.accepted.accept_posterior,
+                cross_score: candidate.cross_score,
+                fusion_score: candidate.accepted.candidate.rrf_score,
+            })
+            .collect(),
+        diagnostics: include_diagnostics.then(|| diagnostics_to_proto(&result.diagnostics)),
+    }
+}
+
+fn diagnostics_to_proto(data: &RetrievalDiagnosticsData) -> RetrievalDiagnostics {
+    RetrievalDiagnostics {
+        contract: Some(openakta_proto::mcp::v1::RetrievalContract {
+            contract_version: data.contract.contract_version.clone(),
+            embedding_schema_version: data.contract.embedding_schema_version.clone(),
+            chunk_schema_version: data.contract.chunk_schema_version.clone(),
+            payload_schema_version: data.contract.payload_schema_version.clone(),
+            candidate_channels: data.contract.candidate_channels.clone(),
+            fusion_policy: data.contract.fusion_policy.clone(),
+            rerank_policy: data.contract.rerank_policy.clone(),
+            selection_policy: data.contract.selection_policy.clone(),
+            diagnostics_schema_version: data.contract.diagnostics_schema_version.clone(),
+        }),
+        channel_stats: data
+            .channel_stats
+            .iter()
+            .map(|stat| openakta_proto::mcp::v1::RetrievalChannelStat {
+                channel: stat.channel.clone(),
+                hits: stat.hits,
+                participated: stat.participated,
+            })
+            .collect(),
+        fused_candidates: data.fused_candidates as u32,
+        accept_count: data.accept_count as u32,
+        reject_count: data.reject_count as u32,
+        selected_count: data.selected_count as u32,
+        used_tokens: data.used_tokens as u32,
+        memgas_converged: data.memgas_converged,
+        memgas_degenerate: data.memgas_degenerate,
+        candidate_scores: data
+            .candidate_scores
+            .iter()
+            .map(|score| CandidateScore {
+                document_id: score.document_id.clone(),
+                title: score.title.clone(),
+                channel_scores: score
+                    .channel_scores
+                    .iter()
+                    .map(|channel| openakta_proto::mcp::v1::ChannelScore {
+                        channel: channel.channel.clone(),
+                        rank: channel.rank,
+                        score: channel.score,
+                    })
+                    .collect(),
+                fusion_score: score.fusion_score,
+                accept_posterior: score.accept_posterior,
+                cross_score: score.cross_score,
+                token_cost: score.token_cost as u32,
+                selected: score.selected,
+            })
+            .collect(),
+        stage_stats: data
+            .stage_stats
+            .iter()
+            .map(|stage| openakta_proto::mcp::v1::RetrievalStageStat {
+                stage: stage.stage.clone(),
+                latency_ms: stage.latency_ms,
+                input_count: stage.input_count,
+                output_count: stage.output_count,
+                degraded: stage.degraded,
+            })
+            .collect(),
+        degraded_mode: data.degraded_mode,
+        generated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
+    }
 }
 
 fn success_result(request: &ToolCallRequest, output: Option<Struct>) -> ToolCallResult {
@@ -2017,57 +2325,6 @@ fn detect_language(path: &Path) -> Result<Language, McpError> {
     }
 }
 
-fn parse_structural_scip(
-    workspace_root: &Path,
-    focal_files: &[String],
-    focal_symbols: &[String],
-) -> Result<SCIPIndex, McpError> {
-    let registry = ParserRegistry::new();
-    let mut languages = Vec::new();
-    if !focal_files.is_empty() {
-        for file in focal_files {
-            let language = detect_language(Path::new(file))?;
-            if !languages.contains(&language) {
-                languages.push(language);
-            }
-        }
-    } else if !focal_symbols.is_empty() {
-        languages.extend([Language::Rust, Language::TypeScript, Language::Python]);
-    }
-
-    let mut indexes = languages.into_iter();
-    let first_language = indexes
-        .next()
-        .ok_or_else(|| McpError::ToolExecution("no supported focal language found".to_string()))?;
-    let mut merged = registry
-        .parse(first_language, workspace_root)
-        .map_err(|err| McpError::ToolExecution(err.to_string()))?;
-    for language in indexes {
-        let index = registry
-            .parse(language, workspace_root)
-            .map_err(|err| McpError::ToolExecution(err.to_string()))?;
-        merged.merge(index);
-    }
-    Ok(merged)
-}
-
-fn load_structural_documents(workspace_root: &Path, scip: &SCIPIndex) -> HashMap<String, String> {
-    let mut documents = HashMap::new();
-    for file_path in scip
-        .occurrences
-        .iter()
-        .map(|occurrence| occurrence.file_path.clone())
-    {
-        if documents.contains_key(&file_path) {
-            continue;
-        }
-        if let Ok(content) = std::fs::read_to_string(workspace_root.join(&file_path)) {
-            documents.insert(file_path, content);
-        }
-    }
-    documents
-}
-
 fn relative_to_workspace(workspace_root: &Path, path: &Path) -> String {
     path.strip_prefix(workspace_root)
         .unwrap_or(path)
@@ -2243,6 +2500,8 @@ mod tests {
             dense_store_path: root.join(".openakta/vectors.db"),
             code_collection: CollectionSpec::code_default(),
             code_embedding: CodeEmbeddingConfig::default(),
+            code_bm25_dir: root.join(".openakta/code-bm25"),
+            code_index_state_path: root.join(".openakta/code-index-state.json"),
             code_retrieval_budget_tokens: 128,
             skill_config: SkillRetrievalConfig {
                 corpus_root: root.join("skills"),
@@ -2458,17 +2717,17 @@ mod tests {
 
     #[tokio::test]
     async fn run_command_denies_unlisted_binary() {
-        let service = McpService::with_config(test_mcp_config(PathBuf::from(
-            "/Users/noasantos/Fluri/openakta",
-        )));
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_root = temp_dir.path().display().to_string();
+        let service = McpService::with_config(test_mcp_config(temp_dir.path().to_path_buf()));
         let req = ToolCallRequest {
             request_id: "req-2".to_string(),
             agent_id: "agent-1".to_string(),
             role: "executor".to_string(),
             tool_name: "run_command".to_string(),
             arguments: Some(struct_from_map([("program", string_value("git"))])),
-            policy: Some(policy("/Users/noasantos/Fluri/openakta", &["run_command"])),
-            workspace_root: "/tmp/ignore-me".to_string(),
+            policy: Some(policy(&workspace_root, &["run_command"])),
+            workspace_root,
             mission_id: String::new(),
             ..Default::default()
         };
@@ -2678,12 +2937,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn graph_retrieve_code_requires_anchor() {
+    async fn retrieve_code_context_allows_unanchored_queries() {
         let temp_dir = TempDir::new().unwrap();
         let service = McpService::with_config(test_mcp_config(temp_dir.path().to_path_buf()));
 
-        let response = service
-            .retrieve_code_context(Request::new(RetrieveCodeContextRequest {
+        let response = GraphRetrievalService::retrieve_code_context(
+            &service,
+            Request::new(RetrieveCodeContextRequest {
                 request_id: "req-anchor".to_string(),
                 agent_id: "agent-1".to_string(),
                 role: "coder".to_string(),
@@ -2695,10 +2955,14 @@ mod tests {
                 token_budget: 64,
                 dense_limit: 8,
                 include_diagnostics: false,
-            }))
-            .await;
+                candidate_limit: 8,
+            }),
+        )
+        .await
+        .unwrap()
+        .into_inner();
 
-        assert!(response.is_err());
+        assert_eq!(response.request_id, "req-anchor");
     }
 
     struct PipelineRetriever<I, R>
@@ -2745,6 +3009,7 @@ mod tests {
                     dense_score: 0.9,
                     accept_posterior: 1.0,
                     cross_score: 0.8,
+                    fusion_score: 0.95,
                 }],
                 diagnostics: None,
             })
@@ -2969,8 +3234,9 @@ mod tests {
             Arc::new(StaticCodeRetriever),
         );
 
-        let response = service
-            .retrieve_code_context(Request::new(RetrieveCodeContextRequest {
+        let response = RetrievalService::retrieve_code_context(
+            &service,
+            Request::new(RetrieveCodeContextRequest {
                 request_id: "req-code".to_string(),
                 agent_id: "agent-1".to_string(),
                 role: "coder".to_string(),
@@ -2982,10 +3248,12 @@ mod tests {
                 token_budget: 64,
                 dense_limit: 8,
                 include_diagnostics: false,
-            }))
-            .await
-            .unwrap()
-            .into_inner();
+                candidate_limit: 8,
+            }),
+        )
+        .await
+        .unwrap()
+        .into_inner();
 
         assert_eq!(response.documents.len(), 1);
         assert_eq!(response.documents[0].chunk_id, "chunk-1");

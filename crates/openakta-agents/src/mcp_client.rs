@@ -2,9 +2,11 @@
 
 use crate::diagnostics::WideEvent;
 use crate::react::Observation;
+use openakta_proto::mcp::v1::retrieval_service_client::RetrievalServiceClient;
 use openakta_proto::mcp::v1::tool_service_client::ToolServiceClient;
 use openakta_proto::mcp::v1::{
-    AuditEvent, CapabilityPolicy, ListToolsRequest, ToolCallRequest, ToolDefinition,
+    AuditEvent, CapabilityPolicy, ListToolsRequest, RetrieveCodeContextRequest,
+    RetrieveCodeContextResponse, ToolCallRequest, ToolDefinition,
 };
 use prost_types::{value::Kind, Struct, Value};
 use serde_json::{Map, Value as JsonValue};
@@ -28,6 +30,14 @@ impl McpClient {
         let endpoint = Endpoint::from_shared(self.endpoint.clone())?;
         let channel = endpoint.connect().await?;
         Ok(ToolServiceClient::new(channel))
+    }
+
+    async fn connect_retrieval(
+        &self,
+    ) -> Result<RetrievalServiceClient<Channel>, tonic::transport::Error> {
+        let endpoint = Endpoint::from_shared(self.endpoint.clone())?;
+        let channel = endpoint.connect().await?;
+        Ok(RetrievalServiceClient::new(channel))
     }
 
     /// List available tools for the role.
@@ -135,6 +145,16 @@ impl McpClient {
                 }),
             ))
         }
+    }
+
+    /// Retrieve code context through the converged retrieval service.
+    pub async fn retrieve_code_context(
+        &self,
+        request: RetrieveCodeContextRequest,
+    ) -> Result<RetrieveCodeContextResponse, Box<dyn std::error::Error + Send + Sync>> {
+        let mut client = self.connect_retrieval().await?;
+        let response = client.retrieve_code_context(request).await?.into_inner();
+        Ok(response)
     }
 
     /// Build a string-only protobuf struct.

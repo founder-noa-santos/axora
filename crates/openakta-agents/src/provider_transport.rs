@@ -718,41 +718,6 @@ fn number_field(value: &Value, key: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::provider::{
-        CacheRetention, ChatMessage, ModelBoundaryPayload, ModelBoundaryPayloadType,
-    };
-
-    fn sample_request(wire_profile: crate::wire_profile::WireProfile) -> ModelRequest {
-        ModelRequest {
-            provider: wire_profile,
-            model: "test-model".to_string(),
-            system_instructions: vec!["Return unified diff only.".to_string()],
-            tool_schemas: vec![],
-            invariant_mission_context: vec![],
-            payload: ModelBoundaryPayload {
-                payload_type: ModelBoundaryPayloadType::TaskExecution,
-                task_id: "task-1".to_string(),
-                title: "Update src/auth.rs".to_string(),
-                description: "Update src/auth.rs".to_string(),
-                task_type: "CODE_MODIFICATION".to_string(),
-                target_files: vec!["Cargo.toml".to_string()],
-                target_symbols: vec![],
-                context_spans: vec![],
-                context_pack: None,
-            },
-            recent_messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: "Focus only on login".to_string(),
-                name: None,
-                tool_call_id: None,
-                tool_calls: Vec::new(),
-            }],
-            max_output_tokens: 512,
-            temperature: Some(0.1),
-            stream: false,
-            cache_retention: CacheRetention::Extended,
-        }
-    }
 
     #[test]
     fn runtime_config_is_flat_http_policy() {

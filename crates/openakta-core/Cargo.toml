@@ -13,6 +13,7 @@ workspace = true
 
 [dependencies]
 openakta-proto.workspace = true
+openakta-workflow.workspace = true
 openakta-storage.workspace = true
 openakta-agents.workspace = true
 openakta-docs.workspace = true
@@ -24,6 +25,7 @@ openakta-rag = { path = "../openakta-rag" }
 openakta-research.workspace = true
 openakta-api-client = { path = "../openakta-api-client" }
 prost-types.workspace = true
+rusqlite.workspace = true
 
 tokio.workspace = true
 tokio-util.workspace = true

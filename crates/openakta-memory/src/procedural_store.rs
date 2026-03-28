@@ -11,9 +11,9 @@ use openakta_proto::mcp::v1::{
     RetrievedSkill,
 };
 use openakta_rag::{
-    CrossEncoderScorer, MemgasResult as SharedMemgasResult, OpenaktaReranker, RankedHit,
-    ReciprocalRankFusion, RetrievalDocument, SelectionResult as SharedSelectionResult,
-    UnifiedFinalStage,
+    build_candidate_scores as build_shared_candidate_scores, build_channel_stats, stage_stat,
+    CrossEncoderScorer, OpenaktaReranker, RankedHit, ReciprocalRankFusion, RetrievalContract,
+    RetrievalDocument, UnifiedFinalStage,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -1369,10 +1369,18 @@ where
             request.skill_token_budget as usize
         };
 
+        let search_started = std::time::Instant::now();
         let fused_candidates = self
             .index
             .search(&self.catalog, &request.query, dense_limit, bm25_limit)
             .await?;
+        let search_stage = stage_stat(
+            "candidate_generation",
+            search_started,
+            dense_limit + bm25_limit,
+            fused_candidates.len(),
+            false,
+        );
         let shared_candidates = fused_candidates
             .iter()
             .cloned()
@@ -1383,19 +1391,28 @@ where
                 dense_score: candidate.dense_score,
                 bm25_rank: candidate.bm25_rank,
                 bm25_score: candidate.bm25_score,
+                structural_rank: None,
+                structural_score: None,
             })
             .collect::<Vec<_>>();
+        let final_started = std::time::Instant::now();
         let final_result = self
             .final_stage
             .run(&request.query, &shared_candidates, budget)
             .await
             .map_err(|err| ProceduralError::Retrieval(err.to_string()))?;
-        let memgas = final_result.memgas;
-        let selection = final_result.selection;
+        let final_stage_stat = stage_stat(
+            "rerank_select",
+            final_started,
+            shared_candidates.len(),
+            final_result.selection.selected_documents.len(),
+            false,
+        );
 
         Ok(RetrieveSkillsResponse {
             request_id: request.request_id.clone(),
-            skills: selection
+            skills: final_result
+                .selection
                 .selected_documents
                 .iter()
                 .map(|candidate| RetrievedSkill {
@@ -1409,29 +1426,83 @@ where
                         candidate.accepted.candidate.document.body_markdown
                     ),
                     token_cost: candidate.token_cost as u32,
-                    rrf_score: candidate.accepted.candidate.rrf_score,
+                    fusion_score: candidate.accepted.candidate.rrf_score,
                     accept_posterior: candidate.accepted.accept_posterior,
                     cross_score: candidate.cross_score,
                 })
                 .collect(),
             diagnostics: if request.include_diagnostics {
                 Some(RetrievalDiagnostics {
-                    dense_hits: fused_candidates
-                        .iter()
-                        .filter(|item| item.dense_rank.is_some())
-                        .count() as u32,
-                    bm25_hits: fused_candidates
-                        .iter()
-                        .filter(|item| item.bm25_rank.is_some())
-                        .count() as u32,
+                    contract: Some(openakta_proto::mcp::v1::RetrievalContract {
+                        contract_version: RetrievalContract::v1(["dense", "sparse"])
+                            .contract_version,
+                        embedding_schema_version: RetrievalContract::v1(["dense", "sparse"])
+                            .embedding_schema_version,
+                        chunk_schema_version: RetrievalContract::v1(["dense", "sparse"])
+                            .chunk_schema_version,
+                        payload_schema_version: RetrievalContract::v1(["dense", "sparse"])
+                            .payload_schema_version,
+                        candidate_channels: RetrievalContract::v1(["dense", "sparse"])
+                            .candidate_channels,
+                        fusion_policy: RetrievalContract::v1(["dense", "sparse"]).fusion_policy,
+                        rerank_policy: RetrievalContract::v1(["dense", "sparse"]).rerank_policy,
+                        selection_policy: RetrievalContract::v1(["dense", "sparse"])
+                            .selection_policy,
+                        diagnostics_schema_version: RetrievalContract::v1(["dense", "sparse"])
+                            .diagnostics_schema_version,
+                    }),
+                    channel_stats: build_channel_stats(&shared_candidates)
+                        .into_iter()
+                        .filter(|stat| stat.channel != "structural")
+                        .map(|stat| openakta_proto::mcp::v1::RetrievalChannelStat {
+                            channel: stat.channel,
+                            hits: stat.hits,
+                            participated: stat.participated,
+                        })
+                        .collect(),
                     fused_candidates: fused_candidates.len() as u32,
-                    accept_count: memgas.accept_set.len() as u32,
-                    reject_count: memgas.reject_set.len() as u32,
-                    selected_count: selection.selected_documents.len() as u32,
-                    used_tokens: selection.used_tokens as u32,
-                    memgas_converged: memgas.converged,
-                    memgas_degenerate: memgas.degenerate,
-                    scores: build_candidate_scores(&fused_candidates, &memgas, &selection),
+                    accept_count: final_result.memgas.accept_set.len() as u32,
+                    reject_count: final_result.memgas.reject_set.len() as u32,
+                    selected_count: final_result.selection.selected_documents.len() as u32,
+                    used_tokens: final_result.selection.used_tokens as u32,
+                    memgas_converged: final_result.memgas.converged,
+                    memgas_degenerate: final_result.memgas.degenerate,
+                    candidate_scores: build_shared_candidate_scores(
+                        &shared_candidates,
+                        &final_result.memgas,
+                        &final_result.selection,
+                    )
+                    .into_iter()
+                    .map(|score| CandidateScore {
+                        document_id: score.document_id,
+                        title: score.title,
+                        channel_scores: score
+                            .channel_scores
+                            .into_iter()
+                            .map(|channel| openakta_proto::mcp::v1::ChannelScore {
+                                channel: channel.channel,
+                                rank: channel.rank,
+                                score: channel.score,
+                            })
+                            .collect(),
+                        fusion_score: score.fusion_score,
+                        accept_posterior: score.accept_posterior,
+                        cross_score: score.cross_score,
+                        token_cost: score.token_cost as u32,
+                        selected: score.selected,
+                    })
+                    .collect(),
+                    stage_stats: vec![search_stage, final_stage_stat]
+                        .into_iter()
+                        .map(|stage| openakta_proto::mcp::v1::RetrievalStageStat {
+                            stage: stage.stage,
+                            latency_ms: stage.latency_ms,
+                            input_count: stage.input_count,
+                            output_count: stage.output_count,
+                            degraded: stage.degraded,
+                        })
+                        .collect(),
+                    degraded_mode: false,
                     generated_at: Some(prost_types::Timestamp::from(std::time::SystemTime::now())),
                 })
             } else {
@@ -1444,64 +1515,6 @@ where
     pub fn catalog(&self) -> &SkillCatalog {
         &self.catalog
     }
-}
-
-fn build_candidate_scores(
-    fused: &[FusedCandidate],
-    memgas: &SharedMemgasResult<SkillDocument>,
-    selection: &SharedSelectionResult<SkillDocument>,
-) -> Vec<CandidateScore> {
-    let selected_ids = selection
-        .selected_documents
-        .iter()
-        .map(|item| item.accepted.candidate.document.skill_id.clone())
-        .collect::<HashSet<_>>();
-    let accepted_scores = memgas
-        .accept_set
-        .iter()
-        .map(|item| {
-            (
-                item.candidate.document.skill_id.clone(),
-                item.accept_posterior,
-            )
-        })
-        .collect::<std::collections::HashMap<_, _>>();
-    let rerank_scores = selection
-        .selected_documents
-        .iter()
-        .chain(selection.discarded_by_budget.iter())
-        .map(|item| {
-            (
-                item.accepted.candidate.document.skill_id.clone(),
-                (item.cross_score, item.token_cost),
-            )
-        })
-        .collect::<std::collections::HashMap<_, _>>();
-
-    fused
-        .iter()
-        .map(|candidate| {
-            let (cross_score, token_cost) = rerank_scores
-                .get(&candidate.skill.skill_id)
-                .copied()
-                .unwrap_or((0.0, candidate.skill.token_cost));
-            CandidateScore {
-                skill_id: candidate.skill.skill_id.clone(),
-                dense_rank: candidate.dense_rank.unwrap_or_default(),
-                dense_score: candidate.dense_score.unwrap_or_default(),
-                bm25_rank: candidate.bm25_rank.unwrap_or_default(),
-                bm25_score: candidate.bm25_score.unwrap_or_default(),
-                rrf_score: candidate.rrf_score,
-                accept_posterior: accepted_scores
-                    .get(&candidate.skill.skill_id)
-                    .copied()
-                    .unwrap_or(0.0),
-                cross_score,
-                token_cost: token_cost as u32,
-                selected: selected_ids.contains(&candidate.skill.skill_id),
-            }
-        })
-        .collect()
 }
 
 fn map_row_to_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<SkillDocument> {

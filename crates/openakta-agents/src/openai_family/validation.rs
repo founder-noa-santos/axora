@@ -18,49 +18,7 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::provider::{
-        CacheRetention, ChatMessage, ModelBoundaryPayload, ModelBoundaryPayloadType, ModelRequest,
-        ProviderKind,
-    };
-    use crate::provider_transport::{
-        ProviderInstanceId, ProviderProfileId, ProviderRuntimeConfig, ResolvedProviderInstance,
-        SecretRef,
-    };
-    use crate::wire_profile::WireProfile;
     use serde_json::json;
-
-    /// Create a test request for validation.
-    fn create_test_request() -> ModelRequest {
-        ModelRequest {
-            provider: WireProfile::OpenAiChatCompletions,
-            model: "gpt-4o-mini".to_string(),
-            system_instructions: vec!["You are a helpful assistant.".to_string()],
-            tool_schemas: vec![],
-            invariant_mission_context: vec![],
-            payload: ModelBoundaryPayload {
-                payload_type: ModelBoundaryPayloadType::TaskExecution,
-                task_id: "test-task-1".to_string(),
-                title: "Test Task".to_string(),
-                description: "This is a test task for validation".to_string(),
-                task_type: "GENERAL".to_string(),
-                target_files: vec![],
-                target_symbols: vec![],
-                context_spans: vec![],
-                context_pack: None,
-            },
-            recent_messages: vec![ChatMessage {
-                role: "user".to_string(),
-                content: "Hello, how are you?".to_string(),
-                name: None,
-                tool_call_id: None,
-                tool_calls: Vec::new(),
-            }],
-            max_output_tokens: 512,
-            temperature: Some(0.7),
-            stream: false,
-            cache_retention: CacheRetention::ProviderDefault,
-        }
-    }
 
     /// Validate response structural similarity.
     ///

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Performance Regression Tests
 //!
 //! These tests ensure that performance doesn't degrade beyond acceptable thresholds.
@@ -9,9 +11,14 @@
 //! - p99 latency regression > 20%
 //! - Throughput regression > 10%
 
+mod support;
+
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use prost::Message;
 use std::time::Duration;
 use tokio::runtime::Runtime;
+
+use support::{build_provider_request, create_internal_request, create_test_request};
 
 /// Baseline metrics (to be updated after Phase 6 validation)
 /// These represent the expected performance after Phase 5 implementation
@@ -101,9 +108,7 @@ impl PerformanceBaseline {
 
 /// Test proto serialization performance
 fn test_proto_serialization_regression(c: &mut Criterion) {
-    use openakta_proto::provider_v1::ProviderRequest;
-
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
     let request = create_test_request();
 
     let mut group = c.benchmark_group("regression_proto_serialization");
@@ -121,7 +126,7 @@ fn test_proto_serialization_regression(c: &mut Criterion) {
 fn test_proto_deserialization_regression(c: &mut Criterion) {
     use openakta_proto::provider_v1::ProviderRequest;
 
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
     let request = create_test_request();
     let bytes = request.encode_to_vec();
 
@@ -140,7 +145,7 @@ fn test_proto_deserialization_regression(c: &mut Criterion) {
 fn test_api_client_overhead_regression(c: &mut Criterion) {
     use openakta_api_client::{ApiClient, ClientConfig};
 
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
     let config = ClientConfig::default();
 
     let mut group = c.benchmark_group("regression_api_client_overhead");
@@ -175,7 +180,7 @@ fn test_circuit_breaker_regression(c: &mut Criterion) {
         }
     }
 
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
     let cb = SimpleCircuitBreaker::new();
 
     let mut group = c.benchmark_group("regression_circuit_breaker");
@@ -191,32 +196,20 @@ fn test_circuit_breaker_regression(c: &mut Criterion) {
 
 /// Test conversion overhead (internal ↔ proto)
 fn test_conversion_overhead_regression(c: &mut Criterion) {
-    use openakta_proto::provider_v1 as proto;
-
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
     let internal_request = create_internal_request();
+    let request_id = "benchmark-request";
+    let tenant_id = "benchmark-tenant";
 
     let mut group = c.benchmark_group("regression_conversion_overhead");
 
     group.bench_function("internal_to_proto", |b| {
         b.iter(|| {
-            let _ = proto::ProviderRequest {
-                request_id: black_box(&internal_request.request_id).clone(),
-                tenant_id: black_box(&internal_request.tenant_id).clone(),
-                provider: black_box(&internal_request.provider).clone(),
-                model: black_box(&internal_request.model).clone(),
-                messages: black_box(&internal_request.messages)
-                    .iter()
-                    .map(|msg| proto::Message {
-                        role: msg.role.clone(),
-                        content: msg.content.clone(),
-                    })
-                    .collect(),
-                max_tokens: black_box(&internal_request.max_tokens).unwrap_or(0) as u32,
-                temperature: black_box(&internal_request.temperature).unwrap_or(0.7),
-                stream: black_box(&internal_request.stream),
-                ..Default::default()
-            };
+            let _ = build_provider_request(
+                black_box(request_id),
+                black_box(tenant_id),
+                black_box(&internal_request),
+            );
         })
     });
 
@@ -225,7 +218,7 @@ fn test_conversion_overhead_regression(c: &mut Criterion) {
 
 /// Test memory allocation patterns
 fn test_memory_allocation_regression(c: &mut Criterion) {
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
 
     let mut group = c.benchmark_group("regression_memory_allocation");
 
@@ -246,7 +239,7 @@ fn test_memory_allocation_regression(c: &mut Criterion) {
 
 /// Test string operations (common in API calls)
 fn test_string_operations_regression(c: &mut Criterion) {
-    let baseline = PerformanceBaseline::current();
+    let _baseline = PerformanceBaseline::current();
 
     let mut group = c.benchmark_group("regression_string_operations");
 
@@ -265,49 +258,6 @@ fn test_string_operations_regression(c: &mut Criterion) {
     });
 
     group.finish();
-}
-
-/// Helper: Create a test provider request
-fn create_test_request() -> openakta_proto::provider_v1::ProviderRequest {
-    openakta_proto::provider_v1::ProviderRequest {
-        request_id: uuid::Uuid::new_v4().to_string(),
-        tenant_id: "benchmark-tenant".to_string(),
-        provider: "openai".to_string(),
-        model: "gpt-4".to_string(),
-        messages: vec![openakta_proto::provider_v1::Message {
-            role: "user".to_string(),
-            content: "This is a benchmark test message. ".repeat(10),
-        }],
-        max_tokens: 100,
-        temperature: 0.7,
-        stream: false,
-        ..Default::default()
-    }
-}
-
-/// Helper: Create a test internal request
-fn create_internal_request() -> openakta_agents::ModelRequest {
-    openakta_agents::ModelRequest {
-        request_id: uuid::Uuid::new_v4().to_string(),
-        tenant_id: "benchmark-tenant".to_string(),
-        provider: "openai".to_string(),
-        model: "gpt-4".to_string(),
-        messages: vec![openakta_agents::Message {
-            role: "user".to_string(),
-            content: "This is a benchmark test message. ".repeat(10),
-            name: None,
-        }],
-        max_tokens: Some(100),
-        temperature: Some(0.7),
-        top_p: None,
-        frequency_penalty: None,
-        presence_penalty: None,
-        stop: vec![],
-        stream: false,
-        tools: vec![],
-        tool_choice: None,
-        user: None,
-    }
 }
 
 /// Regression test runner

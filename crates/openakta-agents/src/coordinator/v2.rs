@@ -67,8 +67,10 @@ use crate::transport::{
     InternalContextReference, InternalResultSubmission, InternalTaskAssignment, InternalTokenUsage,
 };
 use crate::worker_pool::{WorkerId, WorkerStatus};
-use openakta_api_client::{ApiClientPool, MolFeatureFlags};
+use openakta_api_client::ApiClientPool;
 use openakta_indexing::{InfluenceGraph, Language, ParserRegistry};
+use openakta_proto::mcp::v1::{CapabilityPolicy, RetrieveCodeContextRequest};
+use openakta_workflow::MolFeatureFlags;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -459,10 +461,21 @@ impl Coordinator {
         hints: &TaskTargetHints,
         workspace_context: Option<String>,
     ) -> Result<MissionResult> {
+        self.execute_direct_reply_for_task(Task::new(prompt), prompt, hints, workspace_context)
+            .await
+    }
+
+    /// Executes a single direct-reply request using a caller-supplied task shell.
+    pub async fn execute_direct_reply_for_task(
+        &mut self,
+        task: Task,
+        prompt: &str,
+        hints: &TaskTargetHints,
+        workspace_context: Option<String>,
+    ) -> Result<MissionResult> {
         let mission_id = Uuid::new_v4().to_string();
         self.begin_mission(&mission_id, prompt);
 
-        let task = Task::new(prompt);
         let mut requested = self.make_trace_event(
             task.id.clone(),
             "direct-executor",
@@ -1927,15 +1940,16 @@ impl Coordinator {
         let client = McpClient::new(endpoint.clone());
         let arguments = serde_json::from_str::<Value>(&call.arguments_json)
             .unwrap_or_else(|_| Value::Object(Map::new()));
+        let role = infer_worker_role_from_task(task);
         let observation = client
             .call_tool(
                 &call.id,
                 "coordinator",
-                infer_worker_role_from_task(task),
+                role,
                 &call.name,
                 &self.config.workspace_root.display().to_string(),
                 value_to_proto_struct(&arguments).unwrap_or_default(),
-                None,
+                Some(self.capability_policy_for_task(role, task)),
                 self.mission_id.as_deref(),
             )
             .await
@@ -1954,6 +1968,30 @@ impl Coordinator {
             &assignment.task_id,
             turn_index,
         ))
+    }
+
+    fn capability_policy_for_task(&self, role: &str, task: &Task) -> CapabilityPolicy {
+        let workspace_root = self.config.workspace_root.display().to_string();
+        let allowed_actions = self
+            .tool_registry
+            .specs()
+            .iter()
+            .filter(|spec| spec.provider_safe)
+            .filter(|spec| spec.supports_role(role))
+            .filter(|spec| spec.supports_task_type(&task.task_type))
+            .map(|spec| spec.name.clone())
+            .collect::<Vec<_>>();
+        CapabilityPolicy {
+            agent_id: "coordinator".to_string(),
+            role: role.to_string(),
+            allowed_actions,
+            allowed_scope_patterns: vec![workspace_root.clone()],
+            denied_scope_patterns: vec![
+                format!("{workspace_root}/.git"),
+                format!("{workspace_root}/target"),
+            ],
+            max_execution_seconds: self.config.task_timeout.as_secs().min(u32::MAX as u64) as u32,
+        }
     }
 
     fn tool_trace_event(
@@ -2398,6 +2436,12 @@ impl Coordinator {
         self.emit_trace_event(started);
 
         let outcome: Result<Option<ContextPack>> = (|| {
+            if let Some(pack) =
+                self.mcp_retrieval_pack(task, target_files, target_symbols, retrieval_token_budget)?
+            {
+                return Ok(Some(pack));
+            }
+
             let mut spans = Vec::new();
             let mut retrieval_hits = Vec::new();
             let mut ast_summaries = Vec::new();
@@ -2532,6 +2576,170 @@ impl Coordinator {
         }
 
         outcome
+    }
+
+    fn mcp_retrieval_pack(
+        &self,
+        task: &Task,
+        target_files: &[String],
+        target_symbols: &[String],
+        retrieval_token_budget: usize,
+    ) -> Result<Option<ContextPack>> {
+        let Some(endpoint) = self.config.mcp_endpoint.clone() else {
+            return Ok(None);
+        };
+
+        let request = RetrieveCodeContextRequest {
+            request_id: format!("coord-retrieval-{}", task.id),
+            agent_id: "coordinator".to_string(),
+            role: "worker".to_string(),
+            task_id: task.id.clone(),
+            workspace_root: self.config.workspace_root.display().to_string(),
+            query: task.description.clone(),
+            focal_files: target_files.to_vec(),
+            focal_symbols: target_symbols.to_vec(),
+            token_budget: retrieval_token_budget as u32,
+            dense_limit: self.config.retrieval_max_documents.max(8) as u32,
+            include_diagnostics: true,
+            candidate_limit: (self.config.retrieval_max_documents.max(8) * 4) as u32,
+        };
+
+        let response = std::thread::spawn(move || -> std::result::Result<_, CoordinatorV2Error> {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|err| CoordinatorV2Error::ExecutionFailed(err.to_string()))?;
+            runtime.block_on(async move {
+                McpClient::new(endpoint)
+                    .retrieve_code_context(request)
+                    .await
+                    .map_err(|err| CoordinatorV2Error::ExecutionFailed(err.to_string()))
+            })
+        })
+        .join()
+        .map_err(|_| {
+            CoordinatorV2Error::ExecutionFailed("MCP retrieval thread panicked".to_string())
+        })??;
+
+        if response.documents.is_empty() {
+            return Ok(None);
+        }
+
+        let mut target_file_set = target_files.iter().cloned().collect::<Vec<_>>();
+        for document in &response.documents {
+            if !target_file_set.contains(&document.file_path) {
+                target_file_set.push(document.file_path.clone());
+            }
+        }
+
+        let mut validation_facts = response
+            .diagnostics
+            .as_ref()
+            .map(|diagnostics| {
+                let mut facts = vec![
+                    ValidationFact {
+                        key: "retrieval_source".to_string(),
+                        value: "mcp_retrieval_service".to_string(),
+                    },
+                    ValidationFact {
+                        key: "retrieval_selected_count".to_string(),
+                        value: diagnostics.selected_count.to_string(),
+                    },
+                    ValidationFact {
+                        key: "retrieval_degraded_mode".to_string(),
+                        value: diagnostics.degraded_mode.to_string(),
+                    },
+                ];
+                if let Some(contract) = diagnostics.contract.as_ref() {
+                    facts.push(ValidationFact {
+                        key: "retrieval_contract".to_string(),
+                        value: contract.contract_version.clone(),
+                    });
+                }
+                facts
+            })
+            .unwrap_or_else(|| {
+                vec![ValidationFact {
+                    key: "retrieval_source".to_string(),
+                    value: "mcp_retrieval_service".to_string(),
+                }]
+            });
+
+        for document in &response.documents {
+            if let Ok(revision) =
+                current_revision_for_path(&self.config.workspace_root, &document.file_path)
+            {
+                validation_facts.push(ValidationFact {
+                    key: format!("base_revision:{}", document.file_path),
+                    value: revision,
+                });
+            }
+        }
+
+        let base_revision = response
+            .documents
+            .iter()
+            .find_map(|document| {
+                current_revision_for_path(&self.config.workspace_root, &document.file_path).ok()
+            })
+            .unwrap_or_else(|| "UNKNOWN".to_string());
+
+        Ok(Some(ContextPack {
+            id: format!("mcp-ctx-{}", task.id),
+            task_id: task.id.clone(),
+            target_files: target_file_set,
+            symbols: target_symbols.to_vec(),
+            spans: response
+                .documents
+                .iter()
+                .map(|document| ContextSpan {
+                    file_path: document.file_path.clone(),
+                    start_line: 1,
+                    end_line: document.content.lines().count().max(1),
+                    symbol_path: document.symbol_path.clone(),
+                })
+                .collect(),
+            retrieval_hits: response
+                .documents
+                .iter()
+                .map(|document| RetrievalHit {
+                    file_path: document.file_path.clone(),
+                    symbol_path: document.symbol_path.clone(),
+                    start_line: 1,
+                    end_line: document.content.lines().count().max(1),
+                    snippet: truncate_snippet(&document.content, 1200),
+                    base_revision: current_revision_for_path(
+                        &self.config.workspace_root,
+                        &document.file_path,
+                    )
+                    .unwrap_or_else(|_| "UNKNOWN".to_string()),
+                })
+                .collect(),
+            ast_summaries: response
+                .documents
+                .iter()
+                .filter(|document| !document.symbol_path.is_empty())
+                .map(|document| AstSummary {
+                    file_path: document.file_path.clone(),
+                    symbol_path: document.symbol_path.clone(),
+                    kind: "retrieval".to_string(),
+                    start_line: 1,
+                    end_line: document.content.lines().count().max(1),
+                })
+                .collect(),
+            symbol_maps: response
+                .documents
+                .iter()
+                .filter(|document| !document.symbol_path.is_empty())
+                .map(|document| SymbolMap {
+                    file_path: document.file_path.clone(),
+                    symbol_path: document.symbol_path.clone(),
+                    references: vec![document.symbol_path.clone()],
+                })
+                .collect(),
+            validation_facts,
+            base_revision,
+        }))
     }
 
     fn graph_retrieval_pack(
@@ -3083,24 +3291,36 @@ mod tests {
     use crate::provider_transport::{
         CloudModelRef, FallbackPolicy, LocalModelRef, LocalProviderKind, LocalProviderTransport,
         ModelRegistryEntry, ModelRegistrySnapshot, ProviderInstanceId, ProviderProfileId,
-        ProviderRuntimeBundle, ProviderRuntimeConfig, ProviderTransport, ProviderTransportError,
+        ProviderRuntimeBundle, ProviderRuntimeConfig, ProviderTransportError,
         ResolvedProviderInstance,
     };
     use crate::task::{Task, TaskStatus, TaskType};
     use crate::transport::InternalTaskAssignment;
     use crate::TaskTargetHints;
+    use openakta_api_client::provider_v1::{
+        self as provider_proto,
+        provider_service_server::{ProviderService, ProviderServiceServer},
+    };
+    use openakta_api_client::{ApiClientPool, ClientConfig};
     use serde_json::json;
     use std::collections::{HashMap, VecDeque};
     use std::fs;
+    use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use tempfile::tempdir;
+    use tokio::net::TcpListener;
+    use tokio_stream::{wrappers::TcpListenerStream, Stream};
     use tonic::async_trait;
+    use tonic::transport::Server;
+    use tonic::{Request, Response, Status};
     use tracing::{Event, Level, Subscriber};
     use tracing_subscriber::layer::Context;
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::registry::LookupSpan;
     use tracing_subscriber::{Layer, Registry};
+    use uuid::Uuid;
 
     #[test]
     fn prepare_dispatch_snapshot_clears_assigned_when_mol_fence_off() {
@@ -3221,7 +3441,6 @@ mod tests {
         // Phase 7+: Use new_with_api_client instead of new_with_provider_transport
         // For testing, we create a registry with API client pool
         use crate::provider_registry::ProviderRegistry;
-        use openakta_api_client::ApiClientPool;
 
         let registry = Arc::new(ProviderRegistry::new_with_api_client(
             HashMap::new(),
@@ -3237,16 +3456,22 @@ mod tests {
             .unwrap()
     }
 
+    type QueuedApiResponse = std::result::Result<provider_proto::ProviderResponse, Status>;
+    type BoxApiStream = Pin<
+        Box<
+            dyn Stream<Item = std::result::Result<provider_proto::ProviderResponseChunk, Status>>
+                + Send,
+        >,
+    >;
+
     #[derive(Clone, Default)]
-    struct TestCloudTransport {
-        responses: Arc<Mutex<VecDeque<std::result::Result<ModelResponse, ProviderTransportError>>>>,
+    struct MockApiProviderService {
+        responses: Arc<Mutex<VecDeque<QueuedApiResponse>>>,
         calls: Arc<AtomicUsize>,
     }
 
-    impl TestCloudTransport {
-        fn with_responses(
-            responses: Vec<std::result::Result<ModelResponse, ProviderTransportError>>,
-        ) -> Self {
+    impl MockApiProviderService {
+        fn with_responses(responses: Vec<QueuedApiResponse>) -> Self {
             Self {
                 responses: Arc::new(Mutex::new(VecDeque::from(responses))),
                 calls: Arc::new(AtomicUsize::new(0)),
@@ -3258,26 +3483,47 @@ mod tests {
         }
     }
 
-    #[async_trait]
-    impl ProviderTransport for TestCloudTransport {
+    #[tonic::async_trait]
+    impl ProviderService for MockApiProviderService {
         async fn execute(
             &self,
-            _request: &ModelRequest,
-        ) -> std::result::Result<ModelResponse, ProviderTransportError> {
+            request: Request<provider_proto::ProviderRequest>,
+        ) -> std::result::Result<Response<provider_proto::ProviderResponse>, Status> {
             self.calls.fetch_add(1, Ordering::SeqCst);
+            let _request = request.into_inner();
             self.responses
                 .lock()
                 .unwrap()
                 .pop_front()
-                .unwrap_or_else(|| {
-                    Err(ProviderTransportError::Http(
-                        "no queued cloud response".to_string(),
-                    ))
-                })
+                .unwrap_or_else(|| Err(Status::internal("no queued cloud response")))
+                .map(Response::new)
         }
 
-        fn mode(&self) -> &'static str {
-            "test-cloud"
+        type ExecuteStreamStream = BoxApiStream;
+
+        async fn execute_stream(
+            &self,
+            _request: Request<provider_proto::ProviderRequest>,
+        ) -> std::result::Result<Response<Self::ExecuteStreamStream>, Status> {
+            Ok(Response::new(Box::pin(tokio_stream::empty())))
+        }
+
+        async fn get_model_metadata(
+            &self,
+            _request: Request<provider_proto::ModelMetadataRequest>,
+        ) -> std::result::Result<Response<provider_proto::ModelMetadata>, Status> {
+            Err(Status::unimplemented(
+                "get_model_metadata is unused in coordinator tests",
+            ))
+        }
+
+        async fn health_check(
+            &self,
+            _request: Request<provider_proto::HealthCheckRequest>,
+        ) -> std::result::Result<Response<provider_proto::ProviderHealthStatus>, Status> {
+            Err(Status::unimplemented(
+                "health_check is unused in coordinator tests",
+            ))
         }
     }
 
@@ -3330,6 +3576,37 @@ mod tests {
         }
     }
 
+    async fn api_client_pool_with_responses(
+        responses: Vec<QueuedApiResponse>,
+    ) -> (Arc<ApiClientPool>, MockApiProviderService) {
+        let service = MockApiProviderService::with_responses(responses);
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server_service = service.clone();
+
+        tokio::spawn(async move {
+            Server::builder()
+                .add_service(ProviderServiceServer::new(server_service))
+                .serve_with_incoming(TcpListenerStream::new(listener))
+                .await
+                .unwrap();
+        });
+
+        tokio::time::sleep(Duration::from_millis(25)).await;
+
+        let pool = Arc::new(
+            ApiClientPool::new(ClientConfig {
+                endpoint: format!("http://{}", addr),
+                connect_timeout: Duration::from_secs(1),
+                timeout: Duration::from_secs(1),
+                ..ClientConfig::default()
+            })
+            .unwrap(),
+        );
+
+        (pool, service)
+    }
+
     #[derive(Clone, Default)]
     struct WarnCapture {
         events: Arc<Mutex<Vec<String>>>,
@@ -3369,6 +3646,30 @@ mod tests {
         }
     }
 
+    fn make_api_response(output_text: &str) -> provider_proto::ProviderResponse {
+        provider_proto::ProviderResponse {
+            request_id: "mock-request".to_string(),
+            response_id: Uuid::new_v4().to_string(),
+            model: "claude-sonnet-4-5".to_string(),
+            provider: "openai".to_string(),
+            content: output_text.to_string(),
+            tool_calls: Vec::new(),
+            stop_reason: provider_proto::StopReason::Stop as i32,
+            stop_sequence: None,
+            usage: Some(provider_proto::TokenUsage {
+                input_tokens: 10,
+                output_tokens: 20,
+                total_tokens: 30,
+                cache_write_tokens: Some(0),
+                cache_read_tokens: Some(0),
+                cost_usd: None,
+            }),
+            provider_metadata: None,
+            latency: None,
+            warnings: Vec::new(),
+        }
+    }
+
     fn assignment_for(task: &Task, file: Option<&str>) -> InternalTaskAssignment {
         InternalTaskAssignment {
             task_id: task.id.clone(),
@@ -3394,41 +3695,43 @@ mod tests {
         )
     }
 
-    fn heterogeneous_registry(
-        _cloud: Option<Arc<dyn ProviderTransport>>,
+    async fn heterogeneous_registry(
+        api_responses: Vec<QueuedApiResponse>,
         local: Option<Arc<dyn LocalProviderTransport>>,
         fallback_policy: FallbackPolicy,
-    ) -> Arc<ProviderRegistry> {
+    ) -> (Arc<ProviderRegistry>, MockApiProviderService) {
         let mut local_map = HashMap::new();
         if let Some(local) = local {
             local_map.insert(local_instance_id(), local);
         }
-        use openakta_api_client::ApiClientPool;
-        Arc::new(ProviderRegistry::new_with_api_client(
-            local_map,
-            Some(CloudModelRef {
-                instance_id: cloud_instance_id(),
-                model: "claude-sonnet-4-5".to_string(),
-                wire_profile: crate::wire_profile::WireProfile::OpenAiChatCompletions,
-                telemetry_kind: ProviderKind::OpenAi,
-            }),
-            Some(LocalModelRef {
-                instance_id: local_instance_id(),
-                model: "qwen2.5-coder:7b".to_string(),
-                wire_profile: crate::wire_profile::WireProfile::OpenAiChatCompletions,
-                telemetry_kind: ProviderKind::OpenAi,
-            }),
-            fallback_policy,
-            runtime_bundle(true, true),
-            Arc::new(ModelRegistrySnapshot::default()),
-            Arc::new(ApiClientPool::new(openakta_api_client::ClientConfig::default()).unwrap()),
-        ))
+        let (api_client_pool, api_service) = api_client_pool_with_responses(api_responses).await;
+        (
+            Arc::new(ProviderRegistry::new_with_api_client(
+                local_map,
+                Some(CloudModelRef {
+                    instance_id: cloud_instance_id(),
+                    model: "claude-sonnet-4-5".to_string(),
+                    wire_profile: crate::wire_profile::WireProfile::OpenAiChatCompletions,
+                    telemetry_kind: ProviderKind::OpenAi,
+                }),
+                Some(LocalModelRef {
+                    instance_id: local_instance_id(),
+                    model: "qwen2.5-coder:7b".to_string(),
+                    wire_profile: crate::wire_profile::WireProfile::OpenAiChatCompletions,
+                    telemetry_kind: ProviderKind::OpenAi,
+                }),
+                fallback_policy,
+                runtime_bundle(true, true),
+                Arc::new(ModelRegistrySnapshot::default()),
+                api_client_pool,
+            )),
+            api_service,
+        )
     }
 
     fn local_only_registry(local: Arc<dyn LocalProviderTransport>) -> Arc<ProviderRegistry> {
         let mut local_map = HashMap::new();
         local_map.insert(local_instance_id(), local);
-        use openakta_api_client::ApiClientPool;
         Arc::new(ProviderRegistry::new_with_api_client(
             local_map,
             None,
@@ -3443,6 +3746,22 @@ mod tests {
             Arc::new(test_registry()),
             Arc::new(ApiClientPool::new(openakta_api_client::ClientConfig::default()).unwrap()),
         ))
+    }
+
+    fn local_only_config() -> CoordinatorConfig {
+        CoordinatorConfig {
+            default_cloud: None,
+            default_local: Some(LocalModelRef {
+                instance_id: local_instance_id(),
+                model: "qwen2.5-coder:7b".to_string(),
+                wire_profile: crate::wire_profile::WireProfile::OpenAiChatCompletions,
+                telemetry_kind: ProviderKind::OpenAi,
+            }),
+            provider_bundle: runtime_bundle(false, true),
+            registry: Arc::new(test_registry()),
+            enable_graph_retrieval: false,
+            ..CoordinatorConfig::default()
+        }
     }
 
     fn registry_with_entry(entry: ModelRegistryEntry) -> Arc<ModelRegistrySnapshot> {
@@ -3465,7 +3784,18 @@ mod tests {
 
     #[tokio::test]
     async fn execute_mission_runs_simple_workflow() {
-        let mut coordinator = test_coordinator(base_config());
+        let local = TestLocalTransport::with_responses(
+            (0..4)
+                .map(|_| Ok(make_response(ProviderKind::OpenAi, "completed simple task")))
+                .collect(),
+        );
+        let registry = local_only_registry(Arc::new(local));
+        let mut coordinator = Coordinator::new_with_provider_registry(
+            local_only_config(),
+            Arc::new(BlackboardV2::default()),
+            registry,
+        )
+        .unwrap();
 
         let result = coordinator.execute_mission("simple task").await.unwrap();
 
@@ -3507,7 +3837,18 @@ mod tests {
 
     #[tokio::test]
     async fn status_reaches_full_progress_after_execution() {
-        let mut coordinator = test_coordinator(base_config());
+        let local = TestLocalTransport::with_responses(
+            (0..4)
+                .map(|_| Ok(make_response(ProviderKind::OpenAi, "completed simple task")))
+                .collect(),
+        );
+        let registry = local_only_registry(Arc::new(local));
+        let mut coordinator = Coordinator::new_with_provider_registry(
+            local_only_config(),
+            Arc::new(BlackboardV2::default()),
+            registry,
+        )
+        .unwrap();
 
         let result = coordinator.execute_mission("simple task").await.unwrap();
         let status = coordinator.get_mission_status();
@@ -3785,16 +4126,16 @@ mod tests {
             Ok(make_response(ProviderKind::OpenAi, "not a diff")),
             Ok(make_response(ProviderKind::OpenAi, "still not a diff")),
         ]);
-        let cloud = TestCloudTransport::with_responses(vec![Ok(make_response(
-            ProviderKind::OpenAi,
-            &diff_replace("src/lib.rs", "fn old() {}", "fn new() {}"),
-        ))]);
-
-        let registry = heterogeneous_registry(
-            Some(Arc::new(cloud.clone())),
+        let (registry, api_service) = heterogeneous_registry(
+            vec![Ok(make_api_response(&diff_replace(
+                "src/lib.rs",
+                "fn old() {}",
+                "fn new() {}",
+            )))],
             Some(Arc::new(local.clone())),
             FallbackPolicy::Explicit,
-        );
+        )
+        .await;
         let mut coordinator = Coordinator::new_with_provider_registry(
             CoordinatorConfig {
                 workspace_root: tempdir.path().to_path_buf(),
@@ -3824,7 +4165,7 @@ mod tests {
         );
         assert!(result.summary.contains("arbiter applied corrected patch"));
         assert_eq!(local.calls(), 2);
-        assert_eq!(cloud.calls(), 1);
+        assert_eq!(api_service.calls(), 1);
         assert_eq!(
             fs::read_to_string(src_dir.join("lib.rs")).unwrap(),
             "fn new() {}\n"
@@ -3843,16 +4184,16 @@ mod tests {
             Ok(make_response(ProviderKind::OpenAi, "bad patch again")),
             Ok(make_response(ProviderKind::OpenAi, "bad patch third time")),
         ]);
-        let cloud = TestCloudTransport::with_responses(vec![Ok(make_response(
-            ProviderKind::OpenAi,
-            &diff_replace("src/lib.rs", "fn old() {}", "fn new() {}"),
-        ))]);
-
-        let registry = heterogeneous_registry(
-            Some(Arc::new(cloud.clone())),
+        let (registry, api_service) = heterogeneous_registry(
+            vec![Ok(make_api_response(&diff_replace(
+                "src/lib.rs",
+                "fn old() {}",
+                "fn new() {}",
+            )))],
             Some(Arc::new(local.clone())),
             FallbackPolicy::Explicit,
-        );
+        )
+        .await;
         let mut coordinator = Coordinator::new_with_provider_registry(
             CoordinatorConfig {
                 workspace_root: tempdir.path().to_path_buf(),
@@ -3876,7 +4217,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(local.calls(), 3);
-        assert_eq!(cloud.calls(), 1);
+        assert_eq!(api_service.calls(), 1);
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -3947,18 +4288,16 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn fallback_policy_never_fails_without_local_dispatch() {
-        let cloud = TestCloudTransport::with_responses(vec![Err(
-            ProviderTransportError::CloudExecutionUnavailable("cloud offline".to_string()),
-        )]);
         let local = TestLocalTransport::with_responses(vec![Ok(make_response(
             ProviderKind::OpenAi,
             "local should not run",
         ))]);
-        let registry = heterogeneous_registry(
-            Some(Arc::new(cloud.clone())),
+        let (registry, api_service) = heterogeneous_registry(
+            vec![Err(Status::unavailable("cloud offline"))],
             Some(Arc::new(local.clone())),
             FallbackPolicy::Never,
-        );
+        )
+        .await;
         let mut coordinator = Coordinator::new_with_provider_registry(
             CoordinatorConfig {
                 routing_enabled: false,
@@ -3984,24 +4323,22 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
-        assert_eq!(cloud.calls(), 1);
+        assert_eq!(api_service.calls(), 1);
         assert_eq!(local.calls(), 0);
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn fallback_policy_explicit_returns_recovery_without_local_dispatch() {
-        let cloud = TestCloudTransport::with_responses(vec![Err(
-            ProviderTransportError::CloudExecutionUnavailable("cloud offline".to_string()),
-        )]);
         let local = TestLocalTransport::with_responses(vec![Ok(make_response(
             ProviderKind::OpenAi,
             "local should not run",
         ))]);
-        let registry = heterogeneous_registry(
-            Some(Arc::new(cloud.clone())),
+        let (registry, api_service) = heterogeneous_registry(
+            vec![Err(Status::unavailable("cloud offline"))],
             Some(Arc::new(local.clone())),
             FallbackPolicy::Explicit,
-        );
+        )
+        .await;
         let mut coordinator = Coordinator::new_with_provider_registry(
             CoordinatorConfig {
                 routing_enabled: false,
@@ -4030,24 +4367,22 @@ mod tests {
             }
             other => panic!("unexpected error: {other:?}"),
         }
-        assert_eq!(cloud.calls(), 1);
+        assert_eq!(api_service.calls(), 1);
         assert_eq!(local.calls(), 0);
     }
 
     #[tokio::test(flavor = "current_thread")]
     async fn fallback_policy_automatic_redispatches_to_local_and_emits_warning() {
-        let cloud = TestCloudTransport::with_responses(vec![Err(
-            ProviderTransportError::CloudExecutionUnavailable("cloud offline".to_string()),
-        )]);
         let local = TestLocalTransport::with_responses(vec![Ok(make_response(
             ProviderKind::OpenAi,
             "local fallback response",
         ))]);
-        let registry = heterogeneous_registry(
-            Some(Arc::new(cloud.clone())),
+        let (registry, api_service) = heterogeneous_registry(
+            vec![Err(Status::unavailable("cloud offline"))],
             Some(Arc::new(local.clone())),
             FallbackPolicy::Automatic,
-        );
+        )
+        .await;
         let mut coordinator = Coordinator::new_with_provider_registry(
             CoordinatorConfig {
                 routing_enabled: false,
@@ -4071,7 +4406,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(result.summary, "local fallback response");
-        assert_eq!(cloud.calls(), 1);
+        assert_eq!(api_service.calls(), 1);
         assert_eq!(local.calls(), 1);
         assert!(capture.count() >= 1);
     }

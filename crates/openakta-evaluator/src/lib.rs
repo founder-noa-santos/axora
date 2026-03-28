@@ -9,6 +9,7 @@
 
 pub mod engine;
 pub mod pipeline;
+pub mod retrieval;
 pub mod types;
 pub mod validation;
 
@@ -17,6 +18,13 @@ pub use engine::{
     CONFIDENCE_REJECT_BELOW, QUALITY_ACCEPT_MIN, QUALITY_HARD_REJECT_BELOW, WEIGHT_SUM,
 };
 pub use pipeline::evaluate_verdict;
+pub use retrieval::{
+    evaluate_retrieval_case, evaluate_retrieval_portfolio, BenchmarkPortfolio,
+    MissionLinkageSummary, RelevantDocument, RepoSizeBucket, RetrievalBenchmarkCase,
+    RetrievalBenchmarkRun, RetrievalCaseReport, RetrievalMetricSummary, RetrievalPortfolioReport,
+    RetrievalSliceReport, RetrievalTaskClass, RetrievedDocumentRank,
+    RETRIEVAL_BENCHMARK_PORTFOLIO_V1,
+};
 pub use types::{
     Artifact, ArtifactEvaluationMatrix, ArtifactType, ContextSufficiency, Contradiction,
     ContradictionType, Decision, DimensionScores, EvaluationContext, EvaluationType,

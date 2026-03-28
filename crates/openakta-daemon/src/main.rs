@@ -16,7 +16,6 @@ use tracing::{error, info, warn};
 
 use openakta_agents::hitl::{HitlConfig, MissionHitlGate};
 use openakta_agents::{ExecutionTraceRegistry, RuntimeBlackboard};
-use openakta_api_client::ApiClientPool;
 use openakta_core::{
     init_tracing, CollectiveServer, CoreConfig, CoreError, ExecutionObservabilityGrpc,
     MemoryServices,
@@ -24,6 +23,7 @@ use openakta_core::{
 use openakta_mcp_server::{McpService, McpServiceConfig};
 use openakta_proto::livingdocs::v1::living_docs_review_service_server::LivingDocsReviewServiceServer;
 use openakta_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalServiceServer;
+use openakta_proto::mcp::v1::retrieval_service_server::RetrievalServiceServer;
 use openakta_proto::mcp::v1::tool_service_server::ToolServiceServer;
 use openakta_proto::work::v1::work_management_service_server::WorkManagementServiceServer;
 use openakta_storage::{Database, DatabaseConfig};
@@ -143,42 +143,47 @@ async fn main() -> anyhow::Result<()> {
     let work_mirror = WorkMirror::open(WorkMirror::path_for_workspace(&config.workspace_root))?;
     let work_management_service = WorkManagementGrpc::open(
         work_mirror,
-        ApiClientPool::global(),
         config.clone(),
         Arc::clone(&trace_registry),
         Arc::clone(&hitl_gate),
         config.workspace_root.clone(),
     );
 
-    let mcp_service = McpService::with_config(McpServiceConfig {
-        workspace_root: config.workspace_root.clone(),
-        allowed_commands: config.mcp_allowed_commands.clone(),
-        default_max_execution_seconds: config.mcp_command_timeout_secs as u32,
-        execution_mode: config.execution_mode,
-        container_executor: config.container_executor.clone(),
-        wasi_executor: config.wasi_executor.clone(),
-        mass_refactor_executor: config.mass_refactor_executor.clone(),
-        dense_backend: config.retrieval.backend,
-        dense_qdrant_url: config.retrieval.qdrant_url.clone(),
-        dense_store_path: config.retrieval.sqlite_path.clone(),
-        code_collection: config.retrieval.code.collection_spec(),
-        code_embedding: config.retrieval.code.embedding_config(),
-        code_retrieval_budget_tokens: config.retrieval.code.token_budget,
-        skill_config: openakta_memory::SkillRetrievalConfig {
-            corpus_root: config.retrieval.skills.corpus_root.clone(),
-            catalog_db_path: config.retrieval.skills.catalog_db_path.clone(),
+    let mcp_service = McpService::with_runtime_retrievers(
+        McpServiceConfig {
+            workspace_root: config.workspace_root.clone(),
+            allowed_commands: config.mcp_allowed_commands.clone(),
+            default_max_execution_seconds: config.mcp_command_timeout_secs as u32,
+            execution_mode: config.execution_mode,
+            container_executor: config.container_executor.clone(),
+            wasi_executor: config.wasi_executor.clone(),
+            mass_refactor_executor: config.mass_refactor_executor.clone(),
             dense_backend: config.retrieval.backend,
+            dense_qdrant_url: config.retrieval.qdrant_url.clone(),
             dense_store_path: config.retrieval.sqlite_path.clone(),
-            qdrant_url: config.retrieval.qdrant_url.clone(),
-            dense_collection: config.retrieval.skills.collection_spec(),
-            embedding: config.retrieval.skills.embedding_config(),
-            bm25_dir: config.retrieval.skills.bm25_dir.clone(),
-            skill_token_budget: config.retrieval.skills.token_budget,
-            dense_limit: 64,
-            bm25_limit: 64,
+            code_collection: config.retrieval.code.collection_spec(),
+            code_embedding: config.retrieval.code.embedding_config(),
+            code_bm25_dir: config.retrieval.code.bm25_dir.clone(),
+            code_index_state_path: config.retrieval.code.index_state_path.clone(),
+            code_retrieval_budget_tokens: config.retrieval.code.token_budget,
+            skill_config: openakta_memory::SkillRetrievalConfig {
+                corpus_root: config.retrieval.skills.corpus_root.clone(),
+                catalog_db_path: config.retrieval.skills.catalog_db_path.clone(),
+                dense_backend: config.retrieval.backend,
+                dense_store_path: config.retrieval.sqlite_path.clone(),
+                qdrant_url: config.retrieval.qdrant_url.clone(),
+                dense_collection: config.retrieval.skills.collection_spec(),
+                embedding: config.retrieval.skills.embedding_config(),
+                bm25_dir: config.retrieval.skills.bm25_dir.clone(),
+                skill_token_budget: config.retrieval.skills.token_budget,
+                dense_limit: 64,
+                bm25_limit: 64,
+            },
+            hitl_gate: Some(Arc::clone(&hitl_gate)),
         },
-        hitl_gate: Some(Arc::clone(&hitl_gate)),
-    });
+        Arc::clone(&memory_services.skill_retrieval),
+        Arc::clone(&memory_services.code_retrieval),
+    );
     // Wakes both gRPC shutdown futures (same idea as `CancellationToken`; uses `tokio::sync::Notify`).
     let shutdown_notify = Arc::new(Notify::new());
 
@@ -201,6 +206,7 @@ async fn main() -> anyhow::Result<()> {
         async move {
             tonic::transport::Server::builder()
                 .add_service(GraphRetrievalServiceServer::new(mcp_service.clone()))
+                .add_service(RetrievalServiceServer::new(mcp_service.clone()))
                 .add_service(ToolServiceServer::new(mcp_service))
                 .add_service(LivingDocsReviewServiceServer::new(livingdocs_review))
                 .add_service(WorkManagementServiceServer::new(work_management_service))

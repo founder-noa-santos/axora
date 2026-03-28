@@ -2,7 +2,7 @@
 
 use openakta_docs::{DocReconciler, DocReconcilerConfig, ReconcileDecision};
 use openakta_embeddings::{BgeSkillEmbedder, JinaCodeEmbedder};
-use openakta_indexing::{DualVectorStore, MerkleTree, TantivySkillIndex};
+use openakta_indexing::{DualVectorStore, MerkleTree, TantivyCodeIndex, TantivySkillIndex};
 use openakta_memory::{
     builtin_skill_root, ConsolidationPipeline, ConsolidationWorker, DocType, EpisodicStore,
     EpisodicStoreConfig, HybridSkillIndex, LightweightLLM, MemoryLifecycle,
@@ -25,7 +25,7 @@ pub struct MemoryServices {
     pub skill_catalog: Arc<SkillCatalog>,
     /// End-to-end pull-based retrieval pipeline.
     pub skill_retrieval: Arc<SkillRetrievalPipeline>,
-    /// Dense code retrieval pipeline.
+    /// Hybrid code retrieval pipeline.
     pub code_retrieval: Arc<CodeRetrievalPipeline>,
     /// Persistent semantic store for synced docs and retrieved knowledge.
     pub semantic_store: Arc<PersistentSemanticStore>,
@@ -106,12 +106,25 @@ impl MemoryServices {
                 reranker,
             )
             .map_err(anyhow::Error::msg)?;
-        let code_retrieval = Arc::new(CodeRetrievalPipeline::new(
-            dual_store.code_collection(),
-            code_embedder,
-            OpenaktaReranker::for_workspace(&config.workspace_root),
-        ));
+        let code_retrieval = Arc::new(
+            CodeRetrievalPipeline::new(
+                config.workspace_root.clone(),
+                config.retrieval.code.index_state_path.clone(),
+                dual_store.code_collection(),
+                Arc::new(
+                    TantivyCodeIndex::new(&config.retrieval.code.bm25_dir)
+                        .map_err(anyhow::Error::msg)?,
+                ),
+                code_embedder,
+                OpenaktaReranker::for_workspace(&config.workspace_root),
+            )
+            .map_err(anyhow::Error::msg)?,
+        );
         skill_retrieval
+            .sync_if_needed()
+            .await
+            .map_err(anyhow::Error::msg)?;
+        code_retrieval
             .sync_if_needed()
             .await
             .map_err(anyhow::Error::msg)?;

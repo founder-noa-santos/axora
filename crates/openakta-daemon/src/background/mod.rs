@@ -3,6 +3,7 @@ pub mod execution_card_json;
 pub mod governor;
 pub mod livingdocs_git;
 pub mod livingdocs_review_service;
+pub mod local_workflow;
 pub mod processor;
 pub mod queue;
 pub mod review_resolution;

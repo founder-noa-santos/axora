@@ -320,8 +320,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn route_prefers_registry_instance_metadata_over_default_cloud() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn route_prefers_registry_instance_metadata_over_default_cloud() {
         use crate::provider_transport::CloudModelRef;
         use openakta_api_client::ApiClientPool;
 

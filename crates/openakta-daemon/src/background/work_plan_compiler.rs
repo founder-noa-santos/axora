@@ -474,7 +474,7 @@ fn order_items_by_execution_card<'a>(
 }
 
 /// When a prepared story is in scope, **Fast Iterate** skips MOL gates; block that unless
-/// `MOL_RAW_EXECUTION_ALLOWED` is enabled (see [`openakta_api_client::MolFeatureFlags`]).
+/// `MOL_RAW_EXECUTION_ALLOWED` is enabled (see [`openakta_workflow::MolFeatureFlags`]).
 fn enforce_mol_raw_execution_policy(
     context: &MissionCompilationContext,
     raw_execution_allowed: bool,
@@ -616,13 +616,23 @@ fn scoped_requirements<'a>(
     story_id: Option<Uuid>,
     prepared_story_id: Option<Uuid>,
 ) -> Vec<&'a RequirementView> {
+    let prepared_story_scope_story_id = prepared_story_id.and_then(|prepared_story_id| {
+        read_model
+            .story_preparations
+            .iter()
+            .find(|story| story.id == prepared_story_id)
+            .map(|story| story.story_id)
+    });
     read_model
         .requirements
         .iter()
         .filter(|requirement| {
             (story_id.is_none() || requirement.story_id == story_id)
                 && (prepared_story_id.is_none()
-                    || requirement.prepared_story_id == prepared_story_id)
+                    || requirement.prepared_story_id == prepared_story_id
+                    || (requirement.prepared_story_id.is_none()
+                        && prepared_story_scope_story_id.is_some()
+                        && requirement.story_id == prepared_story_scope_story_id))
         })
         .collect()
 }
@@ -1168,6 +1178,24 @@ mod tests {
         .unwrap_err();
 
         assert!(err.to_string().contains("not ready"));
+    }
+
+    #[test]
+    fn prepared_story_scope_includes_story_level_requirements_for_readiness() {
+        let mut read_model = sample_read_model();
+        read_model.requirements[0].prepared_story_id = None;
+        read_model.requirement_coverage.clear();
+
+        let err = compile_work_plan(
+            &read_model,
+            &[read_model.work_items[0].id],
+            None,
+            Some(read_model.story_preparations[0].id),
+            true,
+        )
+        .unwrap_err();
+
+        assert!(err.to_string().contains("uncovered requirements"));
     }
 
     #[test]

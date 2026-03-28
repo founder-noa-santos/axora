@@ -4,8 +4,8 @@ Requirement closure is the **intended canonical definition of done** for MOL-sha
 
 ## Model (persisted today)
 
-- Requirements live in a **rooted graph** with typed edges (`wm_requirements`, `wm_requirement_edges` in `openakta-api/migrations/0005_mission_operating_layer.sql`).
-- **Acceptance checks** describe proof expectations (e.g. `unit`, `contract`, `integration`, `review`, `docs`)—schema and commands evolve with `work.proto` / `openakta-api/src/work_management.rs`.
+- Requirements live in a **rooted graph** persisted in the daemon-owned workflow store and exposed through local workflow read models.
+- **Acceptance checks** describe proof expectations (e.g. `unit`, `contract`, `integration`, `review`, `docs`) and evolve with workflow contracts plus local workflow logic.
 - **Requirement coverage** links work items to requirements they implement.
 - **Completion claims** and **verification findings** attach evidence-backed state; empty or partial evidence is a known risk area under audit (see agents `result_contract` and MOL roadmap).
 
@@ -22,4 +22,4 @@ Requirement closure is the **intended canonical definition of done** for MOL-sha
 
 - Work routed through **raw execution** or **legacy work-item** APIs may not populate the full claim/verification graph; do not infer parity with a fully prepared MOL story.
 
-**Code touchpoints:** `openakta-api/src/work_management.rs`, daemon `aktacode/crates/openakta-daemon/src/background/work_management_service.rs`, plan compilation `work_plan_compiler.rs`.
+**Code touchpoints:** `aktacode/crates/openakta-daemon/src/background/work_management_service.rs`, `aktacode/crates/openakta-daemon/src/background/local_workflow.rs`, `aktacode/crates/openakta-daemon/src/background/work_plan_compiler.rs`, `aktacode/crates/openakta-workflow/src/lib.rs`.

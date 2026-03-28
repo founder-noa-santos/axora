@@ -18,6 +18,7 @@ This directory follows a **topic-based layout** (similar in spirit to upstream a
 |--------|----------|
 | Living architecture narrative | [`active_architecture/`](./active_architecture/) |
 | High-level overview | [architecture.md](./architecture.md) |
+| Local workflow authority boundary | [adr/ADR-055-local-workflow-authority-and-cloud-boundary.md](./adr/ADR-055-local-workflow-authority-and-cloud-boundary.md) |
 | Desktop + Rust build | [ELECTRON-RUST-BUILD-GUIDE.md](./ELECTRON-RUST-BUILD-GUIDE.md) |
 | Communication / RAG context (reference) | [architecture-communication.md](./architecture-communication.md), [architecture-context-rag.md](./architecture-context-rag.md) |
 | Architecture ledger & ADR summary | [ARCHITECTURE-LEDGER.md](./ARCHITECTURE-LEDGER.md) |

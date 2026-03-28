@@ -4,14 +4,15 @@ Local-first AI coding assistant runtime.
 
 ## Mission Operating Layer support
 
-The daemon mirrors Mission Operating Layer state from the canonical API and exposes it locally through `work.v1.WorkManagementService`.
+The daemon is the authoritative Mission Operating Layer runtime and exposes local workflow state through `work.v1.WorkManagementService`.
 
-- Prepared stories, requirements, verification runs, closure gates, and persona assignments are mirrored into the local work-management SQLite store.
+- Prepared stories, requirements, verification runs, closure gates, and persona assignments are persisted in the local work-management SQLite store.
 - Execution now prefers `prepared_story_id` and treats raw work-item launches as a `Fast Iterate` compatibility lane.
 - Balanced, High Assurance, and Critical Change launches enforce prepared-story readiness before DAG compilation.
 - Successful prepared-story execution transitions the story to `closure_pending` and records requirement-scoped completion claims plus pending review/verification/reliability/documentation gates.
 - Local evidence remains the primary retention path for compiled plans, execution traces, mission results, and verification artifacts.
-- Persona-local memory indexes stay local and advisory; canonical truth remains cloud-backed.
+- Workflow authority stays local on free and paid plans.
+- Hosted services may assist with providers, embeddings, quotas, billing, and callbacks, but they do not own conversations, tasks, plans, storyboard state, or orchestration.
 
 ## Free Tier (Default)
 
@@ -34,6 +35,7 @@ Cloud tier provides:
 - **Vector DB:** Qdrant Cloud (Azure Marketplace)
 - **API:** `api.openakta.dev`
 - **Auth:** Clerk.dev (GitHub, Google providers)
+- **Boundary:** stronger remote services without moving workflow state into the cloud
 
 ## Self-Hosted / External Backend
 

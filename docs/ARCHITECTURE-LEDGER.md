@@ -1,6 +1,6 @@
 # Architecture Ledger (Detailed)
 
-**Last Updated:** 2026-03-17  
+**Last Updated:** 2026-03-27
 **Maintained By:** Architect Agent  
 **Status:** Active
 
@@ -13,6 +13,12 @@
 - Backend path: future Rust integration owned by Electron main
 
 ## Recent changes
+
+### 2026-03-27
+
+- Accepted [ADR-055](./adr/ADR-055-local-workflow-authority-and-cloud-boundary.md): workflow authority is local-only; cloud scope is narrow and infrastructure-oriented.
+- Updated MOL documentation to remove the stale assumption that `openakta-api` or Postgres is canonical for tasks, plans, storyboard state, or orchestration.
+- Declared the daemon as the authoritative workflow runtime and local SQLite as the authoritative workflow store.
 
 ### 2026-03-21
 
@@ -40,6 +46,7 @@
 | ADR-051 | Use Electron as Desktop Shell | Active |
 | ADR-052 | Use Next.js App Router as Renderer | Active |
 | ADR-053 | Enforce Preload + IPC Boundary | Active |
+| ADR-055 | Local Workflow Authority and Cloud Boundary | Active |
 
 ## Superseded assumptions
 

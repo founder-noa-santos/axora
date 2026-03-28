@@ -67,6 +67,15 @@ pub struct MerkleTree {
 }
 
 impl MerkleTree {
+    /// Create an empty persisted state for the workspace root.
+    pub fn empty(root_path: &Path) -> Self {
+        Self {
+            root_path: root_path.to_path_buf(),
+            file_hashes: HashMap::new(),
+            block_hashes: HashMap::new(),
+        }
+    }
+
     /// Build the index from the filesystem.
     pub fn build(root_path: &Path) -> Result<Self> {
         info!("Building persisted Merkle index for {:?}", root_path);
@@ -130,6 +139,15 @@ impl MerkleTree {
 
     /// Save the current index state to disk.
     pub fn save_to_path(&self, path: &Path) -> Result<()> {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                IndexingError::MerkleTree(format!(
+                    "Failed to create state dir {}: {}",
+                    parent.display(),
+                    e
+                ))
+            })?;
+        }
         let serialized = serde_json::to_vec_pretty(self)
             .map_err(|e| IndexingError::MerkleTree(format!("Failed to serialize state: {}", e)))?;
         fs::write(path, serialized).map_err(|e| {

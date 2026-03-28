@@ -17,6 +17,11 @@ service GraphRetrievalService {
   rpc RetrieveCodeContext(RetrieveCodeContextRequest) returns (RetrieveCodeContextResponse);
 }
 
+service RetrievalService {
+  rpc RetrieveSkills(RetrieveSkillsRequest) returns (RetrieveSkillsResponse);
+  rpc RetrieveCodeContext(RetrieveCodeContextRequest) returns (RetrieveCodeContextResponse);
+}
+
 message ListToolsRequest {
   string agent_id = 1;
   // Machine-local tool capability profile id (not tenant RBAC). Legacy name: role.
@@ -134,7 +139,7 @@ message RetrievedSkill {
   string source_path = 3;
   string content = 4;
   uint32 token_cost = 5;
-  float rrf_score = 6;
+  float fusion_score = 6;
   float accept_posterior = 7;
   float cross_score = 8;
 }
@@ -152,6 +157,8 @@ message RetrieveCodeContextRequest {
   uint32 token_budget = 9;
   uint32 dense_limit = 10;
   bool include_diagnostics = 11;
+  // Retrieval Contract v1: shared limit applied to dense/sparse candidate generation.
+  uint32 candidate_limit = 12;
 }
 
 message RetrievedCodeContext {
@@ -163,24 +170,55 @@ message RetrievedCodeContext {
   float dense_score = 6;
   float accept_posterior = 7;
   float cross_score = 8;
+  float fusion_score = 9;
+}
+
+message RetrievalContract {
+  string contract_version = 1;
+  string embedding_schema_version = 2;
+  string chunk_schema_version = 3;
+  string payload_schema_version = 4;
+  repeated string candidate_channels = 5;
+  string fusion_policy = 6;
+  string rerank_policy = 7;
+  string selection_policy = 8;
+  string diagnostics_schema_version = 9;
+}
+
+message ChannelScore {
+  string channel = 1;
+  uint32 rank = 2;
+  float score = 3;
 }
 
 message CandidateScore {
-  string skill_id = 1;
-  uint32 dense_rank = 2;
-  float dense_score = 3;
-  uint32 bm25_rank = 4;
-  float bm25_score = 5;
-  float rrf_score = 6;
-  float accept_posterior = 7;
-  float cross_score = 8;
-  uint32 token_cost = 9;
-  bool selected = 10;
+  string document_id = 1;
+  string title = 2;
+  repeated ChannelScore channel_scores = 3;
+  float fusion_score = 4;
+  float accept_posterior = 5;
+  float cross_score = 6;
+  uint32 token_cost = 7;
+  bool selected = 8;
+}
+
+message RetrievalChannelStat {
+  string channel = 1;
+  uint32 hits = 2;
+  bool participated = 3;
+}
+
+message RetrievalStageStat {
+  string stage = 1;
+  uint64 latency_ms = 2;
+  uint32 input_count = 3;
+  uint32 output_count = 4;
+  bool degraded = 5;
 }
 
 message RetrievalDiagnostics {
-  uint32 dense_hits = 1;
-  uint32 bm25_hits = 2;
+  RetrievalContract contract = 1;
+  repeated RetrievalChannelStat channel_stats = 2;
   uint32 fused_candidates = 3;
   uint32 accept_count = 4;
   uint32 reject_count = 5;
@@ -188,8 +226,10 @@ message RetrievalDiagnostics {
   uint32 used_tokens = 7;
   bool memgas_converged = 8;
   bool memgas_degenerate = 9;
-  repeated CandidateScore scores = 10;
-  google.protobuf.Timestamp generated_at = 11;
+  repeated CandidateScore candidate_scores = 10;
+  repeated RetrievalStageStat stage_stats = 11;
+  bool degraded_mode = 12;
+  google.protobuf.Timestamp generated_at = 13;
 }
 
 message RetrieveSkillsResponse {

@@ -17,7 +17,7 @@ pub(crate) async fn process_pending_verification_runs(
         return Ok(());
     }
     let snapshot = wm
-        .synced_read_model(workspace_id)
+        .authoritative_read_model(workspace_id)
         .await
         .map_err(|status| anyhow::anyhow!(status.to_string()))?;
     let pending: Vec<Uuid> = snapshot
@@ -97,7 +97,7 @@ mod tests {
     #[test]
     fn pending_ids_filter_is_stable_contract() {
         let id = Uuid::new_v4();
-        let runs = vec![openakta_api_client::VerificationRunView {
+        let runs = vec![openakta_workflow::VerificationRunView {
             id,
             workspace_id: Uuid::new_v4(),
             story_id: None,

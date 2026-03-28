@@ -17,6 +17,7 @@ path = "src/main.rs"
 
 [dependencies]
 openakta-proto.workspace = true
+openakta-workflow.workspace = true
 openakta-storage.workspace = true
 openakta-core.workspace = true
 openakta-docs.workspace = true

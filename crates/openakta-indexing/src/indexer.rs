@@ -1,77 +1,104 @@
-//! Incremental indexer
+//! Incremental code indexer for dense and sparse retrieval backends.
 
 use crate::chunker::Chunker;
+use crate::code_index::{CodeIndexDocument, TantivyCodeIndex};
 use crate::error::IndexingError;
-use crate::merkle::MerkleTree;
+use crate::merkle::{IndexDelta, MerkleTree};
 use crate::vector_store::DenseVectorCollection;
 use crate::Result;
 use openakta_embeddings::CodeEmbedder;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
 
-/// Statistics from indexing
+/// Statistics from indexing.
 #[derive(Debug, Default)]
 pub struct IndexStats {
-    /// Number of chunks indexed
     pub chunks_indexed: usize,
-    /// Number of files processed
     pub files_processed: usize,
-    /// Indexing time in seconds
+    pub deleted_chunks: usize,
     pub indexing_time_secs: f64,
 }
 
-/// Incremental indexer
+/// Incremental indexer that keeps dense and sparse code indexes aligned.
 pub struct IncrementalIndexer {
     chunker: Chunker,
     embedder: Arc<dyn CodeEmbedder>,
-    vector_store: Arc<dyn DenseVectorCollection>,
-    merkle_tree: MerkleTree,
+    dense_store: Arc<dyn DenseVectorCollection>,
+    sparse_index: Arc<TantivyCodeIndex>,
     root_path: PathBuf,
+    state_path: PathBuf,
 }
 
 impl IncrementalIndexer {
-    /// Create new incremental indexer
-    pub async fn new(
-        root_path: &Path,
+    /// Create a new incremental indexer.
+    pub fn new(
+        root_path: impl AsRef<Path>,
+        state_path: impl AsRef<Path>,
         embedder: Arc<dyn CodeEmbedder>,
-        vector_store: Arc<dyn DenseVectorCollection>,
+        dense_store: Arc<dyn DenseVectorCollection>,
+        sparse_index: Arc<TantivyCodeIndex>,
     ) -> Result<Self> {
-        info!("Creating indexer for {:?}", root_path);
-
-        // Build or load Merkle tree
-        let merkle_tree = MerkleTree::build(root_path)?;
-
+        let root_path = root_path.as_ref().to_path_buf();
+        info!("Creating incremental indexer for {:?}", root_path);
         Ok(Self {
             chunker: Chunker::new()?,
             embedder,
-            vector_store,
-            merkle_tree,
-            root_path: root_path.to_path_buf(),
+            dense_store,
+            sparse_index,
+            root_path,
+            state_path: state_path.as_ref().to_path_buf(),
         })
     }
 
-    /// Index codebase incrementally
+    /// Index the codebase incrementally and persist the Merkle baseline.
     pub async fn index(&mut self) -> Result<IndexStats> {
-        info!("Starting incremental indexing");
+        let started_at = std::time::Instant::now();
+        info!("Starting incremental code indexing");
 
-        // Find changed files
-        let changed_files = self
-            .merkle_tree
-            .find_changed(&MerkleTree::build(&self.root_path)?);
-        info!("Found {} changed files", changed_files.len());
+        let current_tree = MerkleTree::build(&self.root_path)?;
+        let previous_tree = if self.state_path.exists() {
+            MerkleTree::load_from_path(&self.state_path)?
+        } else {
+            MerkleTree::empty(&self.root_path)
+        };
+        let deltas = current_tree.diff(&previous_tree);
 
+        let mut changed_files = HashSet::new();
         let mut stats = IndexStats::default();
 
-        // Process changed files
+        for delta in &deltas {
+            match delta {
+                IndexDelta::UpsertBlock(entry) => {
+                    changed_files.insert(entry.file_path.clone());
+                }
+                IndexDelta::DeleteBlock {
+                    block_id,
+                    file_path,
+                } => {
+                    self.dense_store.delete(block_id).await?;
+                    self.sparse_index.delete(block_id)?;
+                    stats.deleted_chunks += 1;
+                    changed_files.insert(file_path.clone());
+                }
+                IndexDelta::Noop { .. } => {}
+            }
+        }
+
         for file_path in changed_files {
-            let content = std::fs::read_to_string(self.root_path.join(&file_path))
+            let absolute_path = self.root_path.join(&file_path);
+            if !absolute_path.exists() {
+                continue;
+            }
+
+            let content = std::fs::read_to_string(&absolute_path)
                 .map_err(|err| IndexingError::FileRead(err.to_string()))?;
             let language =
                 Chunker::detect_language(&file_path).unwrap_or_else(|| "unknown".to_string());
             let chunks = self
                 .chunker
-                .extract_chunks(&content, &self.root_path.join(&file_path), &language)
+                .extract_chunks(&content, &file_path, &language)
                 .map_err(|err| IndexingError::ParseFailed(err.to_string()))?;
             let batch = chunks
                 .iter()
@@ -82,29 +109,55 @@ impl IncrementalIndexer {
                 .embed_batch(&batch)
                 .await
                 .map_err(|err| IndexingError::VectorStore(err.to_string()))?;
+
             for (chunk, embedding) in chunks.into_iter().zip(embeddings.into_iter()) {
-                let payload = serde_json::json!({
-                    "chunk_id": chunk.id,
-                    "file_path": file_path.display().to_string(),
-                    "symbol_path": chunk.metadata.symbol_path,
-                    "language": language,
-                    "chunk_type": format!("{:?}", chunk.chunk_type),
-                    "start_line": chunk.line_range.0,
-                    "end_line": chunk.line_range.1,
-                    "checksum": blake3::hash(chunk.content.as_bytes()).to_hex().to_string(),
-                    "token_cost": chunk.content.len() / 4,
-                });
-                let chunk_id = payload["chunk_id"].as_str().unwrap_or_default().to_string();
-                self.vector_store
-                    .upsert(&chunk_id, &embedding, payload)
+                let document = CodeIndexDocument {
+                    chunk_id: chunk.id.clone(),
+                    file_path: file_path.display().to_string(),
+                    symbol_path: chunk.metadata.symbol_path.clone(),
+                    summary: format!(
+                        "{}:{}-{}",
+                        file_path.display(),
+                        chunk.line_range.0,
+                        chunk.line_range.1
+                    ),
+                    body_markdown: chunk.content.clone(),
+                    language: Some(language.clone()),
+                    chunk_type: Some(format!("{:?}", chunk.chunk_type)),
+                    start_line: chunk.line_range.0,
+                    end_line: chunk.line_range.1,
+                    token_cost: chunk.token_count,
+                };
+                self.dense_store
+                    .upsert(
+                        &document.chunk_id,
+                        &embedding,
+                        serde_json::json!({
+                            "chunk_id": document.chunk_id,
+                            "file_path": document.file_path,
+                            "symbol_path": document.symbol_path,
+                            "summary": document.summary,
+                            "language": document.language,
+                            "chunk_type": document.chunk_type,
+                            "start_line": document.start_line,
+                            "end_line": document.end_line,
+                            "token_cost": document.token_cost,
+                            "checksum": chunk.metadata.content_hash,
+                        }),
+                    )
                     .await?;
+                self.sparse_index.upsert(&document)?;
                 stats.chunks_indexed += 1;
             }
             stats.files_processed += 1;
         }
 
-        info!("Indexing complete: {} chunks", stats.chunks_indexed);
-
+        current_tree.save_to_path(&self.state_path)?;
+        stats.indexing_time_secs = started_at.elapsed().as_secs_f64();
+        info!(
+            "Incremental indexing complete: {} chunks across {} files ({} deletions)",
+            stats.chunks_indexed, stats.files_processed, stats.deleted_chunks
+        );
         Ok(stats)
     }
 }

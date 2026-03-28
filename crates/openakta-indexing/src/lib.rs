@@ -3,6 +3,7 @@
 //! Code indexing with Tree-sitter chunking, Merkle tree sync, and SCIP protocol.
 
 pub mod chunker;
+pub mod code_index;
 pub mod error;
 pub mod indexer;
 pub mod influence;
@@ -15,6 +16,9 @@ pub mod traceability;
 pub mod vector_store;
 
 pub use chunker::{BlockId, ChunkMetadata, ChunkType, Chunker, CodeChunk};
+pub use code_index::{
+    CodeDenseIndex, CodeIndexDocument, DenseCodeHit, SparseCodeHit, TantivyCodeIndex,
+};
 pub use error::IndexingError;
 pub use indexer::IncrementalIndexer;
 pub use influence::{FileId, InfluenceError, InfluenceGraph, InfluenceGraphStats, InfluenceVector};

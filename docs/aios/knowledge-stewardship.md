@@ -4,7 +4,7 @@ The platform uses a two-tier truth model.
 
 ## Canonical shared knowledge
 
-- Decisions, glossary entries, architecture facts, policy changes, requirement interpretations, and incident lessons belong in cloud-backed canonical entities.
+- Decisions, glossary entries, architecture facts, policy changes, requirement interpretations, and incident lessons belong in canonical workspace knowledge owned by the local runtime. Optional cloud publication may exist, but it is not the required source of truth.
 - Knowledge artifacts link back to supporting requirements, decisions, findings, evidence, or documentation anchors.
 
 ## Persona-local working memory

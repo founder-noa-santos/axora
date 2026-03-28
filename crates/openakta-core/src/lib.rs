@@ -7,14 +7,19 @@
 pub mod bootstrap;
 pub mod config;
 pub mod config_resolve;
+mod control_plane;
 pub mod frame;
 pub mod runtime_services;
 pub mod server;
 
 pub use bootstrap::{MessageRequest, MessageResult, RuntimeBootstrap, RuntimeBootstrapOptions};
 pub use config::{CoreConfig, SemanticVectorBackend};
+pub use control_plane::{
+    ControlPlaneRuntime, FinalizedSessionOutcome, WorkSessionArtifactRecord, WorkSessionRecord,
+    WorkSessionSnapshot, WorkSessionStatus, WorkSessionTaskRecord, WorkTaskLane, WorkTaskStatus,
+};
 pub use frame::{Frame, FrameContext, FrameExecutor};
-pub use openakta_api_client::MolFeatureFlags;
+pub use openakta_workflow::MolFeatureFlags;
 pub use runtime_services::{DocSyncService, MemoryServices};
 pub use server::{stream_messages_lagged_total, CollectiveServer, ExecutionObservabilityGrpc};
 

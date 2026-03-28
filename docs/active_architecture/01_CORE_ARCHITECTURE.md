@@ -1,7 +1,7 @@
 # 01_CORE_ARCHITECTURE
 
-**Status:** Active (this doc is maintained; not every subsection is “enforced” in code—see below)  
-**Last Updated:** 2026-03-26  
+**Status:** Active
+**Last Updated:** 2026-03-27
 **Owner:** Architect Agent  
 
 ---
@@ -13,16 +13,19 @@ OPENAKTA uses a **hybrid architecture**:
 - **Local infrastructure** for indexing, RAG, and memory — Zero cloud costs for embeddings
 - **Deterministic orchestration** — State machines, not conversational swarms
 
-**Mission Operating Layer (MOL) — today vs target**
+**Mission Operating Layer (MOL) — authoritative model**
 
-- **Today:** Data model and APIs for story intake, preparation, requirements, verification, and closure live primarily in **`openakta-api`** (Postgres migrations such as `openakta-api/migrations/0005_mission_operating_layer.sql`, handlers in `openakta-api/src/work_management.rs`). The **daemon** (`aktacode/crates/openakta-daemon`, e.g. `background/work_management_service.rs`, `background/work_plan_compiler.rs`) mirrors read models locally and drives execution. **Not every transition or invariant is enforced uniformly** across API, daemon, and agents yet; roadmap work adds authoritative gates.
-- **Target:** Preparation and closure behave as **state machines with hard gates** (no “rich JSON but false-done”). Depends on ongoing MOL implementation (validation in API, compiler, coordinator).
-- **Legacy:** Execution may still use **raw work items** or paths that predate strict MOL; see `docs/aios/mission-operating-layer.md`.
+- **Authority:** Workflow state, workflow transitions, read models, and orchestration live in the **daemon** (`aktacode/crates/openakta-daemon`).
+- **Persistence:** The authoritative workflow store is local SQLite under the workspace (`background/work_mirror.rs`).
+- **Execution:** Plan compilation and execution run under local orchestration (`background/work_management_service.rs`, `background/work_plan_compiler.rs`, `openakta-agents`).
+- **Cloud boundary:** `openakta-api` is limited to provider-facing infrastructure, embeddings, billing, quotas, entitlements, and unavoidable callback ingress. It is not a workflow backend.
+- **Legacy:** Raw work-item paths still exist for compatibility, but they do not change the ownership model.
 
-Intended product shape for MOL:
+Required product shape for MOL:
 
 - **Preparation** — stories are clarified, profiled, and compiled into prepared packets; **target** is that Balanced+ profiles require readiness before execution.
-- **Closure** — **target** is that mission success moves work toward **`closure_pending`** and only authoritative closure (coverage, claims, verification, handoffs, gates) yields **`closed`**—not task completion alone.
+- **Closure** — mission success moves work toward **`closure_pending`** and only authoritative local closure (coverage, claims, verification, handoffs, gates) yields **`closed`**.
+- **Paid plans** — stronger remote services are allowed, hosted workflow ownership is not.
 
 ---
 

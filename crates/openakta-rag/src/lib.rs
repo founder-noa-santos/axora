@@ -4,6 +4,7 @@
 
 pub mod code_pipeline;
 pub mod context;
+pub mod contract;
 pub mod error;
 pub mod final_stage;
 pub mod reranker;
@@ -14,6 +15,13 @@ pub use code_pipeline::{
     CodeChunkDocument, CodeRetrievalPipeline, CodeRetrievalQuery, CodeRetrievalResult,
 };
 pub use context::ContextBuilder;
+pub use contract::{
+    build_candidate_scores, build_channel_stats, stage_stat, RetrievalCandidateScore,
+    RetrievalChannelScore, RetrievalChannelStat, RetrievalContract, RetrievalDiagnosticsData,
+    RetrievalStageStat, CHUNK_SCHEMA_VERSION, DIAGNOSTICS_SCHEMA_VERSION, EMBEDDING_SCHEMA_VERSION,
+    FUSION_POLICY_V1, PAYLOAD_SCHEMA_VERSION, RERANK_POLICY_V1, RETRIEVAL_CONTRACT_VERSION,
+    SELECTION_POLICY_V1,
+};
 pub use error::RagError;
 pub use final_stage::{
     AcceptedCandidate, BudgetedSelector, FusedCandidate, GaussianMemgasClassifier,

@@ -1,0 +1,41 @@
+{
+  "version": "retrieval_benchmark_portfolio_v1",
+  "cases": [
+    {
+      "case_id": "rust-auth-navigation-001",
+      "codebase_id": "demo-rust-service",
+      "language": "rust",
+      "repo_size": "medium",
+      "task_class": "navigation",
+      "query": "trace where JWT issuer is validated",
+      "relevant_documents": [
+        {
+          "document_id": "src/auth/jwt.rs#validate_issuer",
+          "relevance": 2.0
+        },
+        {
+          "document_id": "src/config/auth.rs#jwt_issuer",
+          "relevance": 1.0
+        }
+      ]
+    },
+    {
+      "case_id": "python-payments-bugfix-001",
+      "codebase_id": "demo-python-worker",
+      "language": "python",
+      "repo_size": "large",
+      "task_class": "bug_fix",
+      "query": "find retry backoff logic for failed payment webhooks",
+      "relevant_documents": [
+        {
+          "document_id": "payments/retry.py#compute_backoff",
+          "relevance": 2.0
+        },
+        {
+          "document_id": "workers/webhooks.py#handle_payment_failure",
+          "relevance": 1.0
+        }
+      ]
+    }
+  ]
+}

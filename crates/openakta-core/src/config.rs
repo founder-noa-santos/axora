@@ -4,13 +4,13 @@ use openakta_agents::{
     FallbackPolicy, ProviderInstancesConfig, ProviderRuntimeConfig, RemoteRegistryConfig,
     TomlModelRegistryEntry,
 };
-use openakta_api_client::MolFeatureFlags;
 use openakta_embeddings::{CodeEmbeddingConfig, FallbackEmbeddingConfig, SkillEmbeddingConfig};
 use openakta_indexing::{CollectionSpec, VectorBackendKind};
 use openakta_mcp_server::{
     ContainerExecutorConfig, MassRefactorExecutorConfig, SandboxedToolExecutionMode,
     WasiExecutorConfig,
 };
+use openakta_workflow::MolFeatureFlags;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -88,10 +88,15 @@ pub struct RetrievalDomainConfig {
     pub batch_size: usize,
     /// Default token budget.
     pub token_budget: usize,
+    /// Tantivy BM25 index directory for code retrieval.
+    pub bm25_dir: PathBuf,
+    /// Persisted Merkle state for incremental code indexing.
+    pub index_state_path: PathBuf,
 }
 
 impl Default for RetrievalDomainConfig {
     fn default() -> Self {
+        let runtime_root = PathBuf::from(".openakta");
         let embedding = CodeEmbeddingConfig::default();
         Self {
             collection: CollectionSpec::code_default().name,
@@ -102,6 +107,8 @@ impl Default for RetrievalDomainConfig {
             max_length: embedding.max_length,
             batch_size: embedding.batch_size,
             token_budget: 2_000,
+            bm25_dir: runtime_root.join("code-bm25"),
+            index_state_path: runtime_root.join("code-index-state.json"),
         }
     }
 }
@@ -366,6 +373,8 @@ impl CoreConfig {
         retrieval.qdrant_url = "http://127.0.0.1:6334".to_string();
         retrieval.code.collection = CollectionSpec::code_default().name;
         retrieval.code.token_budget = 2_000;
+        retrieval.code.bm25_dir = runtime_root.join("code-bm25");
+        retrieval.code.index_state_path = runtime_root.join("code-index-state.json");
         retrieval.skills.collection = CollectionSpec::skill_default().name;
         retrieval.skills.corpus_root = workspace_root.join("skills");
         retrieval.skills.catalog_db_path =
@@ -447,6 +456,10 @@ impl CoreConfig {
             std::fs::create_dir_all(parent)?;
         }
         if let Some(parent) = self.retrieval.sqlite_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::create_dir_all(&self.retrieval.code.bm25_dir)?;
+        if let Some(parent) = self.retrieval.code.index_state_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         std::fs::create_dir_all(self.workspace_root.join(".openakta/secrets"))?;

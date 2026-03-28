@@ -3982,6 +3982,7 @@ dependencies = [
  "openakta-memory",
  "openakta-proto",
  "openakta-rag",
+ "openakta-workflow",
  "parking_lot",
  "prost 0.12.6",
  "prost-types 0.12.6",
@@ -4041,6 +4042,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "uuid",
 ]
 
@@ -4127,9 +4129,11 @@ dependencies = [
  "openakta-rag",
  "openakta-research",
  "openakta-storage",
+ "openakta-workflow",
  "parking_lot",
  "prost 0.12.6",
  "prost-types 0.12.6",
+ "rusqlite",
  "secrecy 0.8.0",
  "serde",
  "serde_json",
@@ -4164,6 +4168,7 @@ dependencies = [
  "openakta-memory",
  "openakta-proto",
  "openakta-storage",
+ "openakta-workflow",
  "rusqlite",
  "serde",
  "serde_json",
@@ -4421,6 +4426,19 @@ dependencies = [
  "tempfile",
  "thiserror 1.0.69",
  "tokio-test",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "openakta-workflow"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "openakta-api-client",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
  "tracing",
  "uuid",
 ]
@@ -4919,11 +4937,9 @@ dependencies = [
  "anyhow",
  "derive_builder",
  "futures",
- "futures-util",
  "parking_lot",
  "prost 0.13.5",
  "prost-types 0.13.5",
- "reqwest",
  "semver",
  "serde",
  "serde_json",
@@ -5273,7 +5289,6 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-util",
- "h2 0.4.13",
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",

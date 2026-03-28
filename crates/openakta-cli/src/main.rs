@@ -4,7 +4,9 @@ mod doc;
 use anyhow::Context;
 use clap::{ArgAction, Parser, Subcommand, ValueEnum};
 use openakta_agents::{FallbackPolicy, MessageSurface, ProviderInstanceId, ResponsePreference};
-use openakta_core::{init_tracing, MessageRequest, RuntimeBootstrap, RuntimeBootstrapOptions};
+use openakta_core::{
+    init_tracing, ControlPlaneRuntime, MessageRequest, RuntimeBootstrap, RuntimeBootstrapOptions,
+};
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
@@ -80,6 +82,11 @@ enum Commands {
         #[arg(long, action = ArgAction::SetTrue)]
         no_code: bool,
     },
+    /// Inspect durable work-session state.
+    Session {
+        #[command(subcommand)]
+        command: SessionCommands,
+    },
     /// Initialize AI-optimized project documentation.
     Doc {
         #[command(subcommand)]
@@ -118,6 +125,24 @@ enum DocCommands {
         workspace: Option<PathBuf>,
         /// Optional files or directories to lint. Defaults to `akta-docs/`.
         targets: Vec<PathBuf>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum SessionCommands {
+    /// Show a persisted work session and its task graph.
+    Show {
+        /// Work session id emitted by `openakta do` or `openakta ask`.
+        session_id: String,
+        /// Override the workspace root.
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+        /// Emit the full snapshot as JSON.
+        #[arg(long, action = ArgAction::SetTrue)]
+        json: bool,
+        /// Include artifacts in the human-readable output.
+        #[arg(long, action = ArgAction::SetTrue)]
+        artifacts: bool,
     },
 }
 
@@ -259,6 +284,7 @@ async fn main() -> anyhow::Result<()> {
                 },
             )
             .await?;
+            eprintln!("work_session_id: {}", result.work_session_id);
 
             if result.success {
                 println!("{}", result.output);
@@ -308,8 +334,35 @@ async fn main() -> anyhow::Result<()> {
                 },
             )
             .await?;
+            eprintln!("work_session_id: {}", output.work_session_id);
             println!("{}", output.output);
         }
+        Commands::Session { command } => match command {
+            SessionCommands::Show {
+                session_id,
+                workspace,
+                json,
+                artifacts,
+            } => {
+                let workspace_root = workspace.unwrap_or(
+                    std::env::current_dir().context("failed to determine current directory")?,
+                );
+                let runtime = ControlPlaneRuntime::open(&workspace_root)?;
+                let snapshot = runtime
+                    .snapshot_session(&session_id)?
+                    .with_context(|| format!("work session not found: {session_id}"))?;
+
+                if json {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&snapshot)
+                            .context("serialize work session snapshot")?
+                    );
+                } else {
+                    print_work_session_snapshot(&snapshot, artifacts);
+                }
+            }
+        },
         Commands::Doc { command } => match command {
             DocCommands::Init {
                 workspace,
@@ -363,6 +416,75 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn print_work_session_snapshot(
+    snapshot: &openakta_core::WorkSessionSnapshot,
+    include_artifacts: bool,
+) {
+    println!("session_id: {}", snapshot.session.session_id);
+    println!("status: {}", scalar(&snapshot.session.status));
+    println!("mode: {}", scalar(&snapshot.session.admitted_mode));
+    println!("task_type: {}", scalar(&snapshot.session.task_type));
+    println!("risk: {}", scalar(&snapshot.session.risk));
+    println!("workspace_root: {}", snapshot.session.workspace_root);
+    println!("request: {}", snapshot.session.request_text);
+    if let Some(mission_id) = snapshot.session.mission_id.as_deref() {
+        println!("mission_id: {}", mission_id);
+    }
+    if let Some(trace_session_id) = snapshot.session.trace_session_id.as_deref() {
+        println!("trace_session_id: {}", trace_session_id);
+    }
+    if let Some(error_message) = snapshot.session.error_message.as_deref() {
+        println!("error: {}", error_message);
+    }
+
+    println!("tasks:");
+    for task in &snapshot.tasks {
+        println!(
+            "- {} lane={} status={} deps={} title={}",
+            task.task_id,
+            scalar(&task.lane),
+            scalar(&task.status),
+            if task.depends_on_task_ids.is_empty() {
+                "-".to_string()
+            } else {
+                task.depends_on_task_ids.join(",")
+            },
+            task.title
+        );
+    }
+
+    if let Some(outcome_json) = snapshot.session.outcome_json.as_ref() {
+        println!(
+            "outcome: {}",
+            serde_json::to_string_pretty(outcome_json).unwrap_or_else(|_| outcome_json.to_string())
+        );
+    }
+
+    if include_artifacts {
+        println!("artifacts:");
+        for artifact in &snapshot.artifacts {
+            println!(
+                "- {} kind={} task={} requirements={}",
+                artifact.artifact_id,
+                artifact.artifact_kind,
+                artifact.task_id.as_deref().unwrap_or("-"),
+                if artifact.requirement_refs.is_empty() {
+                    "-".to_string()
+                } else {
+                    artifact.requirement_refs.join(",")
+                }
+            );
+        }
+    }
+}
+
+fn scalar<T: serde::Serialize>(value: &T) -> String {
+    serde_json::to_string(value)
+        .unwrap_or_else(|_| "\"unknown\"".to_string())
+        .trim_matches('"')
+        .to_string()
 }
 
 fn load_env_files() {

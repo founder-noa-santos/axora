@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/openakta-cli",
     "crates/openakta-proto",
+    "crates/openakta-workflow",
     "crates/openakta-storage",
     "crates/openakta-core",
     "crates/openakta-daemon",
@@ -90,6 +91,7 @@ tempfile = "3.27"
 
 # Internal crates
 openakta-proto = { path = "crates/openakta-proto" }
+openakta-workflow = { path = "crates/openakta-workflow" }
 openakta-storage = { path = "crates/openakta-storage" }
 openakta-core = { path = "crates/openakta-core" }
 openakta-mcp-server = { path = "crates/openakta-mcp-server" }
@@ -111,7 +113,7 @@ candle-transformers = "0.8"
 candle-nn = "0.8"
 
 # Phase 1: Vector search
-qdrant-client = "1.17"
+qdrant-client = { version = "1.17", default-features = false, features = ["serde"] }
 # lancedb = "0.10"  # Temporarily disabled due to arrow-arith conflict
 
 # Phase 1: Code parsing

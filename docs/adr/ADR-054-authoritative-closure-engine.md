@@ -13,7 +13,7 @@ This ADR complements the intake/preparation state-machine ADR (A7): that documen
 
 ## Decision
 
-Introduce an **authoritative closure engine** (implemented in API/daemon as a dedicated module; see MOL roadmap **ABC1**) with the following contract.
+Introduce an **authoritative closure engine** implemented in the local workflow runtime with the following contract.
 
 ### Inputs (must be evaluated together)
 
@@ -50,7 +50,7 @@ No other code path may set the prepared story (or story) to **closed** for MOL-s
 
 ## Consequences
 
-- Implementation work (**ABC1**): new module (e.g. `mol/closure_engine.rs`) plus a single command or RPC invoked by daemon workflows; `work_management.rs` gains thin wiring, not duplicated rules.
+- Implementation work (**ABC1**): a local workflow module plus a single command or RPC invoked by daemon workflows; hosted services must not duplicate closure rules.
 - **ABC2**: mission-success and daemon paths that today might advance state must consult closure readiness (e.g. block “success” from implying closure when findings are open).
 - Tests: regression tests for illegal transitions and bypass attempts (**ABC6**); E2E closure path (**ABC5**).
 - Documentation: this ADR is the stable reference; detailed gate-type matrices may live in `docs/aios/` and stay in sync with proto/SQL.

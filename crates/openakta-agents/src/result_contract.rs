@@ -20,14 +20,8 @@ pub struct ClaimEvidenceBinding {
 
 /// Returns true when the binding has at least one non-empty requirement id or evidence ref.
 pub fn claim_binding_has_evidence(binding: &ClaimEvidenceBinding) -> bool {
-    binding
-        .requirement_ids
-        .iter()
-        .any(|s| !s.trim().is_empty())
-        || binding
-            .evidence_refs
-            .iter()
-            .any(|s| !s.trim().is_empty())
+    binding.requirement_ids.iter().any(|s| !s.trim().is_empty())
+        || binding.evidence_refs.iter().any(|s| !s.trim().is_empty())
 }
 
 /// Publication payload category.
@@ -153,7 +147,8 @@ impl ResultPublicationGuard {
         })?;
         if !claim_binding_has_evidence(binding) {
             return Err(crate::error::AgentError::EvidenceRequired(
-                "claim_evidence must include at least one requirement id or evidence ref".to_string(),
+                "claim_evidence must include at least one requirement id or evidence ref"
+                    .to_string(),
             )
             .into());
         }

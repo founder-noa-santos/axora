@@ -34,6 +34,10 @@ pub struct FusedCandidate<D> {
     pub bm25_rank: Option<u32>,
     /// BM25 score, if present.
     pub bm25_score: Option<f32>,
+    /// Structural rank, if present.
+    pub structural_rank: Option<u32>,
+    /// Structural score, if present.
+    pub structural_score: Option<f32>,
 }
 
 /// Candidate accepted by MemGAS.
@@ -475,6 +479,8 @@ mod tests {
                 dense_score: Some(0.9),
                 bm25_rank: Some(1),
                 bm25_score: Some(7.0),
+                structural_rank: None,
+                structural_score: None,
             },
             FusedCandidate {
                 document: TestDoc {
@@ -489,6 +495,8 @@ mod tests {
                 dense_score: Some(0.8),
                 bm25_rank: None,
                 bm25_score: None,
+                structural_rank: None,
+                structural_score: None,
             },
             FusedCandidate {
                 document: TestDoc {
@@ -503,6 +511,8 @@ mod tests {
                 dense_score: Some(0.7),
                 bm25_rank: None,
                 bm25_score: None,
+                structural_rank: None,
+                structural_score: None,
             },
         ];
 

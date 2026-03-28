@@ -1,43 +1,29 @@
-//! Local SQLite mirror for work-management read models and daemon-only state.
+//! Local SQLite store for authoritative workflow read models and daemon-only state.
 //!
 //! **Path:** `.openakta/work-management.db` under the workspace root ([`WorkMirror::path_for_workspace`]).
 //!
-//! # Mirror vs canonical (A14)
-//!
-//! **Canonical source of truth** for Mission Operating Layer aggregates is the hosted API (Postgres +
-//! events). This file persists a **local-first cache** plus tables that exist **only** on disk.
+//! The local runtime owns workflow truth. This file persists the authoritative workflow snapshot,
+//! local command bookkeeping, local event history, and daemon-only evidence/index tables.
 //!
 //! | Storage | Role | Canonical? | Notes |
-//! |---------|------|------------|--------|
-//! | `wm_read_models` | Full JSON snapshot of [`ReadModelResponse`] + `etag` + `checkpoint_seq` | **Yes** when refreshed from `WorkManagementGrpc::synced_read_model` or after a successful `submit_command` | Can **diverge** temporarily: [`WorkMirror::resolve_clarifications`] and `update_item_states` patch the embedded JSON **without** a round-trip to the API. The next successful API fetch overwrites the snapshot. |
-//! | `wm_pending_commands` | Outbox: serialized [`CommandEnvelope`] per `client_command_id` | Command **application** is canonical on the server; this table tracks sync status (`pending` / `applied` / `failed`) | Written before the HTTP submit; marked after response. |
-//! | `wm_local_clarification_answers` | Answers keyed by `(session_id, clarification_item_id)` | **Local-only** | Used when [`WorkMirror::resolve_clarifications`] runs (offline fallback). The normal gRPC path submits `record_clarification_answers` to the hosted API first, then refreshes the mirror from the canonical read model (AB9). |
+//! |---------|------|------------|-------|
+//! | `wm_read_models` | Full JSON snapshot of [`ReadModelResponse`] + `etag` + `checkpoint_seq` | **Yes** | The daemon reads and writes this directly. |
+//! | `wm_pending_commands` | Serialized [`CommandEnvelope`] per `client_command_id` | **Local bookkeeping** | Tracks local command processing state (`pending` / `applied` / `failed`). |
+//! | `wm_command_results` | Stored [`CommandResponse`] per `client_command_id` | **Local idempotency** | Used to return duplicate responses without reapplying commands. |
+//! | `wm_local_events` | Serialized [`WorkEvent`] rows | **Local event history** | Local append-only event log for workflow authority. |
+//! | `wm_local_clarification_answers` | Answers keyed by `(session_id, clarification_item_id)` | **Local-only** | Canonical clarification answers when captured locally. |
 //! | `wm_local_evidence` | [`EvidenceLinkView`] rows (traces, compiled plan, mission result, …) | **Local-only** | Not replicated to Postgres by this module; `storage_scope` is often `"local"`. |
-//! | `wm_local_verification_index` | Denormalized index of verification runs | **Derived** from the last canonical read model passed to [`WorkMirror::upsert_verification_index`] | Convenience for local queries; rebuild from API snapshot. |
-//! | `wm_persona_memory_index` | Denormalized persona / assignment / artifact index | **Derived** from the read model in [`WorkMirror::refresh_persona_memory_index`] | Rebuilt from canonical snapshot; not a separate source of truth. |
-//!
-//! # Implications for AB9 (clarifications)
-//!
-//! **Canonical path:** `WorkManagementGrpc::resolve_clarifications` submits command
-//! `record_clarification_answers`, which appends to `wm_clarification_answers` and updates
-//! `wm_clarification_items` in Postgres, then replaces the local read model from the API response.
-//!
-//! **Offline fallback:** if `submit_work_command` fails with transport-style [`openakta_api_client::ApiError`]
-//! (unavailable / timeout / connection refused / circuit open), the handler patches the mirror only
-//! (`wm_local_clarification_answers` + embedded JSON). Those answers are **not** in Postgres until a
-//! later successful sync—gates that require server-side state should treat offline resolution as
-//! non-canonical.
-//!
-//! **Compile readiness (AB11):** `work_plan_compiler::enforce_readiness` checks clarification rows in the
-//! embedded read model; local `resolve_clarifications` patches set `status` to `answered` on those rows
-//! before `compile_work_plan` runs, so unresolved items block compilation when they apply to the story.
+//! | `wm_local_verification_index` | Denormalized index of verification runs | **Derived** | Convenience for local queries; rebuild from authoritative snapshot. |
+//! | `wm_persona_memory_index` | Denormalized persona / assignment / artifact index | **Derived** | Rebuilt from authoritative snapshot. |
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
-use openakta_api_client::{CommandEnvelope, EvidenceLinkView, ReadModelResponse};
+use openakta_workflow::{
+    CommandEnvelope, CommandResponse, EvidenceLinkView, ReadModelResponse, WorkEvent,
+};
 use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
@@ -97,6 +83,30 @@ impl WorkMirror {
             CREATE INDEX IF NOT EXISTS idx_wm_pending_commands_workspace
             ON wm_pending_commands(workspace_id, status, created_at_ms DESC);
 
+            CREATE TABLE IF NOT EXISTS wm_command_results (
+                client_command_id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wm_command_results_workspace
+            ON wm_command_results(workspace_id, updated_at_ms DESC);
+
+            CREATE TABLE IF NOT EXISTS wm_local_events (
+                workspace_id TEXT NOT NULL,
+                event_seq INTEGER NOT NULL,
+                event_id TEXT NOT NULL,
+                event_json TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                PRIMARY KEY (workspace_id, event_seq),
+                UNIQUE (event_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_wm_local_events_workspace
+            ON wm_local_events(workspace_id, event_seq DESC);
+
             CREATE TABLE IF NOT EXISTS wm_local_clarification_answers (
                 session_id TEXT NOT NULL,
                 workspace_id TEXT NOT NULL,
@@ -155,6 +165,27 @@ impl WorkMirror {
         Ok(())
     }
 
+    pub fn command_response(&self, client_command_id: Uuid) -> Result<Option<CommandResponse>> {
+        let conn = self.connect()?;
+        let row: Option<String> = conn
+            .query_row(
+                r#"
+                SELECT response_json
+                FROM wm_command_results
+                WHERE client_command_id = ?1
+                "#,
+                params![client_command_id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let Some(json) = row else {
+            return Ok(None);
+        };
+        let response =
+            serde_json::from_str(&json).context("deserialize stored workflow command response")?;
+        Ok(Some(response))
+    }
+
     pub fn read_model(&self, workspace_id: Uuid) -> Result<Option<StoredReadModel>> {
         let conn = self.connect()?;
         let row: Option<(String, String, i64)> = conn
@@ -208,6 +239,34 @@ impl WorkMirror {
         Ok(())
     }
 
+    pub fn store_command_response(
+        &self,
+        workspace_id: Uuid,
+        client_command_id: Uuid,
+        response: &CommandResponse,
+    ) -> Result<()> {
+        let conn = self.connect()?;
+        let json = serde_json::to_string(response).context("serialize command response")?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO wm_command_results
+                (client_command_id, workspace_id, response_json, created_at_ms, updated_at_ms)
+            VALUES (?1, ?2, ?3, ?4, ?4)
+            ON CONFLICT(client_command_id) DO UPDATE SET
+                response_json = excluded.response_json,
+                updated_at_ms = excluded.updated_at_ms
+            "#,
+            params![
+                client_command_id.to_string(),
+                workspace_id.to_string(),
+                json,
+                now
+            ],
+        )?;
+        Ok(())
+    }
+
     pub fn record_pending_command(
         &self,
         workspace_id: Uuid,
@@ -249,6 +308,7 @@ impl WorkMirror {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn resolve_clarifications(
         &self,
         workspace_id: Uuid,
@@ -383,6 +443,25 @@ impl WorkMirror {
                 entry.storage_scope,
                 entry.preview_redacted,
                 entry.created_at.to_rfc3339(),
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn append_work_event(&self, event: &WorkEvent) -> Result<()> {
+        let conn = self.connect()?;
+        conn.execute(
+            r#"
+            INSERT OR REPLACE INTO wm_local_events
+                (workspace_id, event_seq, event_id, event_json, created_at_ms)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            "#,
+            params![
+                event.workspace_id.to_string(),
+                event.event_seq,
+                event.event_id.to_string(),
+                serde_json::to_string(event)?,
+                now_ms(),
             ],
         )?;
         Ok(())

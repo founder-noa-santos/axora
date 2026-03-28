@@ -18,6 +18,7 @@ workspace = true
 [dependencies]
 # Internal
 openakta-proto.workspace = true
+openakta-workflow.workspace = true
 prost.workspace = true
 openakta-indexing.workspace = true
 openakta-cache.workspace = true

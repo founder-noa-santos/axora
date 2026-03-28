@@ -2,21 +2,25 @@
 
 #![allow(clippy::items_after_test_module)]
 
+use anyhow::Context;
 use openakta_agents::{
     default_local_transport, local_provider_config_from_instance, BlackboardV2, CloudModelRef,
-    Coordinator, CoordinatorConfig, ExecutionTraceEvent, ExecutionTraceRegistry, FallbackPolicy,
-    HitlConfig, LocalModelRef, MessageExecutionMode, MessageSurface, MissionGate,
-    MissionGateRequest, MissionHitlGate, MissionResult, ModelRegistrySnapshot,
-    ProviderInstanceConfig, ProviderInstanceId, ProviderProfileId, ProviderRegistry,
-    ProviderRuntimeBundle, ResponsePreference, RuntimeBlackboard, SecretRef, Task,
+    Coordinator, CoordinatorConfig, DecomposerConfig, ExecutionTraceEvent, ExecutionTraceRegistry,
+    FallbackPolicy, HitlConfig, LocalModelRef, MessageExecutionMode, MessageSurface,
+    MissionDecision, MissionDecomposer, MissionGate, MissionGateRequest, MissionHitlGate,
+    MissionResult, ModelRegistrySnapshot, ProviderInstanceConfig, ProviderInstanceId,
+    ProviderProfileId, ProviderRegistry, ProviderRuntimeBundle, ResponsePreference,
+    RuntimeBlackboard, SecretRef, Task, TaskTargetHints,
 };
+use openakta_indexing::InfluenceGraph;
 use openakta_mcp_server::{McpService, McpServiceConfig};
 use openakta_proto::mcp::v1::graph_retrieval_service_server::GraphRetrievalServiceServer;
+use openakta_proto::mcp::v1::retrieval_service_server::RetrievalServiceServer;
 use openakta_proto::mcp::v1::tool_service_server::ToolServiceServer;
 use openakta_storage::{Database, DatabaseConfig};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -26,9 +30,13 @@ use crate::config_resolve::{
     build_model_registry_snapshot, build_provider_bundle, load_project_config,
     load_workspace_overlay, merge_config_layers, resolve_secrets,
 };
+use crate::control_plane::{
+    task_shells_for_decomposed_mission, task_shells_for_direct_task, ControlPlaneRuntime,
+    TaskShellSeed, WorkSessionInit, WorkSessionStatus, WorkTaskLane, WorkTaskStatus,
+};
 use crate::{CoreConfig, DocSyncService, MemoryServices};
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Runtime bootstrap options for CLI entrypoints.
 #[derive(Clone)]
@@ -93,6 +101,7 @@ pub struct MessageRequest {
 
 #[derive(Debug, Clone)]
 pub struct MessageResult {
+    pub work_session_id: String,
     pub mission_id: String,
     pub success: bool,
     pub output: String,
@@ -173,7 +182,8 @@ impl RuntimeBootstrap {
             Some((message_bus.clone(), hitl_bus_rx)),
         ));
         let (mcp_addr, mcp_task) =
-            start_embedded_mcp_server(&config, Arc::clone(&hitl_gate)).await?;
+            start_embedded_mcp_server(&config, Some(&memory_services), Arc::clone(&hitl_gate))
+                .await?;
         std::env::set_var("OPENAKTA_MCP_ENDPOINT", format!("http://{}", mcp_addr));
 
         let blackboard = Arc::new(Mutex::new(RuntimeBlackboard::new()));
@@ -206,47 +216,104 @@ impl RuntimeBootstrap {
             workspace_context_override: request.workspace_context_override.clone(),
         })?;
 
-        let session_id = uuid::Uuid::new_v4().to_string();
-        let (runtime, mut coordinator) =
-            Self::build_runtime_and_coordinator(options, &session_id).await?;
+        let work_session_id = uuid::Uuid::new_v4().to_string();
+        let control_plane = ControlPlaneRuntime::open(&request.workspace_root)?;
+        control_plane.admit_session(&WorkSessionInit {
+            session_id: work_session_id.clone(),
+            workspace_root: request.workspace_root.clone(),
+            request_text: request.message.clone(),
+            surface: request.surface,
+            response_preference: request.response_preference,
+            allow_code_context: request.allow_code_context,
+            side_effects_allowed: request.side_effects_allowed,
+            remote_enabled: request.remote_enabled,
+            decision: decision.clone(),
+        })?;
+        control_plane.materialize_initial_retrieval(
+            &work_session_id,
+            &request.message,
+            &decision,
+        )?;
 
-        let mission_result = match decision.mode {
-            MessageExecutionMode::DirectReply => {
-                coordinator
-                    .execute_direct_reply(
-                        &request.message,
-                        &decision.target_hints,
-                        decision.retrieval_plan.workspace_context.clone(),
-                    )
-                    .await
+        let (runtime, mut coordinator) =
+            match Self::build_runtime_and_coordinator(options, &work_session_id).await {
+                Ok(result) => result,
+                Err(err) => {
+                    if let Err(store_err) = control_plane.finalize_failure(
+                        &work_session_id,
+                        None,
+                        Some(work_session_id.as_str()),
+                        &err.to_string(),
+                        &[],
+                    ) {
+                        warn!(
+                            work_session_id = %work_session_id,
+                            error = %store_err,
+                            "failed to persist control-plane bootstrap failure"
+                        );
+                    }
+                    return Err(err);
+                }
+            };
+
+        let mission_result = Self::execute_with_control_plane(
+            &control_plane,
+            &mut coordinator,
+            &request,
+            &decision,
+            &work_session_id,
+        )
+        .await;
+
+        match mission_result {
+            Ok(mission_result) => {
+                let trace_events = trace_snapshot_for_session(&runtime, &work_session_id);
+                control_plane.reconcile_trace_events(&work_session_id, &trace_events)?;
+                let finalized = control_plane.finalize_outcome(
+                    &work_session_id,
+                    Some(mission_result.mission_id.as_str()),
+                    Some(work_session_id.as_str()),
+                    &mission_result.output,
+                    &trace_events,
+                    mission_result.duration.as_millis(),
+                    mission_result.success,
+                )?;
+                let snapshot = control_plane
+                    .snapshot_session(&work_session_id)?
+                    .context("work session disappeared before result rendering")?;
+                let (tasks_completed, tasks_failed) = execution_task_counts(&snapshot);
+
+                Ok(MessageResult {
+                    work_session_id,
+                    mission_id: mission_result.mission_id,
+                    success: finalized.status == WorkSessionStatus::Completed,
+                    output: mission_result.output,
+                    mode: decision.mode,
+                    tasks_completed,
+                    tasks_failed,
+                    duration: mission_result.duration,
+                    trace_events,
+                })
             }
-            MessageExecutionMode::DirectAction | MessageExecutionMode::SingleAgent => {
-                coordinator
-                    .execute_single_task(
-                        Task::new(&request.message).with_task_type(decision.task_type.clone()),
-                        &decision.target_hints,
-                    )
-                    .await
-            }
-            MessageExecutionMode::MultiStep | MessageExecutionMode::Delegated => {
-                coordinator
-                    .execute_plan(&request.message, decision.decomposition_budget.clone())
-                    .await
+            Err(err) => {
+                let trace_events = trace_snapshot_for_session(&runtime, &work_session_id);
+                let mission_id = mission_id_from_trace_events(&trace_events);
+                if let Err(store_err) = control_plane.finalize_failure(
+                    &work_session_id,
+                    mission_id.as_deref(),
+                    Some(work_session_id.as_str()),
+                    &err.to_string(),
+                    &trace_events,
+                ) {
+                    warn!(
+                        work_session_id = %work_session_id,
+                        error = %store_err,
+                        "failed to persist control-plane execution failure"
+                    );
+                }
+                Err(err)
             }
         }
-        .map_err(anyhow::Error::msg)?;
-
-        let _runtime = runtime;
-        Ok(MessageResult {
-            mission_id: mission_result.mission_id,
-            success: mission_result.success,
-            output: mission_result.output,
-            mode: decision.mode,
-            tasks_completed: mission_result.tasks_completed,
-            tasks_failed: mission_result.tasks_failed,
-            duration: mission_result.duration,
-            trace_events: mission_result.trace_events,
-        })
     }
 
     /// Bootstrap the runtime and execute a mission immediately.
@@ -371,6 +438,263 @@ impl RuntimeBootstrap {
         .map_err(anyhow::Error::msg)?;
         Ok((runtime, coordinator))
     }
+
+    async fn execute_with_control_plane(
+        control_plane: &ControlPlaneRuntime,
+        coordinator: &mut Coordinator,
+        request: &MessageRequest,
+        decision: &MissionDecision,
+        work_session_id: &str,
+    ) -> anyhow::Result<MissionResult> {
+        match decision.mode {
+            MessageExecutionMode::DirectReply => {
+                let task = Task::new(&request.message).with_task_type(decision.task_type.clone());
+                let task_shells = task_shells_for_direct_task(
+                    work_session_id,
+                    &task,
+                    &decision.target_hints,
+                    decision.retrieval_plan.workspace_context.is_some(),
+                );
+                control_plane.register_task_shells(work_session_id, &task_shells)?;
+                control_plane.mark_session_executing(work_session_id)?;
+                control_plane.mark_task_state(
+                    work_session_id,
+                    &task.id,
+                    WorkTaskStatus::Running,
+                    None,
+                )?;
+                coordinator
+                    .execute_direct_reply_for_task(
+                        task,
+                        &request.message,
+                        &decision.target_hints,
+                        decision.retrieval_plan.workspace_context.clone(),
+                    )
+                    .await
+                    .map_err(anyhow::Error::msg)
+            }
+            MessageExecutionMode::DirectAction | MessageExecutionMode::SingleAgent => {
+                let task = Task::new(&request.message).with_task_type(decision.task_type.clone());
+                let task_shells = task_shells_for_direct_task(
+                    work_session_id,
+                    &task,
+                    &decision.target_hints,
+                    decision.retrieval_plan.workspace_context.is_some(),
+                );
+                control_plane.register_task_shells(work_session_id, &task_shells)?;
+                control_plane.mark_session_executing(work_session_id)?;
+                execute_authoritative_task_graph(control_plane, coordinator, work_session_id).await
+            }
+            MessageExecutionMode::MultiStep | MessageExecutionMode::Delegated => {
+                let mut planning_task = TaskShellSeed::planning(
+                    work_session_id,
+                    format!("Plan request: {}", request.message),
+                );
+                if decision.retrieval_plan.workspace_context.is_some() {
+                    planning_task
+                        .depends_on_task_ids
+                        .push(crate::control_plane::search_task_id(work_session_id));
+                }
+                control_plane.register_task_shells(work_session_id, &[planning_task.clone()])?;
+                control_plane.plan_started(work_session_id)?;
+                control_plane.mark_task_state(
+                    work_session_id,
+                    &planning_task.task_id,
+                    WorkTaskStatus::Running,
+                    None,
+                )?;
+
+                let decomposed = build_decomposed_mission(
+                    &request.message,
+                    decision.decomposition_budget.clone(),
+                )
+                .await
+                .map_err(anyhow::Error::msg);
+                let decomposed = match decomposed {
+                    Ok(decomposed) => decomposed,
+                    Err(err) => {
+                        let err_message = err.to_string();
+                        control_plane.mark_task_state(
+                            work_session_id,
+                            &planning_task.task_id,
+                            WorkTaskStatus::FailedTerminal,
+                            Some(err_message.as_str()),
+                        )?;
+                        return Err(err);
+                    }
+                };
+
+                control_plane.record_decomposition(work_session_id, &decomposed)?;
+                control_plane.mark_task_state(
+                    work_session_id,
+                    &planning_task.task_id,
+                    WorkTaskStatus::Done,
+                    None,
+                )?;
+                control_plane.register_task_shells(
+                    work_session_id,
+                    &task_shells_for_decomposed_mission(work_session_id, &decomposed),
+                )?;
+                control_plane.mark_session_executing(work_session_id)?;
+                execute_authoritative_task_graph(control_plane, coordinator, work_session_id).await
+            }
+        }
+    }
+}
+
+async fn execute_authoritative_task_graph(
+    control_plane: &ControlPlaneRuntime,
+    coordinator: &mut Coordinator,
+    work_session_id: &str,
+) -> anyhow::Result<MissionResult> {
+    let started_at = Instant::now();
+    let mut outputs = Vec::new();
+    let mut last_mission_id: Option<String> = None;
+    let mut task_failures = 0usize;
+    let mut task_successes = 0usize;
+
+    loop {
+        let Some(task_record) = control_plane.reserve_next_dispatchable_task(work_session_id)?
+        else {
+            break;
+        };
+
+        let task = task_from_record(&task_record);
+        let hints = TaskTargetHints {
+            target_files: task_record.target_files.clone(),
+            target_symbols: task_record.target_symbols.clone(),
+        };
+
+        match coordinator.execute_single_task(task, &hints).await {
+            Ok(task_result) => {
+                last_mission_id = Some(task_result.mission_id.clone());
+                if !task_result.output.trim().is_empty() {
+                    outputs.push(task_result.output.clone());
+                }
+                if task_result.success {
+                    task_successes += 1;
+                    control_plane.finalize_runtime_task_success(
+                        work_session_id,
+                        &task_record.task_id,
+                        &task_result.output,
+                        Some(task_result.mission_id.as_str()),
+                        Some(work_session_id),
+                    )?;
+                } else {
+                    task_failures += 1;
+                    control_plane.finalize_runtime_task_failure(
+                        work_session_id,
+                        &task_record.task_id,
+                        &task_failure_message(&task_record, Some(&task_result), None),
+                        Some(task_result.mission_id.as_str()),
+                        Some(work_session_id),
+                    )?;
+                }
+            }
+            Err(err) => {
+                task_failures += 1;
+                outputs.push(format!("{} failed: {}", task_record.title, err));
+                control_plane.finalize_runtime_task_failure(
+                    work_session_id,
+                    &task_record.task_id,
+                    &task_failure_message(&task_record, None, Some(&err)),
+                    last_mission_id.as_deref(),
+                    Some(work_session_id),
+                )?;
+            }
+        }
+    }
+
+    Ok(MissionResult {
+        mission_id: last_mission_id.unwrap_or_else(|| work_session_id.to_string()),
+        success: task_failures == 0,
+        output: outputs.join("\n"),
+        tasks_completed: task_successes,
+        tasks_failed: task_failures,
+        duration: started_at.elapsed(),
+        trace_events: Vec::new(),
+    })
+}
+
+async fn build_decomposed_mission(
+    mission: &str,
+    decomposition_budget: openakta_agents::DecompositionBudget,
+) -> openakta_agents::Result<openakta_agents::DecomposedMission> {
+    MissionDecomposer::new_with_config(
+        Arc::new(InfluenceGraph::new()),
+        DecomposerConfig {
+            max_tasks: decomposition_budget.max_tasks,
+            max_parallelism: decomposition_budget.max_parallelism,
+            ..DecomposerConfig::default()
+        },
+    )
+    .decompose_async(mission)
+    .await
+}
+
+fn trace_snapshot_for_session(
+    runtime: &RuntimeBootstrap,
+    session_id: &str,
+) -> Vec<ExecutionTraceEvent> {
+    runtime
+        .trace_registry
+        .service(session_id)
+        .map(|service| service.snapshot())
+        .unwrap_or_default()
+}
+
+fn mission_id_from_trace_events(trace_events: &[ExecutionTraceEvent]) -> Option<String> {
+    trace_events
+        .iter()
+        .rev()
+        .find(|event| !event.mission_id.is_empty())
+        .map(|event| event.mission_id.clone())
+}
+
+fn task_from_record(task: &crate::control_plane::WorkSessionTaskRecord) -> Task {
+    Task {
+        id: task.task_id.clone(),
+        description: task.title.clone(),
+        priority: match task.lane {
+            WorkTaskLane::Validation => openakta_agents::Priority::High,
+            WorkTaskLane::Execution => openakta_agents::Priority::Normal,
+            WorkTaskLane::Search | WorkTaskLane::Planning => openakta_agents::Priority::Low,
+        },
+        status: openakta_agents::TaskStatus::Pending,
+        assigned_to: None,
+        parent_task: task.parent_task_id.clone(),
+        task_type: task.task_type.clone(),
+    }
+}
+
+fn task_failure_message(
+    task: &crate::control_plane::WorkSessionTaskRecord,
+    mission_result: Option<&MissionResult>,
+    error: Option<&openakta_agents::CoordinatorV2Error>,
+) -> String {
+    if let Some(mission_result) = mission_result {
+        if !mission_result.output.trim().is_empty() {
+            return mission_result.output.clone();
+        }
+    }
+    if let Some(error) = error {
+        return error.to_string();
+    }
+    format!("{} did not complete successfully", task.title)
+}
+
+fn execution_task_counts(snapshot: &crate::control_plane::WorkSessionSnapshot) -> (usize, usize) {
+    let completed = snapshot
+        .tasks
+        .iter()
+        .filter(|task| task.lane == WorkTaskLane::Execution && task.status == WorkTaskStatus::Done)
+        .count();
+    let failed = snapshot
+        .tasks
+        .iter()
+        .filter(|task| task.lane == WorkTaskLane::Execution && task.status != WorkTaskStatus::Done)
+        .count();
+    (completed, failed)
 }
 
 fn resolve_workspace_config(workspace_root: &std::path::Path) -> anyhow::Result<CoreConfig> {
@@ -570,7 +894,7 @@ mod tests {
             },
             Some((bus.clone(), bus_rx)),
         ));
-        let (_addr, _jh) = start_embedded_mcp_server(&config, Arc::clone(&gate))
+        let (_addr, _jh) = start_embedded_mcp_server(&config, None, Arc::clone(&gate))
             .await
             .unwrap();
 
@@ -737,12 +1061,13 @@ routing_enabled = true
 
 async fn start_embedded_mcp_server(
     config: &CoreConfig,
+    memory_services: Option<&MemoryServices>,
     hitl_gate: Arc<MissionHitlGate>,
 ) -> anyhow::Result<(SocketAddr, JoinHandle<Result<(), tonic::transport::Error>>)> {
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).await?;
     let local_addr = listener.local_addr()?;
     let incoming = TcpListenerStream::new(listener);
-    let service = McpService::with_config(McpServiceConfig {
+    let service_config = McpServiceConfig {
         workspace_root: config.workspace_root.clone(),
         allowed_commands: config.mcp_allowed_commands.clone(),
         default_max_execution_seconds: config.mcp_command_timeout_secs as u32,
@@ -755,6 +1080,8 @@ async fn start_embedded_mcp_server(
         dense_store_path: config.retrieval.sqlite_path.clone(),
         code_collection: config.retrieval.code.collection_spec(),
         code_embedding: config.retrieval.code.embedding_config(),
+        code_bm25_dir: config.retrieval.code.bm25_dir.clone(),
+        code_index_state_path: config.retrieval.code.index_state_path.clone(),
         code_retrieval_budget_tokens: config.retrieval.code.token_budget,
         skill_config: openakta_memory::SkillRetrievalConfig {
             corpus_root: config.retrieval.skills.corpus_root.clone(),
@@ -770,10 +1097,20 @@ async fn start_embedded_mcp_server(
             bm25_limit: 64,
         },
         hitl_gate: Some(hitl_gate),
-    });
+    };
+    let service = if let Some(memory_services) = memory_services {
+        McpService::with_runtime_retrievers(
+            service_config,
+            Arc::clone(&memory_services.skill_retrieval),
+            Arc::clone(&memory_services.code_retrieval),
+        )
+    } else {
+        McpService::with_config(service_config)
+    };
     let task = tokio::spawn(async move {
         tonic::transport::Server::builder()
             .add_service(GraphRetrievalServiceServer::new(service.clone()))
+            .add_service(RetrievalServiceServer::new(service.clone()))
             .add_service(ToolServiceServer::new(service))
             .serve_with_incoming(incoming)
             .await

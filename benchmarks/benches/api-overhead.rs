@@ -6,29 +6,17 @@
 //! - Circuit breaker check overhead
 //! - Total API overhead
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+mod support;
+
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use openakta_api_client::{ApiClient, ApiClientPool, ClientConfig};
-use openakta_proto::provider_v1::{ProviderRequest, ProviderResponse, ProviderResponseChunk};
+use openakta_proto::provider_v1::ProviderRequest;
+use prost::Message;
 use std::time::Duration;
 use tokio::runtime::Runtime;
+use tokio_stream::StreamExt;
 
-/// Create a test provider request for benchmarks
-fn create_test_request() -> ProviderRequest {
-    ProviderRequest {
-        request_id: uuid::Uuid::new_v4().to_string(),
-        tenant_id: "benchmark-tenant".to_string(),
-        provider: "openai".to_string(),
-        model: "gpt-4".to_string(),
-        messages: vec![openakta_proto::provider_v1::Message {
-            role: "user".to_string(),
-            content: "This is a benchmark test message. ".repeat(10),
-        }],
-        max_tokens: 100,
-        temperature: 0.7,
-        stream: false,
-        ..Default::default()
-    }
-}
+use support::create_test_request;
 
 /// Benchmark proto serialization overhead
 fn bench_proto_serialization(c: &mut Criterion) {
@@ -130,15 +118,7 @@ fn bench_pool_acquisition(c: &mut Criterion) {
 /// Note: This requires a running API server
 fn bench_api_roundtrip(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let config = ClientConfig {
-        endpoint: "localhost:3030".to_string(),
-        use_tls: false,
-        connect_timeout: Duration::from_secs(5),
-        timeout: Duration::from_secs(30),
-        migration_mode: false,
-        feature_flags: Default::default(),
-        execution_strategy: Default::default(),
-    };
+    let config = ClientConfig::default();
 
     let client = match ApiClient::new(config) {
         Ok(c) => c,
@@ -168,15 +148,7 @@ fn bench_api_roundtrip(c: &mut Criterion) {
 /// Benchmark streaming API call
 fn bench_api_streaming(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let config = ClientConfig {
-        endpoint: "localhost:3030".to_string(),
-        use_tls: false,
-        connect_timeout: Duration::from_secs(5),
-        timeout: Duration::from_secs(30),
-        migration_mode: false,
-        feature_flags: Default::default(),
-        execution_strategy: Default::default(),
-    };
+    let config = ClientConfig::default();
 
     let client = match ApiClient::new(config) {
         Ok(c) => c,
@@ -199,9 +171,7 @@ fn bench_api_streaming(c: &mut Criterion) {
         b.to_async(&rt).iter(|| async {
             let stream = client.execute_stream(black_box(request.clone())).await;
             if let Ok(mut s) = stream {
-                // Consume stream
-                use tokio_stream::StreamExt;
-                while let Some(_) = s.next().await {
+                while s.next().await.is_some() {
                     // Process chunk
                 }
             }
@@ -214,15 +184,7 @@ fn bench_api_streaming(c: &mut Criterion) {
 /// Benchmark embedding API call
 fn bench_embedding_api(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let config = ClientConfig {
-        endpoint: "localhost:3030".to_string(),
-        use_tls: false,
-        connect_timeout: Duration::from_secs(5),
-        timeout: Duration::from_secs(30),
-        migration_mode: false,
-        feature_flags: Default::default(),
-        execution_strategy: Default::default(),
-    };
+    let config = ClientConfig::default();
 
     let client = match ApiClient::new(config) {
         Ok(c) => c,
