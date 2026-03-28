@@ -154,7 +154,7 @@ wat = "1.245"
 tiktoken-rs = "0.6"
 
 # Hugging Face tokenizers (MiniLM / BERT-style models)
-tokenizers = "0.19"
+tokenizers = "0.22"
 
 # Phase 2: OpenAI-family transport
 async-openai = "0.28.0"
