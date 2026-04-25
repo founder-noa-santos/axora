@@ -317,6 +317,7 @@ mod tests {
             target_symbols: Vec::new(),
             token_budget: 2_500,
             context_pack: None,
+            canonical_contract: None,
         }
     }
 

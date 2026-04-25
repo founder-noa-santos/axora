@@ -783,6 +783,7 @@ mod tests {
             target_symbols: Vec::new(),
             token_budget: 100,
             context_pack: None,
+            canonical_contract: None,
         });
 
         let result = bus.send(message);

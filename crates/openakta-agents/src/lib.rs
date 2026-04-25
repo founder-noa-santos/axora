@@ -4,6 +4,7 @@
 
 pub mod aci_formatter;
 pub mod agent;
+pub mod assignment_contract;
 pub mod blackboard_runtime;
 pub mod capabilities;
 pub mod catalog_registry;
@@ -46,6 +47,12 @@ pub use aci_formatter::{ACIConfig, ACIFormatter, TokenSavings};
 pub use agent::{
     Agent, AgentState, ArchitectAgent, BaseAgent, CoderAgent, DebuggerAgent, RefactorerAgent,
     ReviewerAgent, TaskResult as AgentTaskResult, TesterAgent,
+};
+pub use assignment_contract::{
+    default_expected_artifacts, default_lane_for_task_type, default_termination_condition,
+    default_worker_role, PlanningOriginMode, PlanningOriginRef, WorkerAssignmentContract,
+    WorkerAssignmentLane, WorkerExecutionBudget, WorkerTerminationCondition,
+    DEFAULT_MAX_MUTATING_TOOL_CALLS, DEFAULT_MAX_TOOL_CALLS, DEFAULT_MAX_TOOL_TURNS,
 };
 pub use blackboard_runtime::{BlackboardEntry, RuntimeBlackboard};
 pub use capabilities::{AgentCapabilities, CapabilityRegistry, TaskRequirements};

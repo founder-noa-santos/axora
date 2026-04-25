@@ -406,6 +406,16 @@ impl ToolRegistry {
             .collect()
     }
 
+    pub fn allowed_tool_names(&self, role: &str, task_type: &TaskType) -> Vec<String> {
+        self.specs
+            .iter()
+            .filter(|spec| spec.provider_safe)
+            .filter(|spec| spec.supports_role(role))
+            .filter(|spec| spec.supports_task_type(task_type))
+            .map(|spec| spec.name.clone())
+            .collect()
+    }
+
     pub fn model_schemas_for(
         &self,
         role: &str,
@@ -414,6 +424,20 @@ impl ToolRegistry {
     ) -> Vec<ModelToolSchema> {
         self.slice(role, task_type, model)
             .into_iter()
+            .map(|spec| spec.to_model_schema())
+            .collect()
+    }
+
+    pub fn model_schemas_for_allowed_tools(
+        &self,
+        role: &str,
+        task_type: &TaskType,
+        model: &str,
+        allowed_tools: &[String],
+    ) -> Vec<ModelToolSchema> {
+        self.slice(role, task_type, model)
+            .into_iter()
+            .filter(|spec| allowed_tools.iter().any(|allowed| allowed == &spec.name))
             .map(|spec| spec.to_model_schema())
             .collect()
     }

@@ -1,10 +1,15 @@
 //! Typed protobuf transport adapters for coordinator and worker messages.
 
+use crate::assignment_contract::{
+    default_expected_artifacts, default_lane_for_task_type, default_termination_condition,
+    default_worker_role, PlanningOriginRef, WorkerAssignmentContract, WorkerExecutionBudget,
+};
 use crate::patch_protocol::{
     ContextPack, MetaGlyphCommand, MetaGlyphOpcode, PatchEnvelope, PatchFormat, PatchReceipt,
     ValidationFact,
 };
 use crate::task::{Task, TaskType};
+use crate::tool_registry::ToolRegistry;
 use openakta_proto as proto;
 use serde::{Deserialize, Serialize};
 
@@ -61,6 +66,69 @@ pub struct InternalTaskAssignment {
     pub token_budget: u32,
     /// Typed context pack carried on the orchestration side.
     pub context_pack: Option<ContextPack>,
+    /// Canonical runtime assignment contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub canonical_contract: Option<WorkerAssignmentContract>,
+}
+
+impl InternalTaskAssignment {
+    /// Build the compatibility payload from the canonical worker assignment contract.
+    pub fn from_contract(
+        contract: WorkerAssignmentContract,
+        context_pack: Option<ContextPack>,
+    ) -> Self {
+        let token_budget = contract.budget.token_budget;
+        Self {
+            task_id: contract.task_id.clone(),
+            title: contract.legacy_title().to_string(),
+            description: contract.legacy_description().to_string(),
+            task_type: contract.task_type.clone(),
+            target_files: contract.target_files.clone(),
+            target_symbols: contract.target_symbols.clone(),
+            token_budget,
+            context_pack,
+            canonical_contract: Some(contract),
+        }
+    }
+
+    /// Return the canonical contract, deriving compatibility defaults for legacy callers.
+    pub fn canonical_contract(&self) -> WorkerAssignmentContract {
+        if let Some(contract) = &self.canonical_contract {
+            return contract.clone();
+        }
+
+        let lane = default_lane_for_task_type(&self.task_type);
+        let allowed_tools = ToolRegistry::builtin()
+            .allowed_tool_names(default_worker_role(&self.task_type), &self.task_type);
+        let workspace_revision_token = self.context_pack.as_ref().and_then(|pack| {
+            (!pack.base_revision.trim().is_empty()).then(|| pack.base_revision.clone())
+        });
+        let context_artifact_refs = self
+            .context_pack
+            .as_ref()
+            .map(|pack| vec![format!("context_pack:{}", pack.id)])
+            .unwrap_or_default();
+
+        WorkerAssignmentContract {
+            session_id: self.task_id.clone(),
+            story_id: None,
+            task_id: self.task_id.clone(),
+            task_type: self.task_type.clone(),
+            lane,
+            goal: self.description.clone(),
+            requirement_refs: Vec::new(),
+            context_artifact_refs,
+            target_files: self.target_files.clone(),
+            target_symbols: self.target_symbols.clone(),
+            expected_artifacts: default_expected_artifacts(lane, &self.task_type),
+            allowed_tools,
+            budget: WorkerExecutionBudget::compat_defaults(self.token_budget),
+            termination_condition: default_termination_condition(lane, &self.task_type),
+            verification_required: self.task_type == TaskType::CodeModification,
+            workspace_revision_token,
+            planning_origin_ref: PlanningOriginRef::direct(),
+        }
+    }
 }
 
 /// Internal progress update.
@@ -266,6 +334,89 @@ fn default_meta_glyphs(assignment: &InternalTaskAssignment) -> Vec<MetaGlyphComm
     }
 
     commands
+}
+
+#[cfg(test)]
+mod contract_tests {
+    use super::*;
+    use crate::assignment_contract::{
+        PlanningOriginRef, WorkerAssignmentContract, WorkerAssignmentLane, WorkerExecutionBudget,
+        WorkerTerminationCondition,
+    };
+
+    #[test]
+    fn from_contract_keeps_canonical_assignment() {
+        let contract = WorkerAssignmentContract {
+            session_id: "session-1".to_string(),
+            story_id: Some("story-1".to_string()),
+            task_id: "task-1".to_string(),
+            task_type: TaskType::CodeModification,
+            lane: WorkerAssignmentLane::Execution,
+            goal: "Patch src/lib.rs".to_string(),
+            requirement_refs: vec!["req-1".to_string()],
+            context_artifact_refs: vec!["context_pack:ctx-1".to_string()],
+            target_files: vec!["src/lib.rs".to_string()],
+            target_symbols: vec!["lib::run".to_string()],
+            expected_artifacts: vec!["validated_patch".to_string()],
+            allowed_tools: vec!["read_file".to_string()],
+            budget: WorkerExecutionBudget::compat_defaults(900),
+            termination_condition: WorkerTerminationCondition::ValidatedPatchRequired,
+            verification_required: true,
+            workspace_revision_token: Some("rev-1".to_string()),
+            planning_origin_ref: PlanningOriginRef::planned(
+                Some("prepared-1".to_string()),
+                Some("work-1".to_string()),
+                Some("plan-1".to_string()),
+            ),
+        };
+        let context_pack = Some(ContextPack {
+            id: "ctx-1".to_string(),
+            task_id: "task-1".to_string(),
+            target_files: vec!["src/lib.rs".to_string()],
+            symbols: vec!["lib::run".to_string()],
+            spans: Vec::new(),
+            retrieval_hits: Vec::new(),
+            ast_summaries: Vec::new(),
+            symbol_maps: Vec::new(),
+            validation_facts: Vec::new(),
+            base_revision: "rev-1".to_string(),
+        });
+
+        let assignment = InternalTaskAssignment::from_contract(contract.clone(), context_pack);
+        assert_eq!(assignment.task_id, "task-1");
+        assert_eq!(assignment.token_budget, 900);
+        assert_eq!(assignment.canonical_contract(), contract);
+    }
+
+    #[test]
+    fn canonical_contract_derives_workspace_revision_from_context_pack() {
+        let assignment = InternalTaskAssignment {
+            task_id: "task-2".to_string(),
+            title: "Inspect".to_string(),
+            description: "Inspect".to_string(),
+            task_type: TaskType::Retrieval,
+            target_files: vec!["Cargo.toml".to_string()],
+            target_symbols: Vec::new(),
+            token_budget: 400,
+            context_pack: Some(ContextPack {
+                id: "ctx-2".to_string(),
+                task_id: "task-2".to_string(),
+                target_files: vec!["Cargo.toml".to_string()],
+                symbols: Vec::new(),
+                spans: Vec::new(),
+                retrieval_hits: Vec::new(),
+                ast_summaries: Vec::new(),
+                symbol_maps: Vec::new(),
+                validation_facts: Vec::new(),
+                base_revision: "rev-2".to_string(),
+            }),
+            canonical_contract: None,
+        };
+
+        let contract = assignment.canonical_contract();
+        assert_eq!(contract.workspace_revision_token.as_deref(), Some("rev-2"));
+        assert_eq!(contract.context_artifact_refs, vec!["context_pack:ctx-2"]);
+    }
 }
 
 fn to_proto_patch(patch: &PatchEnvelope) -> proto::PatchEnvelope {

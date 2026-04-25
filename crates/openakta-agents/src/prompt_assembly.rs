@@ -1,5 +1,6 @@
 //! Prompt assembly for model-bound task execution.
 
+use crate::assignment_contract::default_worker_role;
 use crate::patch_protocol::MetaGlyphCommand;
 use crate::provider::{
     CacheRetention, ChatMessage, ModelBoundaryPayload, ModelRequest, ModelToolSchema,
@@ -57,6 +58,7 @@ impl PromptAssembly {
         worker_id: Option<&str>,
         model: &str,
     ) -> Self {
+        let contract = assignment.canonical_contract();
         let proto_assignment = ProtoTransport::typed_task_assignment(assignment);
         let meta_glyphs = default_meta_glyphs(task, assignment);
         let mut system_instructions = vec![
@@ -91,15 +93,46 @@ impl PromptAssembly {
             ));
         }
 
-        let worker_role = infer_worker_role(task, worker_id);
-        let tool_schemas =
-            ToolRegistry::builtin().model_schemas_for(&worker_role, &task.task_type, model);
+        let worker_role = infer_worker_role(&assignment.task_type, worker_id);
+        let allowed_tools = if worker_id.is_some() {
+            ToolRegistry::builtin().allowed_tool_names(&worker_role, &assignment.task_type)
+        } else {
+            contract.allowed_tools.clone()
+        };
+        let tool_schemas = ToolRegistry::builtin().model_schemas_for_allowed_tools(
+            &worker_role,
+            &assignment.task_type,
+            model,
+            &allowed_tools,
+        );
+        let effective_allowed_tools = tool_schemas
+            .iter()
+            .map(|tool| tool.name.clone())
+            .collect::<Vec<_>>();
 
         let invariant_mission_context = vec![json!({
+            "session_id": contract.session_id,
+            "story_id": contract.story_id,
             "task_id": assignment.task_id.clone(),
             "task_type": format!("{:?}", assignment.task_type),
+            "lane": contract.lane.as_str(),
+            "goal": contract.goal,
+            "requirement_refs": contract.requirement_refs,
+            "context_artifact_refs": contract.context_artifact_refs,
             "target_files": assignment.target_files.clone(),
             "target_symbols": assignment.target_symbols.clone(),
+            "expected_artifacts": contract.expected_artifacts,
+            "allowed_tools": effective_allowed_tools,
+            "budget": contract.budget,
+            "termination_condition": contract.termination_condition.as_str(),
+            "verification_required": contract.verification_required,
+            "workspace_revision_token": contract.workspace_revision_token,
+            "planning_origin_ref": {
+                "mode": contract.planning_origin_ref.mode.as_str(),
+                "prepared_story_id": contract.planning_origin_ref.prepared_story_id,
+                "work_item_id": contract.planning_origin_ref.work_item_id,
+                "plan_version_id": contract.planning_origin_ref.plan_version_id,
+            },
             "compression_mode": "metaglyph_toon",
             "meta_glyph_count": meta_glyphs.len(),
             "worker_id": worker_id.unwrap_or_default(),
@@ -151,17 +184,12 @@ impl PromptAssembly {
     }
 }
 
-fn infer_worker_role(task: &Task, worker_id: Option<&str>) -> String {
+fn infer_worker_role(task_type: &TaskType, worker_id: Option<&str>) -> String {
     if let Some(worker_id) = worker_id {
         return worker_id.to_string();
     }
 
-    match task.task_type {
-        TaskType::CodeModification => "coder".to_string(),
-        TaskType::Review => "reviewer".to_string(),
-        TaskType::Retrieval => "architect".to_string(),
-        TaskType::General => "executor".to_string(),
-    }
+    default_worker_role(task_type).to_string()
 }
 
 fn default_meta_glyphs(task: &Task, assignment: &InternalTaskAssignment) -> Vec<MetaGlyphCommand> {
@@ -206,6 +234,7 @@ mod tests {
             target_symbols: vec!["auth::login".to_string()],
             token_budget: 1200,
             context_pack: None,
+            canonical_contract: None,
         };
 
         let assembly = PromptAssembly::for_task(&task, &assignment);
@@ -231,6 +260,7 @@ mod tests {
             target_symbols: vec![],
             token_budget: 800,
             context_pack: None,
+            canonical_contract: None,
         };
 
         let assembly = PromptAssembly::for_task(&task, &assignment);
@@ -253,6 +283,7 @@ mod tests {
             target_symbols: vec![],
             token_budget: 1600,
             context_pack: None,
+            canonical_contract: None,
         };
 
         let assembly = PromptAssembly::for_worker_task(&task, &assignment, Some("refactorer"));
@@ -282,6 +313,7 @@ mod tests {
             target_symbols: vec![],
             token_budget: 1200,
             context_pack: None,
+            canonical_contract: None,
         };
 
         let assembly =
@@ -297,5 +329,30 @@ mod tests {
         assert!(tool_names.contains(&"glob_paths"));
         assert!(!tool_names.contains(&"apply_patch"));
         assert!(!tool_names.contains(&"run_command"));
+    }
+
+    #[test]
+    fn prompt_assembly_includes_canonical_assignment_context() {
+        let task = Task::new("Audit execution contract").with_task_type(TaskType::General);
+        let assignment = InternalTaskAssignment {
+            task_id: "task-5".to_string(),
+            title: "Audit execution contract".to_string(),
+            description: "Audit execution contract".to_string(),
+            task_type: TaskType::General,
+            target_files: vec!["src/lib.rs".to_string()],
+            target_symbols: vec!["contract::build".to_string()],
+            token_budget: 700,
+            context_pack: None,
+            canonical_contract: None,
+        };
+
+        let assembly =
+            PromptAssembly::for_worker_task_with_model(&task, &assignment, None, "gpt-4");
+        let mission = &assembly.invariant_mission_context[0];
+
+        assert_eq!(mission["lane"], "execution");
+        assert_eq!(mission["termination_condition"], "summary_required");
+        assert!(mission["allowed_tools"].is_array());
+        assert_eq!(mission["planning_origin_ref"]["mode"], "direct");
     }
 }

@@ -32,6 +32,10 @@ use self::v2_dispatcher::{
     DispatcherError,
 };
 use self::v2_queue_integration::{QueueIntegrationError, TaskQueueIntegration};
+use crate::assignment_contract::{
+    default_expected_artifacts, default_lane_for_task_type, default_termination_condition,
+    default_worker_role, PlanningOriginRef, WorkerAssignmentContract, WorkerExecutionBudget,
+};
 use crate::blackboard_runtime::{BlackboardEntry, RuntimeBlackboard};
 use crate::communication::CommunicationProtocol;
 use crate::decomposer::{DecomposedMission, DecomposerConfig, MissionDecomposer};
@@ -1460,6 +1464,7 @@ impl Coordinator {
         model_request: ModelRequest,
         target: RoutedTarget,
     ) -> Result<(RoutedTarget, ModelResponse)> {
+        let contract = assignment.canonical_contract();
         let mut current_request = model_request;
         let mut current_target = target;
         let mut turn_index = 0u32;
@@ -1478,7 +1483,7 @@ impl Coordinator {
 
             if response.tool_calls.is_empty()
                 || self.config.mcp_endpoint.is_none()
-                || turn_index >= self.config.max_tool_turns
+                || turn_index >= contract.budget.max_tool_turns
             {
                 return Ok((executed_target, response));
             }
@@ -1494,6 +1499,43 @@ impl Coordinator {
 
             for call in &response.tool_calls {
                 tool_calls += 1;
+                if !contract.allowed_tools.iter().any(|tool| tool == &call.name) {
+                    let mut denied = self.tool_trace_event(
+                        task,
+                        assignment,
+                        &crate::tool_registry::ToolSpec {
+                            name: call.name.clone(),
+                            description: String::new(),
+                            parameters_json_schema: Value::Null,
+                            strict: false,
+                            tool_kind: crate::tool_registry::ToolKind::Command,
+                            read_only: true,
+                            mutating: false,
+                            executor_kind: crate::tool_registry::ExecutorKind::Mcp,
+                            allowed_roles: Vec::new(),
+                            allowed_task_types: Vec::new(),
+                            supported_models: Vec::new(),
+                            cost_class: crate::tool_registry::CostClass::Low,
+                            ui_renderer: crate::tool_registry::UiRenderer::ToolCall,
+                            result_normalizer:
+                                crate::tool_registry::ResultNormalizerKind::PlainText,
+                            provider_safe: false,
+                            requires_approval: false,
+                        },
+                        call,
+                        ExecutionTracePhase::Denied,
+                    );
+                    denied.error = Some(format!(
+                        "tool '{}' is not allowed by assignment contract",
+                        call.name
+                    ));
+                    self.emit_trace_event(denied);
+                    current_request.recent_messages.push(tool_error_message(
+                        &call.id,
+                        format!("tool '{}' is not allowed by assignment contract", call.name),
+                    ));
+                    continue;
+                }
                 let Some(spec) = self.tool_registry.get(&call.name).cloned() else {
                     let mut denied = self.tool_trace_event(
                         task,
@@ -1529,7 +1571,7 @@ impl Coordinator {
                     continue;
                 };
 
-                if tool_calls > self.config.max_tool_calls {
+                if tool_calls > contract.budget.max_tool_calls {
                     let mut denied = self.tool_trace_event(
                         task,
                         assignment,
@@ -1547,7 +1589,7 @@ impl Coordinator {
                 }
                 if spec.mutating {
                     mutating_tool_calls += 1;
-                    if mutating_tool_calls > self.config.max_mutating_tool_calls {
+                    if mutating_tool_calls > contract.budget.max_mutating_tool_calls {
                         let mut denied = self.tool_trace_event(
                             task,
                             assignment,
@@ -1949,7 +1991,7 @@ impl Coordinator {
                 &call.name,
                 &self.config.workspace_root.display().to_string(),
                 value_to_proto_struct(&arguments).unwrap_or_default(),
-                Some(self.capability_policy_for_task(role, task)),
+                Some(self.capability_policy_for_task(role, task, assignment)),
                 self.mission_id.as_deref(),
             )
             .await
@@ -1970,12 +2012,19 @@ impl Coordinator {
         ))
     }
 
-    fn capability_policy_for_task(&self, role: &str, task: &Task) -> CapabilityPolicy {
+    fn capability_policy_for_task(
+        &self,
+        role: &str,
+        task: &Task,
+        assignment: &InternalTaskAssignment,
+    ) -> CapabilityPolicy {
         let workspace_root = self.config.workspace_root.display().to_string();
+        let contract = assignment.canonical_contract();
         let allowed_actions = self
             .tool_registry
             .specs()
             .iter()
+            .filter(|spec| contract.allowed_tools.iter().any(|tool| tool == &spec.name))
             .filter(|spec| spec.provider_safe)
             .filter(|spec| spec.supports_role(role))
             .filter(|spec| spec.supports_task_type(&task.task_type))
@@ -2398,17 +2447,51 @@ impl Coordinator {
             .unwrap_or_else(|| self.default_effective_budget());
         let context_pack =
             self.build_context_pack(task, &target_files, &target_symbols, budget.retrieval_cap)?;
-
-        Ok(InternalTaskAssignment {
+        let worker_role = infer_worker_role_from_task(task);
+        let lane = default_lane_for_task_type(&task.task_type);
+        let assignment_contract = WorkerAssignmentContract {
+            session_id: {
+                let session_id = self.session_id();
+                if session_id.trim().is_empty() {
+                    self.mission_id.clone().unwrap_or_else(|| task.id.clone())
+                } else {
+                    session_id
+                }
+            },
+            story_id: None,
             task_id: task.id.clone(),
-            title: task.description.clone(),
-            description: task.description.clone(),
             task_type: task.task_type.clone(),
+            lane,
+            goal: task.description.clone(),
+            requirement_refs: Vec::new(),
+            context_artifact_refs: context_pack
+                .as_ref()
+                .map(|pack| vec![format!("context_pack:{}", pack.id)])
+                .unwrap_or_default(),
             target_files,
             target_symbols,
-            token_budget: budget.task_cap,
+            expected_artifacts: default_expected_artifacts(lane, &task.task_type),
+            allowed_tools: self
+                .tool_registry
+                .allowed_tool_names(worker_role, &task.task_type),
+            budget: WorkerExecutionBudget {
+                token_budget: budget.task_cap,
+                max_tool_turns: self.config.max_tool_turns,
+                max_tool_calls: self.config.max_tool_calls,
+                max_mutating_tool_calls: self.config.max_mutating_tool_calls,
+            },
+            termination_condition: default_termination_condition(lane, &task.task_type),
+            verification_required: task.task_type == TaskType::CodeModification,
+            workspace_revision_token: context_pack.as_ref().and_then(|pack| {
+                (!pack.base_revision.trim().is_empty()).then(|| pack.base_revision.clone())
+            }),
+            planning_origin_ref: PlanningOriginRef::direct(),
+        };
+
+        Ok(InternalTaskAssignment::from_contract(
+            assignment_contract,
             context_pack,
-        })
+        ))
     }
 
     fn build_context_pack(
@@ -2869,6 +2952,7 @@ impl Coordinator {
             target_symbols: target_symbols.to_vec(),
             token_budget: self.config.task_token_budget,
             context_pack: None,
+            canonical_contract: None,
         };
         route(
             task,
@@ -3109,12 +3193,7 @@ fn tool_error_message(tool_call_id: &str, error: String) -> crate::provider::Cha
 }
 
 fn infer_worker_role_from_task(task: &Task) -> &'static str {
-    match task.task_type {
-        TaskType::CodeModification => "coder",
-        TaskType::Review => "reviewer",
-        TaskType::Retrieval => "architect",
-        TaskType::General => "executor",
-    }
+    default_worker_role(&task.task_type)
 }
 
 fn load_documents(
@@ -3680,6 +3759,7 @@ mod tests {
             target_symbols: Vec::new(),
             token_budget: 2_500,
             context_pack: None,
+            canonical_contract: None,
         }
     }
 
