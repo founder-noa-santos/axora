@@ -108,7 +108,7 @@ openakta-embeddings = { path = "crates/openakta-embeddings" }
 openakta-mcp-wasi-tools = { path = "crates/openakta-mcp-wasi-tools" }
 
 # Phase 1: Embeddings & ML
-candle-core = "0.8"
+candle-core = "0.9"
 candle-transformers = "0.8"
 candle-nn = "0.8"
 
