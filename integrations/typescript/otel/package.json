@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@openakta/logger-core": "workspace:*",
-    "@opentelemetry/api-logs": "^0.52.1",
+    "@opentelemetry/api-logs": "^0.214.0",
     "@opentelemetry/sdk-logs": "^0.52.1",
     "@types/node": "^22.10.0",
     "tsup": "^8.5.1",
