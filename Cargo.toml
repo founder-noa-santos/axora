@@ -126,7 +126,7 @@ tree-sitter-python = "0.23"
 tantivy = "0.22"
 
 # Phase 1: Caching
-rocksdb = "0.22"
+rocksdb = "0.24"
 
 # Phase 1: File watching
 notify = "6.1"
